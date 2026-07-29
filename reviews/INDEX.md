@@ -5,7 +5,8 @@ When you add a finding, add a row here.
 
 | Date | Author | File | Topic | Status |
 |------|--------|------|-------|--------|
-| 2026-07-29 | Grok | [findings/2026-07-29-grok-phase1-session.md](./findings/2026-07-29-grok-phase1-session.md) | Phase 1 deliverables, session handoff, Round Table feasibility, improvement backlog | ready for review |
+| 2026-07-29 | Grok (research) | [findings/2026-07-29-grok-research-roundtable-kill-skills.md](./findings/2026-07-29-grok-research-roundtable-kill-skills.md) | Round Table research, kill architecture, skills inventory, Phase 1 artifact feedback | ready for review |
+| 2026-07-29 | Grok (Build) | [findings/2026-07-29-grok-phase1-session.md](./findings/2026-07-29-grok-phase1-session.md) | Phase 1 deliverables, session handoff, Round Table feasibility, improvement backlog | ready for review |
 
 ## Status legend
 
