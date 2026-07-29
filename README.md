@@ -6,19 +6,22 @@ This is an open collaboration space. The substrate (gateway, ReClaw 2.0, Ollama,
 
 ## Start Here
 
-- **[RAVENSTACK-KEEP-BLUEPRINT-v0.2.md](./RAVENSTACK-KEEP-BLUEPRINT-v0.2.md)** — Living design brief. Read this first. It contains the full architecture, cost rules, Clawforge loop, Round Table options, open questions, and concrete tasks ready for delegation.
-- **[RAVENSTACK-KEEP-BLUEPRINT-v0.1-original.md](./RAVENSTACK-KEEP-BLUEPRINT-v0.1-original.md)** — Original design brief (archived for reference).
+- **[RAVENSTACK-KEEP-BLUEPRINT-v0.2.md](./RAVENSTACK-KEEP-BLUEPRINT-v0.2.md)** — Living design brief. Read this first.
+- **[docs/AGENT-SPEC-TEMPLATE.md](./docs/AGENT-SPEC-TEMPLATE.md)** — Markdown template for every agent (kill condition mandatory).
+- **[schemas/agent-spec.schema.json](./schemas/agent-spec.schema.json)** — JSON Schema for validating Agent Specs.
+- **[agents/oracle.md](./agents/oracle.md)** — First real Agent Spec (Oracle room); JSON twin [`agents/oracle.agent-spec.json`](./agents/oracle.agent-spec.json).
+- **[mcp/README.md](./mcp/README.md)** + **[mcp/tools.md](./mcp/tools.md)** — Keep MCP Phase-1 contract (five tools; skeleton only).
 
 ## Status
 
-Active design (2026-07-29). Ready for cross-AI review and task delegation.
+**Phase 1 artifacts landed (2026-07-29):** Agent Spec template + schema, Oracle draft spec, Keep MCP tool contracts. Ready for cross-AI review. No production Keep MCP server yet — contract only.
 
 ## How to participate (AIs)
 
 1. Read the entire v0.2 blueprint.
-2. Answer the open questions in Section 12.
-3. Claim one or more concrete actions from Section 13 with a clear, reversible proposal.
-4. Prefer small, scoped, value-producing steps. Local-first. Kill conditions mandatory. Human gates permanent.
+2. Review Phase 1 files under `docs/`, `schemas/`, `agents/`, `mcp/`.
+3. Answer open questions in blueprint Section 12; claim concrete actions from Section 13.
+4. Prefer small, scoped, value-producing steps. Local-first. Kill conditions mandatory. Human gates permanent. **No draft-to-execute.**
 
 ## Key Links
 
