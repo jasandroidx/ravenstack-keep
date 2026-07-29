@@ -1,0 +1,320 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jasandroidx/ravenstack-keep/schemas/agent-spec.schema.json",
+  "title": "Ravenstack Keep Agent Spec",
+  "description": "Schema for Keep Agent Specs (blueprint v0.2 §3.2). kill_condition and local-default model_tier are mandatory. No draft-to-execute.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "spec_version",
+    "id",
+    "status",
+    "name",
+    "character",
+    "room",
+    "purpose",
+    "model_tier",
+    "tools",
+    "skills",
+    "knowledge_seeds",
+    "triggers",
+    "handoffs",
+    "human_gates",
+    "kill_condition",
+    "success_criteria"
+  ],
+  "properties": {
+    "spec_version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Agent Spec schema version."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,62}$",
+      "description": "Unique kebab-case agent id (slug)."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "approved", "live", "retired"],
+      "description": "Lifecycle status. live only after human approval."
+    },
+    "created": {
+      "type": "string",
+      "format": "date",
+      "description": "ISO date the spec was first drafted."
+    },
+    "updated": {
+      "type": "string",
+      "format": "date",
+      "description": "ISO date of last material edit."
+    },
+    "owner": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human owner / operator of record."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "description": "Human-readable agent name."
+    },
+    "character": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "description": "Identity and voice of the agent."
+    },
+    "room": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["room_id", "room_name", "lock_state"],
+      "properties": {
+        "room_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,62}$"
+        },
+        "room_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lock_state": {
+          "type": "string",
+          "enum": ["UNFORGED", "live", "locked"],
+          "description": "Room lock state. UNFORGED = visible empty future capability."
+        }
+      }
+    },
+    "purpose": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 280,
+      "description": "Exactly one sentence stating the agent's job.",
+      "pattern": "^[^\n]+$"
+    },
+    "model_tier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["default", "allowed"],
+      "properties": {
+        "default": {
+          "type": "string",
+          "const": "local",
+          "description": "Non-negotiable: every agent defaults to local / free models."
+        },
+        "allowed": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": ["local", "escalate", "god"]
+          },
+          "contains": { "const": "local" },
+          "description": "Tiers this agent may use. Must include local."
+        },
+        "local_model_hint": {
+          "type": "string",
+          "description": "Preferred local model tag (e.g. phi4-mini, gemma4)."
+        },
+        "escalate_when": {
+          "type": "string",
+          "description": "Conditions under which escalate tier may be used."
+        },
+        "god_mode": {
+          "type": "string",
+          "description": "Must remain operator-triggered with cost preview; never ambient."
+        }
+      }
+    },
+    "tools": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "source", "access"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "keep-mcp",
+              "reclaw-platform",
+              "openclaw",
+              "browser",
+              "filesystem",
+              "api",
+              "other"
+            ]
+          },
+          "access": {
+            "type": "string",
+            "enum": ["read", "write", "gated"]
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "skills": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["existing", "forge_must_write"],
+      "properties": {
+        "existing": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string" },
+              "source": { "type": "string" },
+              "notes": { "type": "string" }
+            }
+          }
+        },
+        "forge_must_write": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string" },
+              "notes": { "type": "string" }
+            }
+          },
+          "description": "Skills Clawforge may draft only; never auto-install."
+        }
+      }
+    },
+    "knowledge_seeds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["indexes"],
+      "properties": {
+        "indexes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": ["self", "domain", "longtail"]
+          },
+          "description": "Allowed narrow RAG indexes. general is intentionally excluded."
+        },
+        "vault_globs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Optional path/topic globs under the vault this agent may query."
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "triggers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["on_demand"],
+      "properties": {
+        "on_demand": {
+          "type": "boolean",
+          "description": "Whether operator/client can invoke this agent directly."
+        },
+        "events": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "cron": {
+          "type": ["string", "null"],
+          "description": "Cron expression if any. Paid models on cron are forbidden by policy."
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "handoffs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outbound", "inbound"],
+      "properties": {
+        "outbound": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/handoff" }
+        },
+        "inbound": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/handoff" }
+        }
+      }
+    },
+    "human_gates": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 3
+      },
+      "description": "Actions requiring explicit operator approval."
+    },
+    "kill_condition": {
+      "type": "string",
+      "minLength": 16,
+      "maxLength": 2000,
+      "description": "Mandatory concrete condition for retiring or locking this agent."
+    },
+    "success_criteria": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 3
+      },
+      "description": "Measurable success tests for the agent."
+    },
+    "example_queries": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 10,
+      "items": {
+        "type": "string",
+        "minLength": 3
+      },
+      "description": "Example test queries or tasks (3–5 recommended for Phase 1 agents)."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional freeform notes, non-goals, links."
+    }
+  },
+  "$defs": {
+    "handoff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target", "when"],
+      "properties": {
+        "target": {
+          "type": "string",
+          "description": "Target agent id or room id."
+        },
+        "when": {
+          "type": "string",
+          "description": "Condition that triggers the handoff."
+        },
+        "payload": {
+          "type": "string",
+          "description": "What must be included in the handoff."
+        }
+      }
+    }
+  }
+}
