@@ -3,6 +3,8 @@
 Living list of multi-AI reviews. **Newest first.**  
 When you add a finding, add a row here.
 
+**Operator compass:** [`../ACTIVE.md`](../ACTIVE.md) — where we are + single active thread.
+
 | Date | Author | File | Topic | Status |
 |------|--------|------|-------|--------|
 | 2026-07-29 | Grok + operator | [findings/2026-07-29-grok-roundtable-v0-decision.md](./findings/2026-07-29-grok-roundtable-v0-decision.md) | Round Table v0 = subscription seats + findings; multi-API god-tier only | accepted |
