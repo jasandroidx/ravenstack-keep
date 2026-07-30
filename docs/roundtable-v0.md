@@ -1,92 +1,80 @@
-# Round Table v0 — Operator Runbook (draft)
+# Round Table v0 — Operator Runbook
 
-**Status:** Draft — depends on acceptance of the recommendation in  
-[`reviews/findings/2026-07-29-grok-roundtable-vehicle-recommendation.md`](../reviews/findings/2026-07-29-grok-roundtable-vehicle-recommendation.md).
-
-**Vehicle:** [Roundtable.sh](https://roundtable.sh) / [frontier-infra/roundtable](https://github.com/frontier-infra/roundtable) (MIT, local, your API keys only).
+**Status:** Accepted policy (2026-07-29)  
+**Decision record:** [`reviews/findings/2026-07-29-grok-roundtable-v0-decision.md`](../reviews/findings/2026-07-29-grok-roundtable-v0-decision.md)
 
 ---
 
-## 1. What this is for
+## 1. What Round Table is (v0)
 
-High-stakes design questions only:
+**Default:** Several subscription AI seats (Grok, Claude, Gemini, …) deliberate on the **same hard question** with **shared context** (blueprint + `reviews/findings/` + MCP/vault as available). Each seat writes a **finding**. **Jason chairs** and accepts or rejects.
+
+**Not default:** Multi-frontier **API** councils (Roundtable.sh, N-way OpenRouter fanout, etc.). Those are **god-tier only** — rare, cost shown first, same discipline as god model tier.
+
+**Why:** Parallel paid frontier calls can cost on the order of $1–5 per hard question. That is not sustainable as normal Keep infrastructure on a tight monthly API budget.
+
+---
+
+## 2. When to call the table
+
+Hard design questions only:
 
 - Blueprint open questions (§12)
-- Agent Spec / kill-condition debates
-- Architecture choices (e.g. thin front-end vs heavier fork)
-- Cost or security trade-offs
+- Agent Spec / kill-condition / cost debates
+- Architecture choices (MCP shape, front-end path, phase order)
+- Live-substrate findings that need multi-model pushback
 
-**Not** for status checks, triage, ambient chat, or routine agent work.
-
----
-
-## 2. Install (once)
-
-```bash
-curl -fsSL https://roundtable.sh/install.sh | bash
-# alternatives: pip install roundtable | uv tool install roundtable | brew install frontier-infra/tap/roundtable
-
-roundtable auth          # interactive, masked; writes ~/.config/roundtable/config.env (chmod 600)
-roundtable doctor        # confirm which heads are live
-```
-
-Optional MCP wiring (Claude Code / Cursor / Codex):
-
-```bash
-roundtable install
-# or manually: roundtable mcp config
-```
+**Not** for status, triage, ambient chat, or routine agent work.
 
 ---
 
-## 3. How to run a council
+## 3. How to run a subscription Round Table
 
-**Advisory (default — cheaper, independent answers):**
-```bash
-roundtable "Your hard question here?"
-# or with explicit heads and saved output:
-roundtable ask -q "Your hard question here?" --heads grok,claude,gemini --out /tmp/rt-out.md
-```
+1. **Pick the question** (one sentence + constraints).
+2. **Point every seat** at:
+   - Repo: `https://github.com/jasandroidx/ravenstack-keep` branch `ravenstack`
+   - Blueprint + `reviews/README.md` + `reviews/INDEX.md` + relevant findings
+   - The multi-AI protocol (paste if needed)
+3. **Each AI** writes a finding under `reviews/findings/` using `TEMPLATE.md` and updates `INDEX.md` (or the partner AI files it for them).
+4. **Operator** reads INDEX, decides, and optionally records acceptance in a short finding or vault note.
+5. **Only after human approval** may consensus language enter the blueprint, an Agent Spec, or production config.
 
-**Deliberation (multi-round, Claude chair):**
-```bash
-roundtable ask -q "Your hard question here?" --heads grok,claude,gemini --rounds 2 --out /tmp/rt-out.md
-```
+### Standing seats (suggested)
 
-Useful flags: `-c context.md` (attach blueprint excerpt or Spec), `--research`, `--timeout`.
-
----
-
-## 4. Cost rules (non-negotiable)
-
-- Default to the smallest useful head set (2–3).
-- Paid heads only when explicitly chosen for that question.
-- No cron, no ambient use, no background loops.
-- Monthly budget ceiling still stops paid traffic (Phase 4).
-- Local / free models remain the default for everything else in the Keep.
+| Seat | Role |
+|------|------|
+| Grok (partner) | Architecture, research, protocol, filing |
+| Grok Build | Scaffolding, schemas, code-shaped artifacts |
+| Claude | Live substrate verification, hard pushback |
+| Others (Gemini, …) | By invitation on specific questions |
 
 ---
 
-## 5. Turning a council into durable Keep knowledge
+## 4. God-tier multi-API council (optional, rare)
 
-1. Run with `--out` so the full transcript is saved.
-2. Operator (or reviewing AI) writes a short finding under `reviews/findings/` using the TEMPLATE.
-3. Only after **human approval** may consensus language be copied into the blueprint, an Agent Spec, or a Ravenstack vault note.
-4. Never treat a council verdict as auto-executed policy.
+Tools such as [Roundtable.sh](https://roundtable.sh) remain valid **only when**:
 
----
+- Operator explicitly triggers them
+- Cost is previewed and accepted
+- Question is high-stakes enough to justify API spend
+- Output is still filed as a finding and **not** auto-executed
 
-## 6. Suggested first question
-
-> For Ravenstack Keep Phase 2, should we build a thin custom front-end over the existing ReClaw AgentEvent stream + Keep MCP, or fork agent-virtual-office more heavily for the visual room layer? Constraints: solo operator, tight budget, local-first, domain pipeline (not pure coding agents), unlockable UNFORGED rooms. Give a clear recommendation with the main risks of each path.
+Do **not** install or cron these for v0 default work.
 
 ---
 
-## 7. Later evolution
+## 5. Cost rules (non-negotiable)
 
-- Thin `roundtable-invoker` skill (draft → human approve) that calls the CLI/MCP and drops a structured note.
-- Agent Mind Bridge only if we need multi-day shared threads across Claude/Gemini/Grok sessions.
-- Visual “table in the Keep UI” is Phase 5+ aesthetic work.
+- Default table = **$0 marginal** beyond existing subscriptions
+- No ambient multi-model API chatter
+- Monthly API ceiling still stops paid traffic when enforced
+- Local / free models remain default for agents inside the fortress
+
+---
+
+## 6. Relationship to blueprint Phase 5
+
+Blueprint Phase 5 (“Round Table integration”) is satisfied in **spirit** by this v0 protocol. A visual “table in the Keep UI” and automated multi-API invokers stay later, value-gated, and budget-gated.
 
 ---
 
