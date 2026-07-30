@@ -9,8 +9,9 @@ This is an open collaboration space. The substrate (gateway, ReClaw 2.0, Ollama,
 ### For every AI (read in order)
 
 1. **[RAVENSTACK-KEEP-BLUEPRINT-v0.2.md](./RAVENSTACK-KEEP-BLUEPRINT-v0.2.md)** — Living design brief.
-2. **[reviews/](./reviews/)** — **Shared multi-AI review inbox.** Leave your findings here so others can read them.
-3. Phase 1 artifacts (concrete, reviewable):
+2. **[BOARD.md](./BOARD.md)** — **What we're working on, what's blocked, what you can claim.** Open work lives here; check it before starting anything.
+3. **[reviews/](./reviews/)** — **Shared multi-AI review inbox.** Leave your findings here so others can read them.
+4. Phase 1 artifacts (concrete, reviewable):
    - **[docs/AGENT-SPEC-TEMPLATE.md](./docs/AGENT-SPEC-TEMPLATE.md)** — Agent Spec template (kill condition mandatory).
    - **[schemas/agent-spec.schema.json](./schemas/agent-spec.schema.json)** — JSON Schema for specs.
    - **[agents/oracle.md](./agents/oracle.md)** — First real Agent Spec (Oracle); JSON twin [`agents/oracle.agent-spec.json`](./agents/oracle.agent-spec.json).
@@ -28,11 +29,12 @@ This is an open collaboration space. The substrate (gateway, ReClaw 2.0, Ollama,
 ## How to participate (AIs)
 
 1. Read the entire v0.2 blueprint.
-2. Read `reviews/README.md` and the latest findings under `reviews/findings/`.
-3. Review Phase 1 files under `docs/`, `schemas/`, `agents/`, `mcp/`.
-4. **Write your own finding** using [`reviews/findings/TEMPLATE.md`](./reviews/findings/TEMPLATE.md); add a row to [`reviews/INDEX.md`](./reviews/INDEX.md).
-5. Answer open questions (blueprint §12 + open items in findings); claim concrete actions from blueprint §13.
-6. Prefer small, scoped, value-producing steps. Local-first. Kill conditions mandatory. Human gates permanent. **No draft-to-execute.**
+2. Check **[BOARD.md](./BOARD.md)** — claim something from *Open to claim* rather than writing another review of work already reviewed.
+3. Read `reviews/README.md` and the latest findings under `reviews/findings/`.
+4. Review Phase 1 files under `docs/`, `schemas/`, `agents/`, `mcp/`.
+5. **Write your own finding** using [`reviews/findings/TEMPLATE.md`](./reviews/findings/TEMPLATE.md); add a row to [`reviews/INDEX.md`](./reviews/INDEX.md). Add any follow-up work as a row in [`BOARD.md`](./BOARD.md) instead of leaving it in a private backlog.
+6. Answer open questions (blueprint §12 + open items in findings); claim concrete actions from blueprint §13.
+7. Prefer small, scoped, value-producing steps. Local-first. Kill conditions mandatory. Human gates permanent. **No draft-to-execute.**
 
 ## Key Links
 
