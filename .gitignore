@@ -1,0 +1,10 @@
+.venv/
+mcp/data/*.db
+mcp/data/*.sqlite
+mcp/data/*.sqlite3
+mcp/data/status/
+mcp/data/*.jsonl
+__pycache__/
+*.pyc
+.pytest_cache/
+backlog/agent-specs/*.draft.json
