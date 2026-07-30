@@ -48,11 +48,12 @@ Ravenstack Keep is the visual + progressive + collaborative command layer on top
 | Local inference | Ollama (gemma4, phi4-mini, qwen3:1.7b, llama3.1:8b + cloud variants) |
 | Knowledge | Obsidian vault, 121+ Ravenstack notes, RAG live via POST /rag/search |
 | Agent handoffs | Working: analyst → researcher → content_studio |
-| Existing rooms | 2 active (Orchestrator, Clawforge), 3 unforged (Oracle, Scribe Warden, Flipper) |
-| Client | Ubuntu laptop, Claude Desktop available |
+| Existing rooms (canonical) | **8 rooms** per [KEEP-SOT-DECISION.md](./KEEP-SOT-DECISION.md): **live** `orchestrator`, `clawforge`; **UNFORGED** `oracle`, `scribe`, `auditor`, `lead_forge`, `suno_studio`, `flipper`. Coordinates in `mcp/seeds/castle_map.json`. |
+| Agents “real” | Only schema-valid `agents/*.agent-spec.json` at `status ≥ approved`. Today: `oracle` is **draft** only; other roster names are candidates (no spec). |
+| Client | Ubuntu laptop, Claude Desktop / Pro available |
 | OpenRouter strategy | Documented, cost tiering playbooks exist |
 
-**Design implication:** Keep is front-end + routing/spec + progression + multi-model deliberation layer. Risk is in the new layer, not the foundation.
+**Design implication:** Keep is front-end + routing/spec + progression + multi-model deliberation layer. Risk is in the new layer, not the foundation. Machine-readable Keep truth lives in this **repo**; vault Oracle remains narrative fortress SOT only.
 
 ---
 
@@ -267,6 +268,8 @@ Biggest risk remains: more fun to build than to use. Every phase must produce so
 Primary: **Ravenstack Keep**  
 Factory: **Clawforge**  
 Deliberation: **Round Table** (or Keep Table)
+
+**Clawforge** is the **meta-forge** (idea → Agent Spec draft → human approval → provision), **not** an execution/build room. An earlier Drive Spatial Layout used the same name for a task-execution forge; that meaning was **rejected** in [KEEP-SOT-DECISION.md](./KEEP-SOT-DECISION.md). The `clawforge` room on the map is the home of forge/compiler work under that meta-forge concept; `orchestrator` holds the moderator desk (`raziel-main` candidate).
 
 ---
 

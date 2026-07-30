@@ -1,215 +1,116 @@
-# Keep MCP — Phase-1 tool contracts
+# Keep MCP — tool catalog (v0)
 
-Five tools only. Names match [blueprint v0.2 §4.2](../RAVENSTACK-KEEP-BLUEPRINT-v0.2.md).  
-Transport: streamable-http. Auth: Tailscale-first (see [README.md](./README.md)).
+**Server name:** `ravenstack-keep`  
+**Transport:** stdio (dev) · streamable-http `:8110` (Tailscale later)  
+**Split:** Fortress ops stay on **reclaw-platform** (`:8100`). This server is the Keep control plane only.  
+**Deferred:** Section E (cost event pipeline / model routing policy).  
+**SOT:** Map seed `mcp/seeds/castle_map.json` is **CANONICAL** ([KEEP-SOT-DECISION.md](../KEEP-SOT-DECISION.md)). Agent Specs on disk are agent truth when `status ≥ approved`.
 
-All tools are **synchronous request/response**. Errors use structured MCP errors with a short `message` and optional `code`.
-
----
-
-## 1. `list_rooms`
-
-**Purpose:** Inventory Keep rooms and lock/occupant state for the dashboard and agents.
-
-### Input
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `include_unforged` | boolean | no (default `true`) | Include `UNFORGED` rooms |
-| `lock_state` | string enum | no | Filter: `UNFORGED` \| `live` \| `locked` |
-
-### Output
-
-```json
-{
-  "rooms": [
-    {
-      "room_id": "oracle",
-      "name": "Oracle",
-      "lock_state": "UNFORGED",
-      "occupant_agent_id": "oracle",
-      "status_summary": "draft-spec",
-      "updated_at": "2026-07-29T00:00:00Z"
-    }
-  ]
-}
-```
-
-### Notes
-
-- Seed v0 rooms from blueprint: Orchestrator, Clawforge (active); Oracle, Scribe Warden, Flipper (unforged).
-- Read-only.
+All tools are synchronous. Errors return `{ "error", "code", "message" }`.
 
 ---
 
-## 2. `report_agent_status`
+## H — Meta
 
-**Purpose:** Agents (or their wrappers) publish live status so the Keep UI can move without scraping logs.
-
-### Input
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `agent_id` | string | yes | Must match a known Agent Spec `id` |
-| `state` | string enum | yes | `idle` \| `answering` \| `working` \| `waiting_human` \| `failed` \| `retired` |
-| `task` | string | no | Short current task description |
-| `confidence` | number | no | 0.0–1.0 if the agent reports it |
-| `session_id` | string | no | Correlates multi-step work |
-| `detail` | string | no | Optional free text (keep short) |
-
-### Output
-
-```json
-{
-  "ok": true,
-  "agent_id": "oracle",
-  "state": "answering",
-  "updated_at": "2026-07-29T12:00:00Z"
-}
-```
-
-### Notes
-
-- **Write** to state store only (status row). Not a general event bus.
-- Reject unknown `agent_id` (must have a spec file or registered row).
-- `retired` is reportable for display; enforcing kill_condition remains a human/Orchestrator policy action.
+| Tool | Access | Notes |
+|------|--------|-------|
+| `keep_health` | read | Liveness, room/spec counts, vault path, SOT status |
+| `sot_versions` | read | Which seeds/specs loaded; policy note |
 
 ---
 
-## 3. `get_agent_spec`
+## A — Core control plane
 
-**Purpose:** Return the Agent Spec that makes an agent “real.”
-
-### Input
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `agent_id` | string | yes | Spec id (e.g. `oracle`) |
-| `format` | string enum | no | `json` (default) \| `markdown` |
-
-### Output
-
-```json
-{
-  "agent_id": "oracle",
-  "status": "draft",
-  "spec": { "...": "full Agent Spec object per schema" },
-  "source_path": "agents/oracle.agent-spec.json"
-}
-```
-
-If `format=markdown`, `spec` may be a string body of `agents/<id>.md` instead of the JSON object.
-
-### Notes
-
-- Validate JSON against `schemas/agent-spec.schema.json` before return; on invalid spec, return error rather than a partial agent.
-- Read-only. Approval / status transitions are **not** Phase 1 tools.
+| Tool | Access | Notes |
+|------|--------|-------|
+| `list_rooms` | read | Filter `include_unforged`, `lock_state` |
+| `get_room` | read | Room + occupant status |
+| `report_agent_status` | write | `idle` \| `answering` \| `working` \| `waiting_human` \| `failed` \| `retired` |
+| `get_agent_spec` | read | `format=json\|markdown`; schema-validated |
+| `list_agent_specs` | read | Roster + validation flags |
+| `query_scoped_knowledge` | read | Enforces `knowledge_seeds`; `general` → `scope_denied` |
+| `get_cost_summary` | read | Stub zeros until section E |
 
 ---
 
-## 4. `query_scoped_knowledge`
+## B — Map / dashboard / A2A
 
-**Purpose:** RAG query that **respects the calling agent’s knowledge_seeds**.
-
-### Input
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `agent_id` | string | yes | Spec whose `knowledge_seeds` apply |
-| `query` | string | yes | Natural-language query |
-| `top_k` | integer | no | Default 5, max 20 |
-| `indexes` | string[] | no | Subset of the agent’s allowed indexes; default = all allowed |
-
-### Output
-
-```json
-{
-  "agent_id": "oracle",
-  "indexes_used": ["self"],
-  "results": [
-    {
-      "path": "Ravenstack/RAVENSTACK-ORACLE.md",
-      "section": "Quick Start for Agents",
-      "snippet": "…",
-      "score": 0.83,
-      "index": "self"
-    }
-  ]
-}
-```
-
-### Notes
-
-- If `indexes` requests an index **not** in the agent’s seeds → **error** (`scope_denied`), do not silently widen.
-- `general` is never a valid index in Keep (schema excludes it).
-- v0 implementation may proxy to reclaw-platform `query_knowledge` / `POST /rag/search` and **filter** results by path globs from the spec.
-- Read-only. Does not ingest or write vault files.
+| Tool | Access | Notes |
+|------|--------|-------|
+| `get_castle_map` | read | Rooms + coords + status chips |
+| `list_a2a_messages` | read | Empty → honest not instrumented |
+| `get_agent_trace` | read | By `trace_id`; no invented chains |
+| `get_queue_depth` | read | Per room or all |
+| `list_waiting_human` | read | Agents + pending gates |
+| `get_desk_assignment` | read | Agent → room → x,y |
 
 ---
 
-## 5. `get_cost_summary`
+## C — Governance
 
-**Purpose:** Per-agent and monthly cost attribution surface (even if zeros in v0).
-
-### Input
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `agent_id` | string | no | If set, filter to one agent |
-| `month` | string | no | `YYYY-MM`; default = current UTC month |
-
-### Output
-
-```json
-{
-  "month": "2026-07",
-  "currency": "USD",
-  "monthly_ceiling": null,
-  "total_est_usd": 0.0,
-  "by_agent": [
-    {
-      "agent_id": "oracle",
-      "tier_breakdown": { "local": 0.0, "escalate": 0.0, "god": 0.0 },
-      "est_usd": 0.0,
-      "call_count": 0
-    }
-  ],
-  "notes": "v0 may return zeros until cost events are wired (Phase 4)."
-}
-```
-
-### Notes
-
-- Read-only summary. Recording cost events can be an internal helper used by escalate/god paths later; not a Phase-1 public tool.
-- Local tier always attributes **$0** marginal (still may count calls for observability).
-- When a monthly ceiling exists (Phase 4), crossing it **stops** paid calls; this tool only reports.
+| Tool | Access | Notes |
+|------|--------|-------|
+| `propose_agent_spec` | write | Draft → `backlog/agent-specs/` only |
+| `approve_spec` | **gated** | `confirm=true`; promotes to `agents/`; no unlock |
+| `unlock_room` | **gated** | `confirm=true`; requires approved/live occupant when present |
+| `retire_agent` | **gated** | `confirm=true`; locks room if live |
+| `list_pending_gates` | read | Keep-wide gates |
+| `diff_agent_spec` | read | Live vs backlog draft |
 
 ---
 
-## Explicitly deferred (not Phase 1)
+## D — Rituals / hygiene
 
-| Tool | Phase |
-|------|--------|
-| `get_room` / `list_agent_specs` | convenience aliases |
-| `propose_agent_spec` | Clawforge |
-| `approve_spec` | human gate |
-| `unlock_room` | progression |
-| any execute / install / spend tool | never without permanent human gate |
+| Tool | Access | Notes |
+|------|--------|-------|
+| `trigger_reload_ritual` | **gated** | `confirm=true`; default `dry_run=true`; real exec needs `KEEP_RELOAD_CMD` |
+| `reload_status` | read | Last ritual record |
+| `list_knowledge_indexes` | read | Never `general` |
+| `explain_scope` | read | Per-agent seeds |
+| `search_castle_events` | read | Status/gate/ritual events |
 
 ---
 
-## Client usage sketch
+## F — Round table (stubs)
+
+| Tool | Access | Notes |
+|------|--------|-------|
+| `start_roundtable` | gated stub | `not_instrumented` |
+| `get_roundtable_status` | stub | `not_instrumented` |
+| `submit_roundtable_vote` | gated stub | `not_instrumented` |
+| `get_consensus_result` | stub | `not_instrumented` |
+
+---
+
+## E — Deferred (do not implement yet)
+
+- `record_cost_event`
+- `get_model_routing_policy`
+- `budget_remaining`
+- Full cost ledger writers
+
+---
+
+## Explicit non-tools
+
+- Generic shell / `exec`
+- Unscoped vault write
+- Auto-install skills or OpenClaw config
+- Public unauthenticated exposure of Keep
+
+---
+
+## Client sketch
 
 ```
-# list rooms
 list_rooms({ include_unforged: true })
+get_castle_map()
+get_agent_spec({ agent_id: "oracle" })
+report_agent_status({ agent_id: "oracle", state: "answering", task: "Q about MCP" })
+query_scoped_knowledge({ agent_id: "oracle", query: "reload ritual", top_k: 5 })
+report_agent_status({ agent_id: "oracle", state: "idle" })
 
-# oracle answers → status
-report_agent_status({ agent_id: "oracle", state: "answering", task: "Q about MCP endpoints" })
-query_scoped_knowledge({ agent_id: "oracle", query: "Tailscale MCP endpoint?", top_k: 5 })
-report_agent_status({ agent_id: "oracle", state: "idle", session_id: "…" })
-
-# inspect policy
-get_agent_spec({ agent_id: "oracle", format: "json" })
-get_cost_summary({ agent_id: "oracle" })
+# gates
+approve_spec({ agent_id: "oracle", confirm: true })   # human only
+unlock_room({ room_id: "oracle", confirm: true })
 ```

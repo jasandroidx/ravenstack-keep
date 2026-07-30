@@ -1,88 +1,81 @@
-# Keep MCP (skeleton)
+# Keep MCP (`ravenstack-keep`)
 
-**Status:** Phase 1 **contract only** — no full server implementation in this commit.  
-**Goal:** A dedicated streamable-http MCP surface for Ravenstack Keep so UIs, local agents, Claude Desktop, Grok, and Round Table clients can list rooms, report status, read specs, query **scoped** knowledge, and see cost summaries without knowing internal ReClaw ports.
+**Status:** v0 implementation (local). Contracts + working stdio/HTTP server.  
+**Not:** reclaw-platform. Ops (sitrep, docker, county queue, vault RW) stay on `:8100`.
 
-Blueprint: [RAVENSTACK-KEEP-BLUEPRINT-v0.2.md](../RAVENSTACK-KEEP-BLUEPRINT-v0.2.md) §4.2.
+Thin control plane for:
 
-## Why a separate MCP?
+- Rooms / castle map / desk assignments  
+- Agent Specs (read, propose draft, gated approve/retire)  
+- Scoped knowledge (`knowledge_seeds`)  
+- Human gates + event log  
+- Honest A2A/round-table stubs until instrumented  
 
-| Need | Keep MCP role |
-|------|----------------|
-| Room / agent status for the visual Keep | `list_rooms`, `report_agent_status` |
-| Specs as the unit of reality | `get_agent_spec` |
-| Enforce knowledge seeds | `query_scoped_knowledge` |
-| Cost attribution (before Phase 4 full governance) | `get_cost_summary` |
-| Later forge loop | `propose_agent_spec`, `approve_spec`, `unlock_room` (out of Phase 1) |
-
-Existing **reclaw-platform** remains the fortress ops connector (sitrep, vault RW, pipeline). Keep MCP is a **thin control plane** on top — it may call reclaw-platform or local stores, but clients should not re-implement room/spec policy.
-
-## Phase-1 tools (exactly five)
-
-See **[tools.md](./tools.md)** for full input/output contracts.
-
-1. `list_rooms`
-2. `report_agent_status`
-3. `get_agent_spec`
-4. `query_scoped_knowledge`
-5. `get_cost_summary`
-
-Aliases noted in the blueprint (`get_room`, `list_agent_specs`) can be added later; Phase 1 implements the five names above.
-
-## Suggested transport
-
-| Item | Choice |
-|------|--------|
-| Protocol | **MCP over streamable-http** (same pattern as reclaw-platform on `:8100`) |
-| Default bind | Tailnet-only, e.g. `http://100.x.x.x:8110/mcp` (port TBD; do not collide with 8100) |
-| Health | `GET /health` → `{ "status": "ok", "service": "ravenstack-keep", "transport": "streamable-http" }` |
-| Local dev | stdio optional for Grok Build / CLI tests; production path is HTTP |
-
-## Auth approach (Tailscale-first)
-
-1. **Preferred:** Listen only on the Tailscale interface (or bind `127.0.0.1` + Tailscale serve). Identity = presence on the tailnet. No public Cloudflare quick tunnel for v0.
-2. **Secondary:** Shared API key / bearer token in `Authorization` header for non-Tailscale automation (document rotation; store in env, never in git).
-3. **Not for v0:** Open public internet without auth. If a tunnel is ever required, treat the URL as secret and add auth first.
-
-Mutating tools (`report_agent_status`) are low-risk status writes. Future approve/forge tools must stay **gated** (`confirm=true` + human intent), never draft-to-execute.
-
-## State store for v0 (simplest possible)
-
-Use **one SQLite file** (recommended) or a small directory of **JSON files** under `mcp/data/` (gitignored):
-
-| Entity | SQLite table / JSON file | Fields (minimal) |
-|--------|---------------------------|------------------|
-| rooms | `rooms` / `rooms.json` | `room_id`, `name`, `lock_state`, `occupant_agent_id`, `updated_at` |
-| agent_status | `agent_status` / `status/<id>.json` | `agent_id`, `state`, `task`, `confidence`, `session_id`, `updated_at` |
-| specs | read-only files from repo `agents/*.agent-spec.json` | no duplicate source of truth in v0 |
-| cost_events | `cost_events` / `cost.jsonl` | `ts`, `agent_id`, `tier`, `model`, `est_usd`, `note` |
-
-SQLite wins if you want one file and easy summaries; JSONL for costs is fine either way. **Do not** invent a multi-service database for Phase 1.
-
-## Suggested layout (implement in a later session)
+## Layout
 
 ```
 mcp/
-├── README.md          # this file
-├── tools.md           # tool contracts
-├── data/              # gitignored runtime state (SQLite or JSON)
-├── src/               # future: FastMCP (or equivalent) server
-│   └── server.py
-└── pyproject.toml     # or package.json — choose one stack later
+├── README.md
+├── tools.md                 # full tool catalog
+├── requirements.txt
+├── seeds/
+│   └── castle_map.json
+├── data/                    # runtime SQLite (gitignored)
+├── src/ravenstack_keep_mcp/
+│   ├── server.py            # FastMCP tools + entrypoint
+│   ├── store.py             # SQLite
+│   ├── specs.py             # Agent Spec load/validate/promote
+│   ├── knowledge.py         # scoped RAG / vault scan
+│   └── paths.py
+└── tests/
 ```
 
-Implementation notes for the next session:
+## Setup (laptop)
 
-- Start from the proven reclaw-platform FastMCP + streamable-http pattern.
-- Load Agent Specs from `agents/*.agent-spec.json`; validate with `schemas/agent-spec.schema.json` on read.
-- `query_scoped_knowledge` must refuse indexes not listed on the calling agent’s `knowledge_seeds`.
-- Every agent defaults to local; cost summary may be empty zeros until Phase 4 wiring.
-- Kill conditions are **not** auto-executed by MCP; they are data for humans / Orchestrator policy later.
+```bash
+cd ~/ravenstack-keep
+# uv already used to create .venv — reinstall if needed:
+# ~/.local/bin/uv venv .venv && ~/.local/bin/uv pip install --python .venv/bin/python -r mcp/requirements.txt
 
-## Non-goals (this skeleton)
+export PYTHONPATH="$PWD/mcp/src"
+.venv/bin/python -m ravenstack_keep_mcp          # stdio
+# or HTTP:
+MCP_TRANSPORT=streamable-http FASTMCP_PORT=8110 .venv/bin/python -m ravenstack_keep_mcp
+```
 
-- Full working server process
-- UI / sprites
-- Clawforge approve loop
-- Round Table integration
-- Public exposure
+### Grok Build config sketch
+
+```toml
+[mcp_servers.ravenstack-keep]
+command = "/home/sirboydimus/ravenstack-keep/.venv/bin/python"
+args = ["-m", "ravenstack_keep_mcp"]
+env = { PYTHONPATH = "/home/sirboydimus/ravenstack-keep/mcp/src" }
+enabled = true
+```
+
+## Tests
+
+```bash
+cd ~/ravenstack-keep
+PYTHONPATH=mcp/src .venv/bin/pytest mcp/tests -v
+```
+
+## Auth / network
+
+- **v0:** localhost / Tailscale only. No public quick tunnel.  
+- Optional later: bearer token for non-tailnet automation.  
+- Reload real execution: set `KEEP_RELOAD_CMD` with `{goal}` placeholder (Hetzner).
+
+## SOT note
+
+`seeds/castle_map.json` is **CANONICAL** ([KEEP-SOT-DECISION.md](../KEEP-SOT-DECISION.md)).  
+Agent Spec files under `agents/` are the source of “agent is real” (`status ≥ approved`).  
+See `docs/ARCHITECTURE-MCP-SPLIT.md`.
+
+## Related prompts
+
+| Task | File | Who |
+|------|------|-----|
+| SOT decision | `prompts/PROMPT-SOT-RESEARCH-CLAUDE.md` | Claude |
+| Tool surface organization | `prompts/PROMPT-MCP-SURFACE-ORGANIZATION-GEMINI.md` | Gemini |
+| Build tools (this package) | Grok Build local | Done in v0 |

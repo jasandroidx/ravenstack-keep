@@ -106,7 +106,7 @@
         "payload": "Question text, out-of-scope reason, suggested owner."
       },
       {
-        "target": "scribe-warden",
+        "target": "content-scriptwriter",
         "when": "Operator asks to persist a distilled answer as a vault note (when Scribe is forged).",
         "payload": "Draft note + sources; Oracle never writes itself."
       }

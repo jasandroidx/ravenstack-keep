@@ -60,7 +60,7 @@ Empty skill dirs on the laptop (`openclaw-mechanic`, `ravenstack-sentinel`) were
 ## 3. Files delivered (Phase 1)
 
 | Path | Purpose |
-|------|--------|
+|------|---------|
 | `docs/AGENT-SPEC-TEMPLATE.md` | Human-facing template + reviewer checklist |
 | `schemas/agent-spec.schema.json` | JSON Schema (draft 2020-12). Enforces: `model_tier.default = local`, `kill_condition` required, `knowledge_seeds.indexes` ∈ {self, domain, longtail} only (**no `general`**) |
 | `agents/oracle.md` | Full Oracle Agent Spec (draft, human-approved later) |
