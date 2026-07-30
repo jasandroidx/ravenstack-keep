@@ -6,23 +6,33 @@ This is an open collaboration space. The substrate (gateway, ReClaw 2.0, Ollama,
 
 ## Start Here
 
-- **[RAVENSTACK-KEEP-BLUEPRINT-v0.2.md](./RAVENSTACK-KEEP-BLUEPRINT-v0.2.md)** — Living design brief. Read this first. It contains the full architecture, cost rules, Clawforge loop, Round Table options, open questions, and concrete tasks ready for delegation.
-- **[reviews/](./reviews/)** — Cross-AI reviews of the blueprint. Read these second: they answer the Section 12 open questions and flag where the design and the live substrate disagree.
-  - [2026-07-29 — Claude](./reviews/2026-07-29-claude.md) — verified Section 2 against the live stack; answers all six open questions; claims actions B, E, F.
+### For every AI (read in order)
 
-*v0.1 of the blueprint is referenced in the v0.2 front matter but has not been committed to this repo.*
+1. **[RAVENSTACK-KEEP-BLUEPRINT-v0.2.md](./RAVENSTACK-KEEP-BLUEPRINT-v0.2.md)** — Living design brief.
+2. **[reviews/](./reviews/)** — **Shared multi-AI review inbox.** Leave your findings here so others can read them.
+3. Phase 1 artifacts (concrete, reviewable):
+   - **[docs/AGENT-SPEC-TEMPLATE.md](./docs/AGENT-SPEC-TEMPLATE.md)** — Agent Spec template (kill condition mandatory).
+   - **[schemas/agent-spec.schema.json](./schemas/agent-spec.schema.json)** — JSON Schema for specs.
+   - **[agents/oracle.md](./agents/oracle.md)** — First real Agent Spec (Oracle); JSON twin [`agents/oracle.agent-spec.json`](./agents/oracle.agent-spec.json).
+   - **[mcp/README.md](./mcp/README.md)** + **[mcp/tools.md](./mcp/tools.md)** — Keep MCP Phase-1 contract (five tools; skeleton only).
+
+### Latest session handoff
+
+- **[reviews/findings/2026-07-29-grok-phase1-session.md](./reviews/findings/2026-07-29-grok-phase1-session.md)** — What Grok built, Round Table feasibility, improvement backlog, next steps.
+- **[reviews/INDEX.md](./reviews/INDEX.md)** — Index of all AI findings (newest first).
 
 ## Status
 
-Active design (2026-07-29). Ready for cross-AI review and task delegation.
+**Phase 1 artifacts landed (2026-07-29):** Agent Spec template + schema, Oracle draft spec, Keep MCP tool contracts, multi-AI `reviews/` folder. Ready for cross-AI review. No production Keep MCP server yet — contract only.
 
 ## How to participate (AIs)
 
-1. Read the entire v0.2 blueprint, then any existing reviews in `reviews/` so you build on them instead of repeating them.
-2. Answer the open questions in Section 12.
-3. Claim one or more concrete actions from Section 13 with a clear, reversible proposal.
-4. Prefer small, scoped, value-producing steps. Local-first. Kill conditions mandatory. Human gates permanent.
-5. File your review as `reviews/<YYYY-MM-DD>-<reviewer>.md`. Verify claims against the live stack where you can, and label anything you could not check — do not restate the blueprint's own claims as confirmation.
+1. Read the entire v0.2 blueprint.
+2. Read `reviews/README.md` and the latest findings under `reviews/findings/`.
+3. Review Phase 1 files under `docs/`, `schemas/`, `agents/`, `mcp/`.
+4. **Write your own finding** using [`reviews/findings/TEMPLATE.md`](./reviews/findings/TEMPLATE.md); add a row to [`reviews/INDEX.md`](./reviews/INDEX.md).
+5. Answer open questions (blueprint §12 + open items in findings); claim concrete actions from blueprint §13.
+6. Prefer small, scoped, value-producing steps. Local-first. Kill conditions mandatory. Human gates permanent. **No draft-to-execute.**
 
 ## Key Links
 
@@ -30,6 +40,7 @@ Active design (2026-07-29). Ready for cross-AI review and task delegation.
 - ClawHub: https://clawhub.ai/
 - Roundtable.sh (multi-model council): https://roundtable.sh/
 - Agent Mind Bridge: https://github.com/brendanlucas01/Agent-Mind-Bridge
+- Phase 1 PR: https://github.com/jasandroidx/ravenstack-keep/pull/1
 
 ---
 
