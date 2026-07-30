@@ -75,14 +75,17 @@ env = { PYTHONPATH = "/home/sirboydimus/ravenstack-keep/mcp/src" }
 enabled = true
 ```
 
-## Deploy later (Hetzner only)
+## Deploy (Hetzner)
 
-- Install under `/root/ravenstack-keep` or submodule of ReClaw
-- systemd unit `ravenstack-keep-mcp.service` on `127.0.0.1:8110` or Tailscale IP
+- Path: `/root/ravenstack-keep`
+- Unit: `ravenstack-keep-mcp.service` → streamable-http **`:8110`**
+- UFW: `8110/tcp` on **tailscale0 only**
+- Health/MCP: `http://100.108.130.82:8110/mcp`
 - `RECLAW_OBSIDIAN_VAULT_PATH=/root/obsidian_vault`
+- Sync from laptop: `rsync -az --exclude .venv … ~/ravenstack-keep/ openclaw:/root/ravenstack-keep/`
 - Do **not** expose via cloudflared quick tunnel until auth exists
 
 ## Open decisions
 
 1. **SOT** — **Resolved 2026-07-30.** [KEEP-SOT-DECISION.md](../KEEP-SOT-DECISION.md) Model C (hybrid, repo-centric). Canonical map: `mcp/seeds/castle_map.json`.
-2. **Surface organization** — Gemini memo reviewed; adopt two-plane + public allowlist; reject hard 15/10 guillotine (soft core/extended tiers). Implementation still open.
+2. **Surface organization** — See [MCP-TOOL-TIERS.md](./MCP-TOOL-TIERS.md) (soft core/extended/gated tiers). Connector ops: [CONNECTOR-RUNBOOK.md](./CONNECTOR-RUNBOOK.md).
