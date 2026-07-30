@@ -1,0 +1,100 @@
+{
+  "sot_status": "CANONICAL",
+  "sot_note": "Canonical per KEEP-SOT-DECISION.md (2026-07-30, Claude v1.1 + operator execute). Repo owns machine-readable rooms/agents; vault owns narrative fortress knowledge; Drive frozen historical. Only agents with schema-valid agents/*.agent-spec.json at status>=approved are \"real\". Room lock_state=live means UI room exists, not that occupant is forged.",
+  "version": "1.0-canonical",
+  "updated": "2026-07-30",
+  "rooms": [
+    {
+      "room_id": "orchestrator",
+      "name": "Orchestrator",
+      "lock_state": "live",
+      "x": 400,
+      "y": 100,
+      "occupant_agent_id": "raziel-main",
+      "status_summary": "live room; occupant raziel-main is candidate only \u2014 no Agent Spec yet (room live \u2260 agent real)",
+      "queue_depth": 0
+    },
+    {
+      "room_id": "clawforge",
+      "name": "Clawforge",
+      "lock_state": "live",
+      "x": 520,
+      "y": 320,
+      "occupant_agent_id": "clawsmith-compiler",
+      "status_summary": "meta-forge room (Clawforge meaning per SOT); occupant clawsmith-compiler is candidate only \u2014 no Agent Spec yet",
+      "queue_depth": 0
+    },
+    {
+      "room_id": "oracle",
+      "name": "Oracle",
+      "lock_state": "UNFORGED",
+      "x": 240,
+      "y": 180,
+      "occupant_agent_id": "oracle",
+      "status_summary": "draft-spec on disk; awaiting human approval",
+      "queue_depth": 0
+    },
+    {
+      "room_id": "scribe",
+      "name": "Scribe Warden",
+      "lock_state": "UNFORGED",
+      "x": 380,
+      "y": 220,
+      "occupant_agent_id": "content-scriptwriter",
+      "status_summary": "provisional \u2014 blueprint name Scribe Warden",
+      "queue_depth": 0
+    },
+    {
+      "room_id": "suno_studio",
+      "name": "Suno Studio",
+      "lock_state": "UNFORGED",
+      "x": 780,
+      "y": 220,
+      "occupant_agent_id": "suno-audio-gen",
+      "status_summary": "from Drive spatial map only",
+      "queue_depth": 0
+    },
+    {
+      "room_id": "lead_forge",
+      "name": "Lead Forge",
+      "lock_state": "UNFORGED",
+      "x": 120,
+      "y": 450,
+      "occupant_agent_id": "gatekeeper-proxy",
+      "status_summary": "from Drive spatial map; overlaps county gate concerns",
+      "queue_depth": 0
+    },
+    {
+      "room_id": "flipper",
+      "name": "Flipper",
+      "lock_state": "UNFORGED",
+      "x": 640,
+      "y": 450,
+      "occupant_agent_id": null,
+      "status_summary": "blueprint unforged room \u2014 no Drive desk assignment",
+      "queue_depth": 0
+    },
+    {
+      "room_id": "auditor",
+      "name": "Silent Auditor",
+      "lock_state": "UNFORGED",
+      "x": 300,
+      "y": 400,
+      "occupant_agent_id": "silent-auditor",
+      "status_summary": "provisional desk for silent-auditor",
+      "queue_depth": 0
+    }
+  ],
+  "agents_without_spec": [
+    "raziel-main",
+    "clawsmith-compiler",
+    "silent-auditor",
+    "content-scriptwriter",
+    "suno-audio-gen",
+    "gatekeeper-proxy"
+  ],
+  "agents_with_spec": [
+    "oracle"
+  ],
+  "decision": "KEEP-SOT-DECISION.md"
+}

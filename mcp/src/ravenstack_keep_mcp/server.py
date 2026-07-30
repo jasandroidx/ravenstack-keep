@@ -400,6 +400,10 @@ def unlock_room(room_id: str, confirm: bool = False) -> dict[str, Any]:
         status_summary="unlocked by human gate",
     )
     _store.append_event("unlock_room", room_id=room_id, payload={"room": updated})
+    # Parity with HTTP: resolve matching unlock_room gates so map inbox clears.
+    for g in _store.list_pending_gates():
+        if g["gate_type"] == "unlock_room" and g["subject_id"] == room_id:
+            _store.resolve_gate(g["id"], "approved")
     return {"ok": True, "room": updated}
 
 

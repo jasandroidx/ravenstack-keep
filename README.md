@@ -23,7 +23,11 @@ This is an open collaboration space. The substrate (gateway, ReClaw 2.0, Ollama,
 
 ## Status
 
-**Phase 1 artifacts landed (2026-07-29):** Agent Spec template + schema, Oracle draft spec, Keep MCP tool contracts, multi-AI `reviews/` folder. Ready for cross-AI review. No production Keep MCP server yet — contract only.
+**Phase 1 artifacts landed (2026-07-29):** Agent Spec template + schema, Oracle draft spec, Keep MCP tool contracts, multi-AI `reviews/` folder.
+
+**Visual shell (2026-07-30):** Phaser map + gate HUD under [`ui/`](./ui/). Keep HTTP API: `python -m ravenstack_keep_mcp.http_api` (`:8120`). See [`ui/README.md`](./ui/README.md).
+
+**Keep MCP:** v0 local server + CANONICAL castle map (see `KEEP-SOT-DECISION.md`).
 
 ## How to participate (AIs)
 

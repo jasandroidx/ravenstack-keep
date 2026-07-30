@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ravenstack Keep</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="app-bar">
+        <h1>Ravenstack Keep</h1>
+        <span id="data-source" class="pill">…</span>
+        <button type="button" id="btn-refresh">Refresh</button>
+        <span id="map-meta"></span>
+      </header>
+      <div id="game" aria-label="Castle map"></div>
+      <aside id="hud">
+        <section>
+          <h2>Human gates</h2>
+          <div id="gate-list"><p class="muted">Loading…</p></div>
+        </section>
+        <section>
+          <h2>Room</h2>
+          <div id="room-detail"><p class="muted">Click a room on the map (or a gate card).</p></div>
+        </section>
+        <section>
+          <h2>Notes</h2>
+          <p class="muted">
+            Approvals also work from Grok chat via Keep MCP
+            (<code>approve_spec</code> / <code>unlock_room</code> with
+            <code>confirm=true</code>). Map never invents agent work.
+          </p>
+        </section>
+      </aside>
+    </div>
+    <div id="toast" class="toast" role="status"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
