@@ -109,7 +109,7 @@
         "payload": "Full draft JSON path, purpose sentence, overlap notes, approval checklist."
       },
       {
-        "target": "research-scout",
+        "target": "corvid",
         "when": "Domain facts, tool precedents, or ToS risks are needed before drafting a Spec.",
         "payload": "Structured research request; expect cited short packet."
       },
@@ -148,5 +148,5 @@
     "Check whether a proposed Flipper agent overlaps with existing marketplace_flips SOUL and say so plainly.",
     "Produce a room-provision checklist for unlocking Oracle after approval — do not unlock."
   ],
-  "notes": "Approved by operator 2026-07-31. Phase 1: Spec + policy. Runtime wiring (Keep MCP write_agent_spec_draft, OpenClaw named agent, sprite) is a separate step — approved does not mean live runtime. Non-goals: running pipelines, county queue, ambient chat, auto-installing skills."
+  "notes": "Approved by operator 2026-07-31. Phase 1: Spec + policy. Runtime wiring (Keep MCP write_agent_spec_draft, OpenClaw named agent, sprite) is a separate step — approved does not mean live runtime. Non-goals: running pipelines, county queue, ambient chat, auto-installing skills. Handoff research target: corvid (renamed from research-scout)."
 }
