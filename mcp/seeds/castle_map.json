@@ -31,7 +31,7 @@
       "x": 240,
       "y": 180,
       "occupant_agent_id": "oracle",
-      "status_summary": "oracle Spec status=draft; awaiting human approval",
+      "status_summary": "Spec approved; room still UNFORGED until unlock_room (Spec status != room live)",
       "queue_depth": 0
     },
     {
