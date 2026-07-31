@@ -27,14 +27,19 @@ Quick tunnels **rotate hostnames**. Old host will 1033 / DNS fail.
 ## Health checks
 
 ```bash
-# Tailscale (from laptop)
+# Tailscale (from laptop) — prefer openclaw-ts SSH host
 curl -sS -m 5 http://100.108.130.82:8100/health
-# Keep HTTP if deployed
-curl -sS -m 5 http://100.108.130.82:8110/health
+# Keep: plain GET /health is 404 on FastMCP v0 — probe MCP or unit instead
+ssh openclaw-ts 'systemctl is-active ravenstack-keep-mcp; ss -lntp | grep 8110'
+# Optional: MCP initialize + tools/call keep_health with mcp-session-id header
 
 # Units on server
-ssh openclaw 'systemctl is-active reclaw-mcp-bridge reclaw-mcp-tunnel ravenstack-keep-mcp'
+ssh openclaw-ts 'systemctl is-active reclaw-mcp-bridge reclaw-mcp-tunnel ravenstack-keep-mcp'
 ```
+
+## Rsync / deploy warning
+
+`scripts/run-keep-mcp-http.sh` **must remain in the Keep git tree**. A `rsync --delete` from a laptop copy that lacked this file once removed it on Hetzner and the systemd unit failed with **203/EXEC**. Always include launch scripts in-repo before delete-syncs.
 
 ## Bridge crash loop (`:8100 address already in use`)
 
