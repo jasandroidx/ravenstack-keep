@@ -1,8 +1,8 @@
 {
   "sot_status": "CANONICAL",
   "sot_note": "Canonical per KEEP-SOT-DECISION.md (2026-07-30, Claude v1.1 + operator execute). Repo owns machine-readable rooms/agents; vault owns narrative fortress knowledge; Drive frozen historical. Only agents with schema-valid agents/*.agent-spec.json at status>=approved are \"real\". Room lock_state=live means UI room exists, not that occupant is forged.",
-  "version": "1.0-canonical",
-  "updated": "2026-07-30",
+  "version": "1.1-canonical",
+  "updated": "2026-07-31",
   "rooms": [
     {
       "room_id": "orchestrator",
@@ -21,7 +21,7 @@
       "x": 520,
       "y": 320,
       "occupant_agent_id": "clawsmith-compiler",
-      "status_summary": "meta-forge room (Clawforge meaning per SOT); occupant clawsmith-compiler is candidate only \u2014 no Agent Spec yet",
+      "status_summary": "meta-forge room; Clawforge Agent Spec approved (not live runtime); map occupant clawsmith-compiler still candidate-only",
       "queue_depth": 0
     },
     {
@@ -31,7 +31,7 @@
       "x": 240,
       "y": 180,
       "occupant_agent_id": "oracle",
-      "status_summary": "draft-spec on disk; awaiting human approval",
+      "status_summary": "oracle Spec status=draft; awaiting human approval",
       "queue_depth": 0
     },
     {
@@ -83,6 +83,16 @@
       "occupant_agent_id": "silent-auditor",
       "status_summary": "provisional desk for silent-auditor",
       "queue_depth": 0
+    },
+    {
+      "room_id": "roost",
+      "name": "The Roost",
+      "lock_state": "UNFORGED",
+      "x": 160,
+      "y": 280,
+      "occupant_agent_id": "corvid",
+      "status_summary": "Corvid draft Spec on disk; room UNFORGED until approve + unlock",
+      "queue_depth": 0
     }
   ],
   "agents_without_spec": [
@@ -94,7 +104,9 @@
     "gatekeeper-proxy"
   ],
   "agents_with_spec": [
-    "oracle"
+    "oracle",
+    "clawforge",
+    "corvid"
   ],
   "decision": "KEEP-SOT-DECISION.md"
 }
