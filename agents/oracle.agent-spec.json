@@ -1,9 +1,9 @@
 {
   "spec_version": "1.0",
   "id": "oracle",
-  "status": "draft",
+  "status": "approved",
   "created": "2026-07-29",
-  "updated": "2026-07-29",
+  "updated": "2026-08-01",
   "owner": "Jason",
   "name": "Oracle",
   "character": "The all-seeing librarian of the Keep. Calm, citation-first, and allergic to invented facts. Speaks plainly about what the vault and live RAG actually contain; says not-in-knowledge when retrieval fails instead of improvising.",
@@ -15,7 +15,9 @@
   "purpose": "Answer operator and agent questions using only the Ravenstack vault and live scoped RAG, with citations.",
   "model_tier": {
     "default": "local",
-    "allowed": ["local"],
+    "allowed": [
+      "local"
+    ],
     "local_model_hint": "phi4-mini",
     "escalate_when": "Disabled for v0 until Phase 4 cost governance.",
     "god_mode": "Never for routine Q&A; operator may re-ask outside this agent."
@@ -80,7 +82,9 @@
     ]
   },
   "knowledge_seeds": {
-    "indexes": ["self"],
+    "indexes": [
+      "self"
+    ],
     "vault_globs": [
       "Ravenstack/RAVENSTACK-*.md",
       "Ravenstack/mcp-connector.md",
@@ -131,7 +135,7 @@
     "Answerable ORACLE/mcp-connector questions return at least one real vault path or RAG citation.",
     "Out-of-index questions refuse fabrication and state missing or out-of-scope knowledge.",
     "Default path is local model tier; no paid model attribution to Oracle in v0.",
-    "Reports status idle→answering→idle/failed via Keep MCP once available."
+    "Reports status idle\u2192answering\u2192idle/failed via Keep MCP once available."
   ],
   "example_queries": [
     "Where do agents save new Ravenstack knowledge, and what MCP tools should they use?",
@@ -140,5 +144,5 @@
     "What is the reload ritual and when should it run?",
     "What was the exact dollar amount of fraud in County X last Tuesday?"
   ],
-  "notes": "Phase 1: wiring + policy over existing RAG. status remains draft until operator approval (no draft-to-execute). Non-goals: pipeline control, county queue, skill install, ambient chat."
+  "notes": "Phase 1+ wiring: Spec approved. Room remains UNFORGED until unlock_room(confirm=true). Non-goals: pipeline control, county queue, skill install, ambient chat. Default local model tier; no paid attribution for routine Q&A."
 }
