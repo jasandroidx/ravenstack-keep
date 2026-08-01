@@ -1,8 +1,8 @@
 {
   "sot_status": "CANONICAL",
-  "sot_note": "Canonical per KEEP-SOT-DECISION.md (2026-07-30, Claude v1.1 + operator execute). Repo owns machine-readable rooms/agents; vault owns narrative fortress knowledge; Drive frozen historical. Only agents with schema-valid agents/*.agent-spec.json at status>=approved are \"real\". Room lock_state=live means UI room exists, not that occupant is forged.",
-  "version": "1.1-canonical",
-  "updated": "2026-07-31",
+  "sot_note": "Canonical per KEEP-SOT-DECISION.md. Repo owns rooms/agents; vault owns narrative. Only schema-valid agents/*.agent-spec.json with status>=approved are real. Room lock_state=live means UI room exists, not ambient runtime. Reconciled 2026-08-01: Spec\u2194room status honesty + architect/graph-gardener rooms.",
+  "version": "1.2-reconciled",
+  "updated": "2026-08-01",
   "rooms": [
     {
       "room_id": "orchestrator",
@@ -11,7 +11,7 @@
       "x": 400,
       "y": 100,
       "occupant_agent_id": "raziel-main",
-      "status_summary": "live room; occupant raziel-main is candidate only \u2014 no Agent Spec yet (room live \u2260 agent real)",
+      "status_summary": "live room; raziel-main is OpenClaw main candidate \u2014 no Keep Agent Spec yet (room live \u2260 Spec real).",
       "queue_depth": 0
     },
     {
@@ -20,8 +20,8 @@
       "lock_state": "live",
       "x": 520,
       "y": 320,
-      "occupant_agent_id": "clawsmith-compiler",
-      "status_summary": "meta-forge room; Clawforge Agent Spec approved (not live runtime); map occupant clawsmith-compiler still candidate-only",
+      "occupant_agent_id": "clawforge",
+      "status_summary": "Clawforge Spec APPROVED; room live. Occupant id aligned to clawforge (not clawsmith-compiler). Runtime forge still human-gated.",
       "queue_depth": 0
     },
     {
@@ -31,7 +31,7 @@
       "x": 240,
       "y": 180,
       "occupant_agent_id": "oracle",
-      "status_summary": "Spec approved; room still UNFORGED until unlock_room (Spec status != room live)",
+      "status_summary": "Oracle Agent Spec APPROVED; room still UNFORGED until unlock_room(confirm=true). Spec != room live.",
       "queue_depth": 0
     },
     {
@@ -91,22 +91,43 @@
       "x": 160,
       "y": 280,
       "occupant_agent_id": "corvid",
-      "status_summary": "Corvid draft Spec on disk; room UNFORGED until approve + unlock",
+      "status_summary": "Corvid Spec DRAFT only; room UNFORGED until approve_spec + unlock_room.",
+      "queue_depth": 0
+    },
+    {
+      "room_id": "architect",
+      "name": "Architect Drafting Room",
+      "lock_state": "live",
+      "x": 300,
+      "y": 260,
+      "occupant_agent_id": "architect",
+      "status_summary": "Architect Spec APPROVED + skill live; room live. On-demand scan/refresh only.",
+      "queue_depth": 0
+    },
+    {
+      "room_id": "graph-gardener",
+      "name": "Graph Garden",
+      "lock_state": "live",
+      "x": 460,
+      "y": 260,
+      "occupant_agent_id": "graph-gardener",
+      "status_summary": "Graph Gardener Spec APPROVED; weekly timer + harvest step; report-only.",
       "queue_depth": 0
     }
   ],
   "agents_without_spec": [
-    "raziel-main",
-    "clawsmith-compiler",
-    "silent-auditor",
     "content-scriptwriter",
-    "suno-audio-gen",
-    "gatekeeper-proxy"
+    "gatekeeper-proxy",
+    "raziel-main",
+    "silent-auditor",
+    "suno-audio-gen"
   ],
   "agents_with_spec": [
-    "oracle",
+    "architect",
     "clawforge",
-    "corvid"
+    "corvid",
+    "graph-gardener",
+    "oracle"
   ],
   "decision": "KEEP-SOT-DECISION.md"
 }
