@@ -37,51 +37,85 @@ def run_scan(codebase: Path) -> dict:
     return json.loads(r.stdout)
 
 
+
 def overview_generated(scan: dict) -> str:
     langs = scan.get("languages") or {}
-    modules = scan.get("modules") or []
+    modules = scan.get("code_modules") or scan.get("modules") or []
+    bloat = scan.get("bloat_modules") or []
+    edges = scan.get("import_edges") or []
+    insights = scan.get("operator_insights") or []
     core = [m for m in modules if m.get("kind") == "core"]
-    support = [m for m in modules if m.get("kind") != "core"]
-    mermaid_nodes = "\n".join(f'  {m["name"]}["{m["name"]}"]' for m in modules[:20])
-    mermaid = "```mermaid\ngraph TD\n" + (mermaid_nodes or "  empty[no modules]") + "\n```"
+    support = [m for m in modules if m.get("kind") == "support"]
+    # mermaid with edges when available
+    nodes = set()
+    for m in (core + support)[:20]:
+        nodes.add(m["name"])
+    for e in edges[:25]:
+        nodes.add(e["from"])
+        nodes.add(e["to"])
+    mermaid_lines = ["```mermaid", "graph LR"]
+    for n in sorted(nodes)[:24]:
+        mermaid_lines.append(f'  {n}["{n}"]')
+    for e in edges[:25]:
+        mermaid_lines.append(f'  {e["from"]} -->|{e["weight"]}| {e["to"]}')
+    if not edges:
+        mermaid_lines.append("  note[no cross-top import edges in sample]")
+    mermaid_lines.append("```")
+    mermaid = "\n".join(mermaid_lines)
     core_lines = [
         f"- [[{m['name']}]] file_count={m['file_count']} path=`{m['path']}`" for m in core
     ] or ["- none"]
     support_lines = [
-        f"- {m['name']} ({m['file_count']} files)" for m in support[:20]
+        f"- `{m['name']}` files={m['file_count']}" for m in support[:12]
     ] or ["- none"]
-    entry_lines = [f"- `{e}`" for e in (scan.get("entry_points") or [])[:20]] or ["- none"]
-    lines = [
-        f"# Architecture - Overview: {scan.get('name')}",
-        "",
-        f"- kind: `{scan.get('kind')}`",
-        f"- path: `{scan.get('path')}`",
-        f"- files_scanned: {scan.get('files_scanned')}",
-        f"- git_commit: `{(scan.get('git') or {}).get('commit') or 'unknown'}`",
-        f"- languages: `{json.dumps(langs)}`",
-        f"- manifests: `{scan.get('dependencies_manifests')}`",
-        f"- signals: `{json.dumps(scan.get('signals') or {})}`",
-        "",
-        "## Core modules (from scan only)",
-        *core_lines,
-        "",
-        "## Support modules (listed, not expanded)",
-        *support_lines,
-        "",
-        "## Entry points",
-        *entry_lines,
-        "",
-        "## Module map",
-        mermaid,
-        "",
-        "## Personas",
-        "- confidence: speculation - not in scan; human may fill @user block",
-        "",
-        "## Anti-fabrication",
-        "- Only facts from architect_scan.py JSON",
-        "- No invented modules, deps, or data flows",
-    ]
-    return "\n".join(lines)
+    bloat_lines = [
+        f"- `{m['name']}` files={m['file_count']} (storage/noise — not behavior core)"
+        for m in bloat[:10]
+    ] or ["- none flagged"]
+    insight_lines = [f"- {i}" for i in insights] or ["- none"]
+    edge_lines = [
+        f"- `{e['from']}` → `{e['to']}` (import weight {e['weight']})" for e in edges[:15]
+    ] or ["- none detected in sample"]
+    return "\n".join(
+        [
+            f"# Architecture - Overview: {scan.get('name')}",
+            "",
+            f"- kind: `{scan.get('kind')}`",
+            f"- path: `{scan.get('path')}`",
+            f"- files_scanned: {scan.get('files_scanned')}",
+            f"- git_commit: `{(scan.get('git') or {}).get('commit') or 'unknown'}`",
+            f"- languages: `{langs}`",
+            f"- manifests: `{scan.get('dependencies_manifests')}`",
+            f"- signals: `{scan.get('signals')}`",
+            "",
+            "## What is new / so-what (operator)",
+            "These are scan-grounded observations — not a recap of folder names alone.",
+            *insight_lines,
+            "",
+            "## Core modules (behavior)",
+            *core_lines,
+            "",
+            "## Support modules",
+            *support_lines,
+            "",
+            "## Data / bloat tops (do not confuse with app logic)",
+            *bloat_lines,
+            "",
+            "## Coupling (Python import edges between tops)",
+            *edge_lines,
+            "",
+            "## Module map",
+            mermaid,
+            "",
+            "## Entry points",
+            *([f"- `{e}`" for e in (scan.get("entry_points") or [])[:12]] or ["- none"]),
+            "",
+            "## Anti-fabrication",
+            "- Only facts from architect_scan.py JSON",
+            "- No invented modules, deps, or data flows",
+            "- Import edges are sampled; weight is occurrence count not runtime load",
+        ]
+    )
 
 
 def module_generated(m: dict, project: str) -> str:

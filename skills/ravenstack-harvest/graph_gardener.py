@@ -69,12 +69,19 @@ def index_notes(root: Path) -> dict[str, Path]:
             rel = p.relative_to(root)
         except ValueError:
             continue
+        rel_s = str(rel).replace("\\", "/").removesuffix(".md")
         keys = {
             nfc_title(p.stem),
             nfc_title(p.name),
-            nfc_title(str(rel).removesuffix(".md")),
-            nfc_title(str(rel).replace("\\", "/").removesuffix(".md")),
+            nfc_title(rel_s),
         }
+        # Obsidian short links often omit Ravenstack/ prefix
+        if rel_s.lower().startswith("ravenstack/"):
+            keys.add(nfc_title(rel_s[len("Ravenstack/") :]))
+            keys.add(nfc_title(rel_s[len("ravenstack/") :]))
+        # also parent/stem for nested notes
+        if "/" in rel_s:
+            keys.add(nfc_title("/".join(Path(rel_s).parts[-2:])))
         for k in keys:
             index.setdefault(k, p)
     return index
@@ -156,9 +163,30 @@ def main() -> int:
             target = m.group(1).strip()
             link_targets_seen.add(target)
             outbound[rel].append(target)
-            key = nfc_title(target)
-            if key in full_index:
-                inbound[str(full_index[key].relative_to(vault))] += 1
+            # Resolve short Obsidian paths: wiki/hot, protocols/X, Ravenstack/...
+            resolved = None
+            candidates = [
+                nfc_title(target),
+                nfc_title(target.replace("\\", "/")),
+                nfc_title(f"Ravenstack/{target}"),
+                nfc_title(Path(target).stem),
+                nfc_title(Path(target).name),
+            ]
+            # strip leading ./ 
+            if target.startswith("./"):
+                candidates.append(nfc_title(target[2:]))
+            for key in candidates:
+                if key in full_index:
+                    resolved = full_index[key]
+                    break
+                if key in index:
+                    resolved = index[key]
+                    break
+            if resolved is not None:
+                try:
+                    inbound[str(resolved.relative_to(vault))] += 1
+                except ValueError:
+                    inbound[str(resolved)] += 1
             else:
                 dangling.append(f"{rel} -> [[{target}]]")
 
@@ -194,6 +222,26 @@ def main() -> int:
     for rel, tgts in outbound.items():
         degree[rel] = len(tgts)
     hubs = degree.most_common(15)
+
+
+    # priority: most common dangling targets + hubs with zero inbound
+    dang_tgt = Counter()
+    for dline in dangling:
+        if " -> " in dline:
+            dang_tgt[dline.split(" -> ", 1)[1]] += 1
+    priorities = []
+    for tgt, c in dang_tgt.most_common(8):
+        priorities.append(f"- Fix dangling target {tgt} (broken from {c} notes)")
+    for o in orphans[:5]:
+        priorities.append(f"- Link orphan claim `{o}` from knowledge_index or a county MOC")
+    for pth, deg in hubs[:5]:
+        if inbound.get(pth, 0) == 0 and deg >= 5:
+            priorities.append(f"- Hub with no inbound: `{pth}` (out={deg}) — consider MOC link-in")
+    if no_ai_first[:3]:
+        priorities.append(f"- Add ai-first frontmatter to {len(no_ai_first)} notes (sample: `{no_ai_first[0]}`)")
+    if not priorities:
+        priorities.append("- Graph is relatively clean; optional: deepen claim MOC links")
+    pri_block = chr(10).join(priorities)
 
     day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     out = vault / "Ravenstack" / "ops" / "harvest" / f"graph-gardener-{day}.md"
@@ -241,7 +289,10 @@ Human resolves dangling links and orphans.
 ## Missing ai-first flag (subset paths)
 {chr(10).join(f'- `{x}`' for x in no_ai_first[:40]) or '- none'}
 
-## Suggested human actions
+## Priority actions (computed — not boilerplate)
+{pri_block}
+
+## Suggested human actions (general)
 - Link high-value claims into knowledge_index or county MOCs
 - Resolve contradiction claims before content publish
 - Fix dangling targets (create stub or correct link) — do not silent-drop
