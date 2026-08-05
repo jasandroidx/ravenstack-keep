@@ -168,6 +168,26 @@ def heal_waiting(agents: list[dict], gates: list[dict], fresh_waiting: set[str])
             a["updated_at"] = utc_now()
 
 
+# Map pipeline actor names → Keep agent ids (display only)
+REQUESTER_TO_AGENT = {
+    "silent_auditor": "analyst",
+    "analyst": "analyst",
+    "researcher": "researcher",
+    "content_studio": "content_studio",
+    "content-studio": "content_studio",
+    "raziel": "raziel",
+    "main": "raziel",
+    "orchestrator": "raziel",
+}
+
+
+def map_requester(name: str | None) -> str:
+    if not name:
+        return "analyst"
+    key = str(name).strip().lower().replace(" ", "_")
+    return REQUESTER_TO_AGENT.get(key, "analyst")
+
+
 def build_state(cfg: dict, prev: dict | None) -> dict:
     now = utc_now()
     ep = cfg.get("endpoints") or {}
@@ -175,67 +195,73 @@ def build_state(cfg: dict, prev: dict | None) -> dict:
     reclaw = http_json(ep.get("reclaw_health", "http://127.0.0.1:8000/health"))
     openclaw_ok = http_ok(ep.get("openclaw_health", "http://127.0.0.1:18789/health"))
     dash = http_json(ep.get("dashboard_status", "http://127.0.0.1:8081/status.json"))
-    # optional — may 404
-    fortress = http_json(ep.get("fortress_state", "http://127.0.0.1:8000/fortress/state"))
+    # Correct ReClaw routes (verified live): /state and /fortress-state — NOT /fortress/state
+    platform_state = http_json(ep.get("platform_state", "http://127.0.0.1:8000/state"))
+    fortress = http_json(ep.get("fortress_state", "http://127.0.0.1:8000/fortress-state"))
 
     tasks_running = None
-    gates_pending = None
     gates: list[dict] = []
+    dash_rooms: dict = {}
 
-    # dashboard rooms (identity from poll)
-    dash_rooms = {}
     if isinstance(dash, dict):
         for r in dash.get("rooms") or []:
             dash_rooms[r.get("id")] = r
-        cq = dash.get("county_queue") or {}
-        # never advance queue — read only
-        _ = cq.get("status")
         agents_active = dash.get("agents_active")
         if isinstance(agents_active, int):
             tasks_running = agents_active
 
-    # try reclaw health for event_model note only
-    if isinstance(reclaw, dict) and reclaw.get("status") == "ok":
-        pass
+    # Primary ground truth for gates: GET /state → pending_approvals
+    if isinstance(platform_state, dict):
+        for g in platform_state.get("pending_approvals") or []:
+            if not isinstance(g, dict):
+                continue
+            if (g.get("status") or "pending").lower() not in ("pending", ""):
+                continue
+            agent_id = map_requester(g.get("requested_by") or g.get("agent_id"))
+            since = g.get("requested_at") or g.get("since") or now
+            if isinstance(since, str) and since.endswith("+00:00"):
+                since = since.replace("+00:00", "Z")
+            gates.append(
+                {
+                    "id": str(g.get("id") or f"gate_{len(gates)}"),
+                    "agent_id": agent_id,
+                    "blocked_on": g.get("capability") or g.get("blocked_on") or "approval",
+                    "subject": g.get("reason") or g.get("subject") or g.get("session_id") or "",
+                    "since": since,
+                    "session_id": g.get("session_id"),
+                }
+            )
+        # jobs.running length as optional activity signal
+        jobs = platform_state.get("jobs") or {}
+        if isinstance(jobs, dict) and isinstance(jobs.get("running"), list):
+            if tasks_running is None:
+                tasks_running = len(jobs["running"])
 
-    # pending gates: if fortress state exposes them
+    # Secondary: fortress-state pending_gates count (integer) + castle_map_rooms
+    fortress_rooms = []
     if isinstance(fortress, dict):
-        pg = fortress.get("pending_gates") or fortress.get("gates") or []
-        if isinstance(pg, list):
-            for g in pg:
-                if not isinstance(g, dict):
-                    continue
-                gates.append(
-                    {
-                        "id": str(g.get("id") or g.get("gate_id") or f"gate_{len(gates)}"),
-                        "agent_id": g.get("agent_id") or g.get("agent") or "raziel",
-                        "blocked_on": g.get("blocked_on") or g.get("capability") or "approval",
-                        "subject": g.get("subject") or g.get("summary") or "",
-                        "since": g.get("since") or g.get("created_at") or now,
-                    }
-                )
-            gates_pending = len(gates)
+        pg = fortress.get("pending_gates")
+        if isinstance(pg, int) and not gates:
+            # count only — no per-gate detail; leave gates empty but count for HUD
+            pass
+        fortress_rooms = fortress.get("castle_map_rooms") or []
 
-    # session approvals from dashboard if present
-    if gates_pending is None and isinstance(dash, dict):
-        # not always present
-        gates_pending = len(gates)
+    gates_pending = len(gates)
+    if gates_pending == 0 and isinstance(fortress, dict) and isinstance(fortress.get("pending_gates"), int):
+        # Prefer detailed list; fall back to count for HUD only
+        gates_pending = int(fortress["pending_gates"])
 
     rooms_out = []
     for r in cfg.get("rooms") or []:
-        lock = r.get("lock") or "live"
-        # map dashboard empty rooms → unforged already in config
         rooms_out.append(
             {
                 "id": r["id"],
                 "name": r.get("name") or r["id"],
-                "lock": lock,
+                "lock": r.get("lock") or "live",
                 "agent_id": r.get("agent_id"),
             }
         )
 
-    # Map dashboard room status → agent activity (read-only, no invention of gates)
-    # throne <- orchestrator-throne, forge activity signals content/clawforge loosely
     status_to_state = {
         "COMMANDING": "working",
         "HAMMERING": "working",
@@ -245,23 +271,36 @@ def build_state(cfg: dict, prev: dict | None) -> dict:
         "UNFORGED": "retired",
     }
     dash_agent_hint: dict[str, tuple[str, str | None]] = {}
-    if isinstance(dash, dict):
-        for r in dash.get("rooms") or []:
-            rid = r.get("id") or ""
-            st = (r.get("status") or "").upper()
-            mapped = status_to_state.get(st)
-            if rid == "orchestrator-throne" and mapped:
-                dash_agent_hint["raziel"] = (mapped, r.get("status"))
-            if rid == "clawforge-anvil" and mapped:
-                # content_studio shares forge aesthetic; clawforge not in brief agent list
-                dash_agent_hint["content_studio"] = (mapped, r.get("status"))
+    room_sources = list((dash or {}).get("rooms") or []) if isinstance(dash, dict) else []
+    if not room_sources and fortress_rooms:
+        room_sources = fortress_rooms
+    for r in room_sources:
+        rid = r.get("id") or ""
+        st = (r.get("status") or "").upper()
+        mapped = status_to_state.get(st)
+        if rid == "orchestrator-throne" and mapped:
+            dash_agent_hint["raziel"] = (mapped, r.get("status"))
+        if rid == "clawforge-anvil" and mapped:
+            dash_agent_hint["content_studio"] = (mapped, r.get("status"))
+
+    # Agents with pending gates → waiting_on_human (poll ground truth)
+    waiting_by_agent: dict[str, dict] = {}
+    for g in gates:
+        aid = g.get("agent_id") or "analyst"
+        # keep newest/first as task text
+        if aid not in waiting_by_agent:
+            waiting_by_agent[aid] = g
 
     agents_out = []
     for a in cfg.get("agents") or []:
         state = "idle"
         task_text = None
         conf = None
-        if not openclaw_ok and a["id"] == "raziel":
+        if a["id"] in waiting_by_agent:
+            g = waiting_by_agent[a["id"]]
+            state = "waiting_on_human"
+            task_text = g.get("subject") or g.get("blocked_on")
+        elif not openclaw_ok and a["id"] == "raziel":
             state = "failed"
             task_text = "gateway health failed"
         elif a["id"] in dash_agent_hint:
@@ -281,7 +320,6 @@ def build_state(cfg: dict, prev: dict | None) -> dict:
             }
         )
 
-    # If previous state had hook-set waiting and gates still pending, preserve via fold later
     last_poll_ts = (prev or {}).get("generated_at") or now
 
     return {
@@ -292,17 +330,21 @@ def build_state(cfg: dict, prev: dict | None) -> dict:
             "spend_month_usd": None,  # never invent
             "spend_budget_usd": 10.0,
             "tasks_running": tasks_running,
-            "gates_pending": gates_pending if gates_pending is not None else 0,
+            "gates_pending": gates_pending,
             "stale": False,
             "openclaw_ok": openclaw_ok,
             "reclaw_ok": bool(isinstance(reclaw, dict) and reclaw.get("status") == "ok"),
         },
         "rooms": rooms_out,
         "agents": agents_out,
-        "gates": gates,
+        "gates": [
+            {k: v for k, v in g.items() if k != "session_id"}  # schema-clean public gates
+            for g in gates
+        ],
         "_meta": {
             "last_poll_ts": last_poll_ts,
             "dashboard_rooms_seen": list(dash_rooms.keys()),
+            "gates_detailed": len(gates),
         },
     }
 
