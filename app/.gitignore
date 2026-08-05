@@ -1,0 +1,8 @@
+# runtime state (local only)
+data/state.json
+data/events.jsonl
+data/*.tmp
+data/cursor.json
+__pycache__/
+*.pyc
+.venv/

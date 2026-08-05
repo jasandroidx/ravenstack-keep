@@ -1,0 +1,6 @@
+
+# Keep runtime (local)
+app/data/state.json
+app/data/events.jsonl
+app/data/cursor.json
+app/data/*.tmp
