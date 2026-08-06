@@ -1,0 +1,552 @@
+I need a way to get this done. Ravenstack Keep — Complete Art Direction & Asset Pipeline Guide
+Role: Art Director, Ravenstack Keep
+Target Engine: Phaser 3 (pixelArt: true, 48×48 px tile grid)
+Aesthetic Domain: Dark Cyber-Arcane / Mystical Stone + Neon
+
+
+1. Art Direction One-Pager
+Vision & Mood
+Ravenstack Keep is a subterranean cyber-arcane fortress—an ancient runic citadel fused with dark computational conduits. The visual language bridges mystical slate stonework with razor-sharp neon energy circuits. It is not a cozy pixel office, not a bright sci-fi spaceship, and not a cute casual simulation. The atmosphere is cold, tactical, ritualistic, and high-density.
+
+       [ DARK STONE BASE ]                 [ NEON RUNIC CHANNELS ]
+
+    #0b0e14 / #1e222b / #3a3f4b        #2de2e6 / #ff2a6d / #39ff14
+
+ ┌────────────────────────────────┐   ┌────────────────────────────────┐
+
+ │ Weathered slate blocks         │   │ 1px laser-sharp glow channels  │
+
+ │ Obsidian reinforcement plates  │ + │ Runic circuit inlays           │
+
+ │ Heavy iron forged trims        │   │ High-contrast state highlights │
+
+ └────────────────────────────────┘   └────────────────────────────────┘
+Material & Surface Rules
+Primary Stonework: High-contrast slate blocks chiseled with clean, geometric edges (#3a3f4b).
+Dim/Unforged Stonework: Sunken obsidian-granite (#1e222b), unlit, cold, and inert.
+Active Surface Metals: Matte iron and carbon-steel conductive conduits (#4a5568).
+Illumination: Energy strictly emanates from inlaid runic channels, glass terminal lenses, or tile rim glow. No ambient volumetric lighting or soft haze.
+Neon & Lighting Rules
+Rim Lighting: Active rooms feature a crisp 1px exterior rim glow in cyan (#2de2e6).
+State Highlights:
+Idle / Standby: Cyan (#2de2e6)
+Processing / Work: Magenta (#ff2a6d)
+Awaiting Gate / Wait: Amber (#ffc857)
+Live Status / Success: Green (#39ff14)
+Lock / Fault / Fail: Red (#ff3b3b)
+Glow Discipline: Neon must cover no more than 20% of any single tile surface area. Stonework remains dominant.
+Pixel Consistency Protocol (20-Tile Uniformity)
+Perspective: Top-down 3/4 orthographic view. Flat, non-skewed horizontal and vertical grid lines.
+Pixel Grid: Native 48×48 px tiles (built on a 16px/32px sub-grid). No sub-pixel rendering, no anti-aliased edge smoothing, no bilinear filtering.
+Palette Locking: All colors must strictly draw from or blend directly between the locked color palette.
+
+
+2. Palette Specification
+
+Color Variable
+Hex Code
+Purpose & Usage
+bg
+#0b0e14
+Void canvas / backdrop / deep shadows
+stoneDim
+#1e222b
+Sealed rooms (UNFORGED), unlit stonework
+stone
+#3a3f4b
+Standard room wall base, inactive masonry
+stoneLive
+#4a5568
+Active room floor plates, conductive conduits
+neon
+#2de2e6
+Active room rims, idle agent chips, primary runic energy
+magenta
+#ff2a6d
+Processing/Work state glow, forge energy
+amber
+#ffc857
+Gate block, pending review, wait state
+green
+#39ff14
+Execution success, live operational state
+red
+#ff3b3b
+Lock glyphs, failure states, sealed borders
+
+
+
+3. Asset Manifest
+
+Filename
+Dimensions
+Purpose
+Priority
+room_unforged_48.png
+48×48 px
+Universal base tile for sealed/inactive rooms
+P0
+room_live_48.png
+48×48 px
+Universal base tile for active rooms with cyan rim
+P0
+room_locked_48.png
+48×48 px
+Universal base tile with red lock glyph
+P0
+chip_idle.png
+16×16 px
+Agent chip indicator (Cyan #2de2e6)
+P0
+chip_work.png
+16×16 px
+Agent chip indicator (Magenta #ff2a6d)
+P0
+chip_wait.png
+16×16 px
+Agent chip indicator (Amber #ffc857)
+P0
+chip_fail.png
+16×16 px
+Agent chip indicator (Red #ff3b3b)
+P0
+chip_retired.png
+16×16 px
+Agent chip indicator (Dim Stone #1e222b)
+P0
+facade_oracle_unforged.png
+48×48 px
+Oracle room façade (Sealed spec altar)
+P1
+facade_oracle_live.png
+48×48 px
+Oracle room façade (Live runic altar, spec pending)
+P1
+facade_orchestrator_unforged.png
+48×48 px
+Orchestrator façade (Unforged control nexus)
+P1
+facade_orchestrator_live.png
+48×48 px
+Orchestrator façade (Live command terminal array)
+P1
+facade_clawforge_unforged.png
+48×48 px
+Clawforge façade (Unforged tool anvil)
+P1
+facade_clawforge_live.png
+48×48 px
+Clawforge façade (Live cybernetic anvil with sparks)
+P1
+facade_scribe_unforged.png
+48×48 px
+Scribe façade (Unforged dark library vault)
+P1
+facade_scribe_live.png
+48×48 px
+Scribe façade (Live glowing scroll vault)
+P1
+facade_auditor_unforged.png
+48×48 px
+Auditor façade (Unforged inspection altar)
+P1
+facade_auditor_live.png
+48×48 px
+Auditor façade (Live inspection lens with green glow)
+P1
+facade_suno_studio_unforged.png
+48×48 px
+Suno Studio façade (Unforged audio chamber)
+P1
+facade_suno_studio_live.png
+48×48 px
+Suno Studio façade (Live sonic waveform altar)
+P1
+facade_flipper_unforged.png
+48×48 px
+Flipper façade (Unforged market room)
+P1
+facade_flipper_live.png
+48×48 px
+Flipper façade (Live market ledger console)
+P1
+facade_lead_forge_unforged.png
+48×48 px
+Lead Forge façade (Sealed heavy iron furnace)
+P1
+facade_lead_forge_live.png
+48×48 px
+Lead Forge façade (Dormant heavy molten forge)
+P1
+hud_stone_panel.png
+192×64 px
+Cyber-arcane stone HUD container overlay
+P2
+gate_seal_stamp.png
+24×24 px
+Gate seal stamp icon for HUD inbox items
+P2
+selection_outline.png
+48×48 px
+Cyan selection box highlight frame
+P2
+prop_ether_brazier.png
+16×16 px
+Wall light brazier with floating cyan plasma orb
+Prop
+prop_conduit_trench.png
+48×48 px
+Floor tile connector with 2px cyan neon trench
+Prop
+prop_scan_grid.png
+48×48 px
+Auditor green laser scan reticle overlay
+Prop
+prop_terminal_apparatus.png
+32×32 px
+Monolithic stone computer terminal apparatus
+Prop
+
+
+
+4. Automated Asset Pipeline Script (process_ravenstack_art.py)
+
+#!/usr/bin/env python3
+"""
+Ravenstack Keep — Asset Pipeline (Aseprite CLI & Python)
+Automates palette enforcement, pixel-snapping, directory organization,
+and Phaser 3 spritesheet generation.
+"""
+import os
+import sys
+import shutil
+import subprocess
+from pathlib import Path
+from PIL import Image
+
+PALETTE_COLORS = [
+    ("bg",        (11,  14,  20)),   # #0b0e14
+    ("stoneDim",  (30,  34,  43)),   # #1e222b
+    ("stone",     (58,  63,  75)),   # #3a3f4b
+    ("stoneLive", (74,  85,  104)),  # #4a5568
+    ("neon",      (45,  226, 230)),  # #2de2e6
+    ("magenta",   (255, 42,  109)),  # #ff2a6d
+    ("amber",     (255, 200, 87)),   # #ffc857
+    ("green",     (57,  255, 20)),   # #39ff14
+    ("red",       (255, 59,  59))    # #ff3b3b
+]
+
+TARGET_DIRS = {
+    "base": "ui/public/art/tiles/base",
+    "facades": "ui/public/art/tiles/facades",
+    "chips": "ui/public/art/chips",
+    "hud": "ui/public/art/hud"
+}
+
+def create_gpl_palette(filename="ravenstack_palette.gpl"):
+    lines = ["GIMP Palette", "Name: Ravenstack Keep Locked Palette", "Columns: 3", "#"]
+    for name, (r, g, b) in PALETTE_COLORS:
+        lines.append(f"{r:3d} {g:3d} {b:3d}\t{name}")
+    with open(filename, "w") as f:
+        f.write("\n".join(lines) + "\n")
+    return filename
+
+def find_nearest_palette_color(rgb, allow_alpha=True):
+    r, g, b = rgb[:3]
+    if len(rgb) > 3 and rgb[3] < 128 and allow_alpha:
+        return (0, 0, 0, 0)
+    min_dist = float("inf")
+    closest = PALETTE_COLORS[0][1]
+    for _, (pr, pg, pb) in PALETTE_COLORS:
+        dist = (r - pr)**2 + (g - pg)**2 + (b - pb)**2
+        if dist < min_dist:
+            min_dist = dist
+            closest = (pr, pg, pb)
+    if len(rgb) > 3:
+        return (closest[0], closest[1], closest[2], 255)
+    return closest
+
+def quantize_and_resize(image_path, output_path, target_size=(48, 48)):
+    img = Image.open(image_path).convert("RGBA")
+    img_resized = img.resize(target_size, Image.Resampling.NEAREST)
+    pixels = img_resized.load()
+    width, height = img_resized.size
+    for y in range(height):
+        for x in range(width):
+            pixels[x, y] = find_nearest_palette_color(pixels[x, y])
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    img_resized.save(output_path)
+
+def process_file(input_file, output_file, palette_file, target_size=(48, 48)):
+    quantize_and_resize(input_file, output_file, target_size)
+    aseprite_bin = shutil.which("aseprite")
+    if aseprite_bin:
+        cmd = [aseprite_bin, "-b", output_file, "--palette", palette_file, "--save-as", output_file]
+        try:
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        except subprocess.CalledProcessError as e:
+            print(f"Aseprite CLI error: {e}")
+
+def build_phaser3_spritesheet(art_root="ui/public/art"):
+    aseprite_bin = shutil.which("aseprite")
+    if not aseprite_bin:
+        return
+    tile_files = list(Path(art_root).glob("**/*.png"))
+    valid_tiles = [str(f) for f in tile_files if f.name != "ravenstack_sheet.png"]
+    if not valid_tiles:
+        return
+    sheet_png = os.path.join(art_root, "ravenstack_sheet.png")
+    sheet_json = os.path.join(art_root, "ravenstack_sheet.json")
+    cmd = [aseprite_bin, "-b", *valid_tiles, "--sheet-type", "packed", "--sheet", sheet_png, "--data", sheet_json, "--format", "json-hash"]
+    try:
+        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to generate spritesheet: {e}")
+
+def main():
+    for path in TARGET_DIRS.values():
+        os.makedirs(path, exist_ok=True)
+    gpl_file = create_gpl_palette()
+    input_dir = Path("input")
+    if not input_dir.exists():
+        os.makedirs(input_dir, exist_ok=True)
+        return
+    raw_images = list(input_dir.glob("*.png")) + list(input_dir.glob("*.jpg"))
+    for img_path in raw_images:
+        filename = img_path.name
+        if filename.startswith("chip_") or filename.startswith("prop_ether"):
+            target_path = os.path.join(TARGET_DIRS["chips"], filename)
+            size = (16, 16)
+        elif filename.startswith("hud_") or filename.startswith("gate_") or filename.startswith("selection_") or filename.startswith("prop_scan") or filename.startswith("prop_terminal"):
+            target_path = os.path.join(TARGET_DIRS["hud"], filename)
+            size = (192, 64) if filename.startswith("hud_") else ((24, 24) if filename.startswith("gate_") else ((32, 32) if filename.startswith("prop_terminal") else (48, 48)))
+        elif filename.startswith("facade_"):
+            target_path = os.path.join(TARGET_DIRS["facades"], filename)
+            size = (48, 48)
+        else:
+            target_path = os.path.join(TARGET_DIRS["base"], filename)
+            size = (48, 48)
+        process_file(str(img_path), target_path, gpl_file, target_size=size)
+    build_phaser3_spritesheet()
+
+if __name__ == "__main__":
+    main()
+5. Super Grok Imagine Prompt Pack
+[PROMPT P0-01] Target Asset: room-unforged-48 | Filename: room_unforged_48.png | Size: 48x48 | Background: #0b0e14
+
+Positive: 16-bit pixel art 48x48 tile, dark cyber-arcane fortress room, sealed state, top-down orthographic view. Chiseled dark granite and slate block floor in #1e222b with dim stone walls #3a3f4b. Inactive unlit runic channels carved into stone, dark cold atmosphere, heavy iron corner brackets. Strict palette #0b0e14, #1e222b, #3a3f4b, #4a5568. Sharp pixel grid, clean 1px dark border around edge.
+
+Negative: 3d render, anti-aliasing, soft shadows, blur, smooth gradients, glowing neon, bright colors, text, isometric, cute office, generic sci-fi, dithering.
+
+[PROMPT P0-02] Target Asset: room-live-48 | Filename: room_live_48.png | Size: 48x48 | Background: #0b0e14
+
+Positive: 16-bit pixel art 48x48 tile, active cyber-arcane fortress room, live state, top-down orthographic view. Slate masonry floor #4a5568 surrounded by #3a3f4b walls. Sharp 1px cyan neon rim glow in #2de2e6 bordering the entire inner frame. Active glowing energy conduits inlaid in floor. High contrast, crisp pixel art. Strict palette #0b0e14, #3a3f4b, #4a5568, #2de2e6.
+
+Negative: 3d render, anti-aliasing, bloom, fuzzy glow, blur, text, isometric, cute office, soft edges, anti-aliased lines.
+
+[PROMPT P0-03] Target Asset: room-locked-48 | Filename: room_locked_48.png | Size: 48x48 | Background: #0b0e14
+
+Positive: 16-bit pixel art 48x48 tile, locked cyber-arcane room, top-down orthographic view. Dark iron plate floor #1e222b and slate walls #3a3f4b. Prominent central 16x16 pixel red lock glyph glowing in #ff3b3b with red energy chains binding the corners. Dark ominous fortress aesthetic. Strict palette #0b0e14, #1e222b, #3a3f4b, #ff3b3b.
+
+Negative: 3d render, anti-aliasing, blur, text, alphabet letters, yellow lock, realistic padlock, soft lighting, isometric.
+
+[PROMPT P0-04] Target Asset: chip-idle | Filename: chip_idle.png | Size: 16x16 | Background: transparent
+
+Positive: 16-bit pixel art 16x16 sprite, cyber-arcane agent chip, idle state. Small central glowing cyan orb in #2de2e6 housed inside a dark iron micro-frame #3a3f4b. Top-down view. Crisp pixels, high contrast, transparent background.
+
+Negative: 3d render, anti-aliasing, blur, glowing haze, circle smoothing, text.
+
+[PROMPT P0-05] Target Asset: chip-work | Filename: chip_work.png | Size: 16x16 | Background: transparent
+
+Positive: 16-bit pixel art 16x16 sprite, cyber-arcane agent chip, working active state. Small central glowing magenta orb in #ff2a6d with tiny energy sparks in #ff2a6d housed inside a dark iron micro-frame #3a3f4b. Top-down view. Crisp pixels, high contrast, transparent background.
+
+Negative: 3d render, anti-aliasing, blur, glowing haze, smooth gradients.
+
+[PROMPT P0-06] Target Asset: chip-wait | Filename: chip_wait.png | Size: 16x16 | Background: transparent
+
+Positive: 16-bit pixel art 16x16 sprite, cyber-arcane agent chip, waiting state. Small central glowing amber square core in #ffc857 housed inside a dark iron micro-frame #3a3f4b. Top-down view. Crisp pixels, high contrast, transparent background.
+
+Negative: 3d render, anti-aliasing, blur, circular smooth gradients, soft glow.
+
+[PROMPT P0-07] Target Asset: chip-fail | Filename: chip_fail.png | Size: 16x16 | Background: transparent
+
+Positive: 16-bit pixel art 16x16 sprite, cyber-arcane agent chip, failed error state. Small central cracked red core in #ff3b3b with red pixel fault lines housed inside a dark iron micro-frame #3a3f4b. Top-down view. Crisp pixels, high contrast, transparent background.
+
+Negative: 3d render, anti-aliasing, blur, soft light, text, exclamation mark.
+
+[PROMPT P0-08] Target Asset: chip-retired | Filename: chip_retired.png | Size: 16x16 | Background: transparent
+
+Positive: 16-bit pixel art 16x16 sprite, cyber-arcane agent chip, retired state. Extinguished dark gray metallic stone core in #1e222b and #3a3f4b, cold and unlit, inert micro-casing. Top-down view. Crisp pixels, low contrast, transparent background.
+
+Negative: 3d render, bright colors, neon glow, anti-aliasing, blur.
+
+[PROMPT P1-01] Target Asset: facade-oracle-unforged | Filename: facade_oracle_unforged.png | Size: 48x48 | Background: #0b0e14
+
+Positive: 16-bit pixel art 48x48 room tile, Oracle room, unforged sealed state, top-down orthographic view. Unlit stone altar #1e222b surrounded by dark slate masonry #3a3f4b. Carved unlit eye-shaped runic circle etched into floor. Dark mystical shrine aesthetic, cold inert atmosphere. Strict palette #0b0e14, #1e222b, #3a3f4b. Crisp pixel grid.
+
+Negative: 3d render, anti-aliasing, bright glow, magic particle haze, text, readable runes, isometric.
+
+[PROMPT P1-02] Target Asset: facade-oracle-live | Filename: facade_oracle_live.png | Size: 48x48 | Background: #0b0e14
+
+Positive: 16-bit pixel art 48x48 room tile, Oracle room, live state, top-down orthographic view. Active runic altar with glowing cyan energy eye motif in #2de2e6 and amber spec glyph in #ffc857 etched into floor plates #4a5568. Cyan neon rim glow #2de2e6 around wall frame #3a3f4b. Mystical computational altar. Strict palette #0b0e14, #3a3f4b, #4a5568, #2de2e6, #ffc857.
+
+Negative: 3d render, anti-aliasing, text, English words, soft glow haze, isometric, anime.
+
+[PROMPT P1-03] Target Asset: facade-orchestrator-unforged | Filename: facade_orchestrator_unforged.png | Size: 48x48 | Background: #0b0e14
+
+Positive: 16-bit pixel art 48x48 room tile, Orchestrator command room, unforged state, top-down orthographic view. Unlit central stone star terminal #1e222b surrounded by slate floor walls #3a3f4b. Inactive conduit lines branching out to four corners. Dark tactical command nexus. Strict palette #0b0e14, #1e222b, #3a3f4b.
+
+Negative: 3d render, anti-aliasing, bright lights, computer monitors, text, isometric office.
+
+[PROMPT P1-04] Target Asset: facade-orchestrator-live | Filename: facade_orchestrator_live.png | Size: 48x48 | Background: #0b0e14
+
+Positive: 16-bit pixel art 48x48 room tile, Orchestrator command room, live state, top-down orthographic view. Central command terminal pulsing with cyan energy #2de2e6 and magenta processing accents #ff2a6d. Runic conduits extending to corners on stone floor #4a5568. Crisp cyan rim #2de2e6. Strict palette #0b0e14, #3a3f4b, #4a5568, #2de2e6, #ff2a6d.
+
+Negative: 3d render, anti-aliasing, sci-fi screens, text, modern keyboards, blur.
+
+[PROMPT P1-05] Target Asset: facade-clawforge-unforged | Filename: facade_clawforge_unforged.png | Size: 48x48 | Background: #0b0e14
+
+Positive: 16-bit pixel art 48x48 room tile, Clawforge synthesis room, unforged state, top-down orthographic view. Heavy dark iron anvil block #1e222b set on dark slate masonry #3a3f4b. Inactive mechanical claw arm etched into cold stone. Industrial cyber-arcane forge, sealed atmosphere. Strict palette #0b0e14, #1e222b, #3a3f4b.
+
+Negative: 3d render, anti-aliasing, fire, glowing lava, text, cute robot, isometric.
+
+[PROMPT P1-06] Target Asset: facade-clawforge-live | Filename: facade_clawforge_live.png | Size: 48x48 | Background: #0b0e14
+
+Positive: 16-bit pixel art 48x48 room tile, Clawforge synthesis room, live state, top-down orthographic view. Cybernetic anvil pulsing with magenta forge energy #ff2a6d, tiny green synthesis sparks #39ff14. Active floor plates #4a5568 framed in cyan neon rim #2de2e6. Industrial arcane forge. Strict palette #0b0e14, #3a3f4b, #4a5568, #2de2e6, #ff2a6d, #39ff14.
+
+Negative: 3d render, anti-aliasing, realistic smoke, soft blur, text, blacksmith hammer.
+
+[PROMPT P1-07] Target Asset: facade-scribe-unforged | Filename: facade_scribe_unforged.png | Size: 48x48 | Background: #0b0e14
+
+Positive: 16-bit pixel art 48x48 room tile, Scribe record archive, unforged state, top-down orthographic view. Stone lectern and tablet shelves #1e222b set into slate walls #3a3f4b. Cold, dark library vault, unlit scroll alcoves etched in stone. Ancient documentation chamber. Strict palette #0b0e14, #1e222b, #3a3f4b.
+
+Negative: 3d render, anti-aliasing, open glowing books, fire torches, text, readable writing.
+
+[PROMPT P1-08] Target Asset: facade-scribe-live | Filename: facade_scribe_live.png | Size: 48x48 | Background: #0b0e14
+
+Positive: 16-bit pixel art 48x48 room tile, Scribe record archive, live state, top-down orthographic view. Central stone lectern glowing with cyan text runes #2de2e6 and green archive data conduits #39ff14. Active stone floor #4a5568 framed by cyan neon rim #2de2e6. Mystical data vault. Strict palette #0b0e14, #3a3f4b, #4a5568, #2de2e6, #39ff14.
+
+Negative: 3d render, anti-aliasing, English text, readable words, paper scrolls, blur, soft light.
+
+[PROMPT P1-09] Target Asset: facade-auditor-unforged | Filename: facade_auditor_unforged.png | Size: 48x48 | Background: #0b0e14
+
+Positive: 16-bit pixel art 48x48 room tile, Auditor inspection room, unforged state, top-down orthographic view. Unlit stone magnifying lens device #1e222b mounted over dark slate floor #3a3f4b. Cold inspection pedestal, sealed security station aesthetic. Strict palette #0b0e14, #1e222b, #3a3f4b.
+
+Negative: 3d render, anti-aliasing, glass glare, red security laser, text, isometric.
+
+[PROMPT P1-10] Target Asset: facade-auditor-live | Filename: facade_auditor_live.png | Size: 48x48 | Background: #0b0e14
+
+Positive: 16-bit pixel art 48x48 room tile, Auditor inspection room, live state, top-down orthographic view. Central inspection lens beaming bright green scanning grid #39ff14 onto stone floor #4a5568. Cyan neon rim #2de2e6 along slate wall frame #3a3f4b. High precision audit station. Strict palette #0b0e14, #3a3f4b, #4a5568, #2de2e6, #39ff14.
+
+Negative: 3d render, anti-aliasing, smooth laser beam, bloom, text, camera lenses, blur.
+
+[PROMPT P1-11] Target Asset: facade-suno-studio-unforged | Filename: facade_suno_studio_unforged.png | Size: 48x48 | Background: #0b0e14
+
+Positive: 16-bit pixel art 48x48 room tile, Suno Studio sonic chamber, unforged state, top-down orthographic view. Inactive soundwave grooves carved into dark stone floor #1e222b surrounded by slate walls #3a3f4b. Acoustic stone baffles, dark silent chamber. Strict palette #0b0e14, #1e222b, #3a3f4b.
+
+Negative: 3d render, anti-aliasing, music notes, speakers, headphones, text, isometric.
+
+[PROMPT P1-12] Target Asset: facade-suno-studio-live | Filename: facade_suno_studio_live.png | Size: 48x48 | Background: #0b0e14
+
+Positive: 16-bit pixel art 48x48 room tile, Suno Studio sonic chamber, live state, top-down orthographic view. Floor channels pulsing with glowing cyan #2de2e6 and magenta #ff2a6d audio frequency equalizer pixels. Active stone floor #4a5568, cyan neon rim #2de2e6. Cyber-arcane sound forge. Strict palette #0b0e14, #3a3f4b, #4a5568, #2de2e6, #ff2a6d.
+
+Negative: 3d render, anti-aliasing, modern audio mixer, music note icons, text, soft blur.
+
+[PROMPT P1-13] Target Asset: facade-flipper-unforged | Filename: facade_flipper_unforged.png | Size: 48x48 | Background: #0b0e14
+
+Positive: 16-bit pixel art 48x48 room tile, Flipper valuation market room, unforged state, top-down orthographic view. Unlit stone scale balance motif #1e222b etched into slate masonry floor #3a3f4b. Cold commerce vault, dark market terminal. Strict palette #0b0e14, #1e222b, #3a3f4b.
+
+Negative: 3d render, anti-aliasing, gold coins, dollar signs, text, charts, isometric.
+
+[PROMPT P1-14] Target Asset: facade-flipper-live | Filename: facade_flipper_live.png | Size: 48x48 | Background: #0b0e14
+
+Positive: 16-bit pixel art 48x48 room tile, Flipper valuation market room, live state, top-down orthographic view. Central market terminal displaying green upward pixel trend ticker #39ff14 and amber valuation nodes #ffc857. Active stone floor #4a5568 framed in cyan neon rim #2de2e6. Cyber-arcane trade console. Strict palette #0b0e14, #3a3f4b, #4a5568, #2de2e6, #39ff14, #ffc857.
+
+Negative: 3d render, anti-aliasing, dollar signs, stock numbers, text, computer monitor, blur.
+
+[PROMPT P1-15] Target Asset: facade-lead-forge-unforged | Filename: facade_lead_forge_unforged.png | Size: 48x48 | Background: #0b0e14
+
+Positive: 16-bit pixel art 48x48 room tile, Lead Forge heavy room, unforged sealed state, top-down orthographic view. Massive sealed iron forge door #1e222b locked with thick slate rivets #3a3f4b. Cold heavy industrial furnace chamber, dormant and unlit. Heavy iron bars. Strict palette #0b0e14, #1e222b, #3a3f4b.
+
+Negative: 3d render, anti-aliasing, fire, molten metal, glowing lava, text, isometric.
+
+[PROMPT P1-16] Target Asset: facade-lead-forge-live | Filename: facade_lead_forge_live.png | Size: 48x48 | Background: #0b0e14
+
+Positive: 16-bit pixel art 48x48 room tile, Lead Forge heavy room, live dormant state, top-down orthographic view. Heavy iron furnace with deep amber heat vents #ffc857 radiating beneath dark iron grates #4a5568. Cyan neon rim #2de2e6 along outer slate frame #3a3f4b. Heavy cybernetic forge. Strict palette #0b0e14, #3a3f4b, #4a5568, #2de2e6, #ffc857.
+
+Negative: 3d render, anti-aliasing, realistic smoke, fire particle effect, text, blur.
+
+[PROMPT P2-01] Target Asset: hud-stone-panel | Filename: hud_stone_panel.png | Size: 192x64 | Background: #0b0e14
+
+Positive: 16-bit pixel art UI container panel, 192x64 rectangle, dark cyber-arcane stone HUD interface. Chiseled slate frame in #3a3f4b with inner dark recess #1e222b. Corners reinforced with dark iron brackets #4a5568 and subtle cyan neon corner dots #2de2e6. Clean pixel art GUI box.
+
+Negative: 3d render, anti-aliasing, metallic gloss, curved rounded corners, text, icons, blur.
+
+[PROMPT P2-02] Target Asset: gate-seal-stamp | Filename: gate_seal_stamp.png | Size: 24x24 | Background: transparent
+
+Positive: 16-bit pixel art 24x24 icon, human gate seal stamp mark. Circular arcane wax seal in amber #ffc857 with dark iron rim #3a3f4b and central runic gate symbol. High contrast pixel icon, transparent background.
+
+Negative: 3d render, anti-aliasing, smooth circle, real text, blur, drop shadow.
+
+[PROMPT P2-03] Target Asset: selection-outline | Filename: selection_outline.png | Size: 48x48 | Background: transparent
+
+Positive: 16-bit pixel art 48x48 frame overlay, selection border. Hollow 48x48 box with a 2px thick glowing cyan neon line in #2de2e6 and bright corner ticks in #39ff14. Center 44x44 area is 100% fully transparent. Pixel grid frame.
+
+Negative: 3d render, anti-aliasing, filled center, solid box, soft bloom blur, text.
+
+[PROMPT PROP-01] Target Asset: prop-ether-brazier | Filename: prop_ether_brazier.png | Size: 16x16 | Background: transparent
+
+Positive: 16-bit pixel art 16x16 sprite, cyber-arcane wall light brazier, top-down view. Dark iron wall bracket in #3a3f4b holding a small floating levitating cyan plasma orb glowing in #2de2e6. Cold mystical light source, high contrast pixels, transparent background. Strict palette #0b0e14, #3a3f4b, #2de2e6.
+
+Negative: 3d render, anti-aliasing, fire, wood torch, realistic flame, yellow light, blur, soft bloom.
+
+[PROMPT PROP-02] Target Asset: prop-conduit-trench | Filename: prop_conduit_trench.png | Size: 48x48 | Background: #0b0e14
+
+Positive: 16-bit pixel art 48x48 tile, runic floor connector conduit, top-down orthographic view. Slate masonry floor #4a5568 with a central 2px inlaid glowing cyan neon channel #2de2e6 running straight through the center stone plate. Dark cyber-arcane power line tile. Strict palette #0b0e14, #3a3f4b, #4a5568, #2de2e6.
+
+Negative: 3d render, anti-aliasing, wires, cables, soft bloom, blur, text, isometric.
+
+[PROMPT PROP-03] Target Asset: prop-scan-grid | Filename: prop_scan_grid.png | Size: 48x48 | Background: transparent
+
+Positive: 16-bit pixel art 48x48 overlay sprite, laser audit scan grid. Glowing green pixelated laser grid matrix in #39ff14 projecting an inspection reticle pattern. Center 48x48 transparent overlay, high contrast pixel art. Strict palette #39ff14.
+
+Negative: 3d render, anti-aliasing, soft laser beam, camera lens, blur, solid background, text.
+
+[PROMPT PROP-04] Target Asset: prop-terminal-apparatus | Filename: prop_terminal_apparatus.png | Size: 32x32 | Background: transparent
+
+Positive: 16-bit pixel art 32x32 sprite, cyber-arcane terminal apparatus console, top-down view. Dark chiseled stone pedestal in #3a3f4b with embedded glowing magenta runic screen #ff2a6d and cyan interface nodes #2de2e6. Monolithic arcane computer console, transparent background. Strict palette #3a3f4b, #4a5568, #2de2e6, #ff2a6d.
+
+Negative: 3d render, anti-aliasing, modern desktop PC, plastic keyboard, office desk, text, blur.
+
+
+6. Integration Notes & QA Rubric
+Engineering Integration (ui/public/art/)
+World Anchor Coordinates: All (x,y) coordinates come strictly from castle_map. Art assets strictly measure 48×48 px so they drop directly into Phaser tile slots without shifting anchors.
+Sprite Replacement: Replace debug this.add.rectangle calls with this.add.sprite(x, y, key) using nearest-neighbor scaling (pixelArt: true).
+QA & Rejection Criteria
+Reject any generated image exhibiting:
+
+Blurry edges, sub-pixel rendering, or anti-aliasing.
+Rendered text, English letters, or legible numbers.
+Incorrect bounding box or missing transparency padding.
+Neon glow exceeding 20% of the tile surface area.
+Skewed 3D camera angles or isometric perspective.
+Unapproved colors outside the locked hex palette.
+
+7. Master Grok Imagine Prompt Engine
+The following logic dictates the generation of all Ravenstack Keep assets. All prompts must follow this structured template to ensure architectural and pixel-level consistency across the pipeline.
+Prompt Template Structure
+[PROMPT ID] Target Asset: [Asset Name] | Filename: [filename.png] | Size: [Dimensions] | Background: [#0b0e14 or transparent]
+Positive: 16-bit pixel art [Size] tile/sprite, [Subject], [State], top-down orthographic view. [Material Description] using [Hex Palette]. [Lighting/Neon Details]. High contrast, crisp pixel art. Sharp pixel grid, clean 1px border where applicable.
+Negative: 3d render, anti-aliasing, soft shadows, blur, smooth gradients, glowing haze, bloom, text, alphabet letters, isometric, cute office, generic sci-fi, dithering, anti-aliased lines.
+State & Material Variants
+Unforged (Sealed): Uses #1e222b (StoneDim) and #3a3f4b (Stone). Cold, unlit, inert atmosphere with inactive etched conduits.
+Live (Active): Uses #4a5568 (StoneLive) with #2de2e6 (Neon) rim glow. Includes active glowing energy channels.
+Processing/Locked: Incorporates state-specific highlights like #ff2a6d (Magenta) for work or #ff3b3b (Red) for faults and locked states.
+Exact Stop Conditions (QA Rejection)
+Generation is considered a failure if any of the following are present:
+Blurry edges or sub-pixel rendering.
+Any legible text, numbers, or English characters.
+Neon coverage exceeding 20% of the tile surface area.
+Isometric perspective or skewed 3D camera angles.
+Colors outside the locked hex palette (#0b0e14, #1e222b, #3a3f4b, #4a5568, #2de2e6, #ff2a6d, #ffc857, #39ff14, #ff3b3b).
