@@ -82,6 +82,13 @@ async def health(_: Request) -> JSONResponse:
 async def castle_map(_: Request) -> JSONResponse:
     """UI-shaped map: rooms[] with pixel x/y + agent chips."""
     keep.init_db()
+    # Phase A: mirror OpenClaw sessions → Keep chips on every UI poll
+    try:
+        from openclaw_sync import sync_openclaw_status
+
+        sync_openclaw_status()
+    except Exception:
+        pass
     with keep._connect() as conn:
         rows = conn.execute(
             "SELECT * FROM rooms ORDER BY name COLLATE NOCASE"
@@ -144,7 +151,23 @@ async def gates(_: Request) -> JSONResponse:
 
 
 async def occupancy(_: Request) -> JSONResponse:
+    try:
+        from openclaw_sync import sync_openclaw_status
+
+        sync_openclaw_status()
+    except Exception:
+        pass
     return _json(json.loads(keep.get_occupancy_summary()))
+
+
+async def sync_openclaw(_: Request) -> JSONResponse:
+    """Force OpenClaw → Keep status sync (for debugging / external timers)."""
+    try:
+        from openclaw_sync import sync_openclaw_status
+
+        return _json(sync_openclaw_status())
+    except Exception as e:  # noqa: BLE001
+        return _err("sync_failed", str(e), status=500)
 
 
 async def path(request: Request) -> JSONResponse:
@@ -238,6 +261,7 @@ routes = [
     Route("/api/castle-map", castle_map),
     Route("/api/gates", gates),
     Route("/api/occupancy", occupancy),
+    Route("/api/sync-openclaw", sync_openclaw),
     Route("/api/path", path),
     Route("/api/report-status", report_status, methods=["POST"]),
     Route("/api/specs", specs),

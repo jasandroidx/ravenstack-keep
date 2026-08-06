@@ -70,8 +70,8 @@ SEED_ROOMS: list[dict[str, Any]] = [
         "y": 0,
         "status": "Secure",
         "lock_state": "live",
-        "notes": "Orchestrator / command center",
-        "occupant_agent_id": None,
+        "notes": "Orchestrator / command center (Raziel)",
+        "occupant_agent_id": "raziel",
     },
     {
         "room_id": "alchemy-lab",
@@ -224,6 +224,18 @@ def init_db() -> None:
                         now,
                     ),
                 )
+        else:
+            # Phase A: ensure Raziel home room occupant without wiping live status
+            conn.execute(
+                """
+                UPDATE rooms
+                SET occupant_agent_id = COALESCE(occupant_agent_id, 'raziel'),
+                    notes = COALESCE(notes, 'Orchestrator / command center (Raziel)')
+                WHERE room_id = 'great-hall'
+                  AND (occupant_agent_id IS NULL OR occupant_agent_id = ''
+                       OR occupant_agent_id = 'raziel')
+                """
+            )
 
 
 def _row_room(row: sqlite3.Row) -> dict[str, Any]:
