@@ -82,11 +82,19 @@ async def health(_: Request) -> JSONResponse:
 async def castle_map(_: Request) -> JSONResponse:
     """UI-shaped map: rooms[] with pixel x/y + agent chips."""
     keep.init_db()
-    # Phase A: mirror OpenClaw sessions → Keep chips on every UI poll
+    # Phase A: OpenClaw sessions → chips
     try:
         from openclaw_sync import sync_openclaw_status
 
         sync_openclaw_status()
+    except Exception:
+        pass
+    # Phase B: pending gates → waiting_human + inbox
+    try:
+        import gates as g
+
+        g.refresh_gates_from_sot()
+        g.sync_status_from_gates()
     except Exception:
         pass
     with keep._connect() as conn:
@@ -145,9 +153,65 @@ async def castle_map(_: Request) -> JSONResponse:
     )
 
 
-async def gates(_: Request) -> JSONResponse:
-    # Phase-1: no gate table yet — empty inbox is honest
-    return _json({"gates": [], "waiting_human_agents": [], "count": 0})
+async def gates(request: Request) -> JSONResponse:
+    import gates as g
+
+    include = request.query_params.get("include_resolved", "false").lower() == "true"
+    try:
+        g.refresh_gates_from_sot()
+        g.sync_status_from_gates()
+    except Exception:
+        pass
+    gate_list = g.list_pending_gates(include_resolved=include)
+    with keep._connect() as conn:
+        waiting = [
+            a
+            for a in keep._live_agents(conn).values()
+            if a.get("state") == "waiting_human"
+        ]
+    return _json(
+        {
+            "gates": gate_list,
+            "waiting_human_agents": waiting,
+            "count": len(gate_list),
+        }
+    )
+
+
+async def approve_spec_http(request: Request) -> JSONResponse:
+    import gates as g
+
+    body, err = await _body(request)
+    if err:
+        return err
+    assert body is not None
+    agent_id = body.get("agent_id") or body.get("subject_id")
+    if not agent_id:
+        return _err("invalid_input", "agent_id required")
+    result = g.approve_spec(str(agent_id), confirm=body.get("confirm") is True)
+    if result.get("error") or result.get("ok") is False:
+        code = 403 if result.get("code") == "confirm_required" else 400
+        return _json(result, status=code)
+    g.sync_status_from_gates()
+    return _json(result)
+
+
+async def unlock_room_http(request: Request) -> JSONResponse:
+    import gates as g
+
+    body, err = await _body(request)
+    if err:
+        return err
+    assert body is not None
+    room_id = body.get("room_id") or body.get("subject_id")
+    if not room_id:
+        return _err("invalid_input", "room_id required")
+    result = g.unlock_room(str(room_id), confirm=body.get("confirm") is True)
+    if result.get("error") or result.get("ok") is False:
+        code = 403 if result.get("code") == "confirm_required" else 400
+        return _json(result, status=code)
+    g.sync_status_from_gates()
+    return _json(result)
 
 
 async def occupancy(_: Request) -> JSONResponse:
@@ -264,6 +328,8 @@ routes = [
     Route("/api/sync-openclaw", sync_openclaw),
     Route("/api/path", path),
     Route("/api/report-status", report_status, methods=["POST"]),
+    Route("/api/approve-spec", approve_spec_http, methods=["POST"]),
+    Route("/api/unlock-room", unlock_room_http, methods=["POST"]),
     Route("/api/specs", specs),
     Route("/", spa_or_root),
     Route("/{path:path}", static_fallback),
