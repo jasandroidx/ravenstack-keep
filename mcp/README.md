@@ -107,6 +107,22 @@ Optional env:
 | `KEEP_MCP_DATA` | `mcp/data` | Directory for `keep.db` |
 | `OBSIDIAN_VAULT` | (auto) | Vault root for local `query_scoped_knowledge` |
 
+
+## Live fortress (Hetzner)
+
+| Item | Value |
+|------|--------|
+| Service | `ravenstack-keep-mcp.service` |
+| Local | `http://127.0.0.1:8110/mcp` |
+| Health | `http://127.0.0.1:8110/health` |
+| Tailnet | `https://openclaw.tail20a090.ts.net:8110/mcp` |
+| Health (tailnet) | `https://openclaw.tail20a090.ts.net:8110/health` |
+
+```bash
+sudo systemctl status ravenstack-keep-mcp
+curl -sS http://127.0.0.1:8110/health
+```
+
 ## Auth (Tailscale-first)
 
 1. **Preferred:** Listen on `127.0.0.1` + Tailscale Serve, or bind the tailnet interface only.

@@ -1018,6 +1018,25 @@ def get_occupancy_summary() -> str:
 # ---------------------------------------------------------------------------
 
 
+
+try:
+    from starlette.responses import JSONResponse
+
+    @mcp.custom_route("/health", methods=["GET"])
+    async def health(_request):  # type: ignore[no-untyped-def]
+        """Liveness for systemd / Tailscale probes."""
+        return JSONResponse(
+            {
+                "status": "ok",
+                "service": "ravenstack-keep",
+                "transport": "streamable-http",
+                "port": int(os.environ.get("KEEP_MCP_PORT", "8110")),
+            }
+        )
+except Exception:  # pragma: no cover
+    pass
+
+
 def main() -> None:
     """Entry: stdio by default; HTTP when KEEP_MCP_TRANSPORT=http."""
     init_db()
