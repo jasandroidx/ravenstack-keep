@@ -28,6 +28,9 @@ export interface RoomChip {
   spec_status?: string | null;
   spec_valid?: boolean | null;
   agent_real?: boolean;
+  /** Optional seat binding (client-side only; not from SOT). */
+  seat_id?: string | null;
+  preferred_agent?: string | null;
 }
 
 export interface CastleMapResponse {
@@ -77,3 +80,46 @@ export interface PipelineConfig {
 }
 
 export type RoomSelectHandler = (room: RoomChip | null) => void;
+
+/** Seat binding — see config/seats.ts */
+export interface Seat {
+  id: string;
+  name: string;
+  role: string;
+  roomId: string;
+  roomAliases?: string[];
+  agentId: string;
+  openclawAgentId?: string;
+  spriteKey: string;
+  defaultPosition: { x: number; y: number };
+  notes?: string;
+}
+
+/** Cost summary from get_cost_summary (Phase 0 may be zeros). */
+export interface CostSummary {
+  month: string;
+  currency: string;
+  monthly_ceiling: number | null;
+  total_est_usd: number;
+  by_agent: Array<{
+    agent_id: string;
+    tier_breakdown: { local: number; escalate: number; god: number };
+    est_usd: number;
+    call_count: number;
+  }>;
+  notes?: string;
+}
+
+/** Path result from get_path spatial tool. */
+export interface PathResult {
+  from_room: string;
+  to_room: string;
+  manhattan: number;
+  rooms: string[];
+  path_cells?: number[][];
+  steps?: Array<{ from: number[]; to: number[]; dir: string }>;
+  step_count?: number;
+  error?: boolean;
+  message?: string;
+  code?: string;
+}
