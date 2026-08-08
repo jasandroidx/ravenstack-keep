@@ -8,8 +8,11 @@ import {
   roomTextureKey,
   stateColor,
 } from "./palette";
+import { getSeatByRoomId, getSeatByAgentId } from "./config/seats";
 
 export type RoomClickFn = (room: RoomChip) => void;
+/** Zone / room activate — for HUD Path/Cost/Status strip and future enter-zone. */
+export type ZoneActionFn = (room: RoomChip, action: "select" | "path" | "cost" | "status") => void;
 
 interface RoomSpriteBundle {
   room: RoomChip;
@@ -30,11 +33,23 @@ const FACADE_ROOMS = [
   "suno_studio",
   "flipper",
   "lead_forge",
+  "great-hall",
+  "alchemy-lab",
+  "library",
+  "armory",
+  "observatory",
+  "vault",
 ] as const;
 
 /**
  * Top-down fortress map. Coords from castle_map (SOT).
  * Loads 48×48 art from /art/ when present; falls back to rectangles.
+ *
+ * TODO(Stage 3/4 — Agent Town conversion):
+ * - Replace room-chip bodies with full Tiled keep_map + 32×32 keep_tiles layer.
+ * - Spawn walking character sprites from seats[].spriteKey at defaultPosition / room center.
+ * - Drive locomotion via get_path path_cells + tween along grid.
+ * - Keep pixelArt: true / antialias: false.
  */
 export class KeepScene extends Phaser.Scene {
   private bundles = new Map<string, RoomSpriteBundle>();
@@ -42,6 +57,7 @@ export class KeepScene extends Phaser.Scene {
   private mapData: CastleMapResponse | null = null;
   private pipeline: PipelineConfig = { edges: [] };
   private onRoomClick: RoomClickFn | null = null;
+  private onZoneAction: ZoneActionFn | null = null;
   private selectedId: string | null = null;
   private vignette!: Phaser.GameObjects.Rectangle;
   private worldW = 1000;
@@ -59,8 +75,20 @@ export class KeepScene extends Phaser.Scene {
     this.onRoomClick = fn;
   }
 
+  /** HUD / external: select | path | cost | status against current room. */
+  setZoneActionHandler(fn: ZoneActionFn) {
+    this.onZoneAction = fn;
+  }
+
+  /** Fire zone action from HUD strip without a second click on the map. */
+  emitZoneAction(action: "select" | "path" | "cost" | "status") {
+    if (!this.selectedId || !this.mapData) return;
+    const room = this.mapData.rooms.find((r) => r.room_id === this.selectedId);
+    if (room) this.onZoneAction?.(room, action);
+  }
+
   preload() {
-    // Base tiles
+    // Base tiles (existing 48×48)
     this.load.image("room_unforged", "/art/tiles/base/room_unforged_48.png");
     this.load.image("room_live", "/art/tiles/base/room_live_48.png");
     this.load.image("room_locked", "/art/tiles/base/room_locked_48.png");
@@ -83,8 +111,33 @@ export class KeepScene extends Phaser.Scene {
         `/art/tiles/facades/facade_${id}_live.png`,
       );
     }
+
+    // --- Future 32×32 gothic tileset + character sprites (Stage 3/4) ---
+    // Paths match keep-asset-pipeline destination under public/assets.
+    // 404s are expected until assets land; loaderror + textureOrFallback handle it.
+    this.load.image("keep_tiles", "/assets/tilesets/keep-tiles.png");
+    this.load.spritesheet("raziel_sprite", "/assets/sprites/raziel.png", {
+      frameWidth: 32,
+      frameHeight: 32,
+    });
+    this.load.spritesheet("ops_sprite", "/assets/sprites/ops.png", {
+      frameWidth: 32,
+      frameHeight: 32,
+    });
+    this.load.spritesheet("research_sprite", "/assets/sprites/research.png", {
+      frameWidth: 32,
+      frameHeight: 32,
+    });
+    this.load.spritesheet("architect_sprite", "/assets/sprites/architect.png", {
+      frameWidth: 32,
+      frameHeight: 32,
+    });
+    this.load.spritesheet("gardener_sprite", "/assets/sprites/gardener.png", {
+      frameWidth: 32,
+      frameHeight: 32,
+    });
+
     this.load.on("loaderror", () => {
-      // missing art → rectangle fallback
       this.artLoaded = false;
     });
   }
@@ -115,7 +168,6 @@ export class KeepScene extends Phaser.Scene {
     this.vignette.setPosition(this.scale.width / 2, this.scale.height / 2);
     this.vignette.setSize(this.scale.width, this.scale.height);
 
-    // Subtle grid
     const g = this.add.graphics().setDepth(-1).setAlpha(0.12);
     g.lineStyle(1, PALETTE.stone, 1);
     for (let x = 0; x < 1200; x += 48) {
@@ -226,6 +278,7 @@ export class KeepScene extends Phaser.Scene {
     const onClick = () => {
       const live = this.bundles.get(room.room_id)?.room ?? room;
       this.onRoomClick?.(live);
+      this.onZoneAction?.(live, "select");
     };
 
     let body: Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle;
@@ -320,6 +373,10 @@ export class KeepScene extends Phaser.Scene {
       room.agent_state === "waiting_human" ||
       (room.lock_state === "UNFORGED" && room.spec_status === "draft");
 
+    const seat =
+      getSeatByRoomId(room.room_id) ||
+      getSeatByAgentId(room.occupant_agent_id);
+
     if (useSprites && body instanceof Phaser.GameObjects.Image) {
       const key = this.textureOrFallback(
         roomTextureKey(room.room_id, room.lock_state),
@@ -358,7 +415,6 @@ export class KeepScene extends Phaser.Scene {
         }
       }
     } else if (body instanceof Phaser.GameObjects.Rectangle) {
-      // rectangle fallback (no art pack)
       if (unforged) {
         body.setFillStyle(PALETTE.stoneDim, 0.85);
         body.setStrokeStyle(1, PALETTE.seal, 0.7);
@@ -407,7 +463,8 @@ export class KeepScene extends Phaser.Scene {
           ? "draft"
           : "candidate";
     const act = room.agent_state || "—";
-    sub.setText(`${lockBadge} · ${reality} · ${act}`);
+    const seatHint = seat ? ` · ${seat.name}` : "";
+    sub.setText(`${lockBadge} · ${reality} · ${act}${seatHint}`);
   }
 
   private drawEdges() {
