@@ -111,6 +111,12 @@ async function boot() {
     selectRoom(room.room_id, false);
   });
 
+  // Zone actions (select already fires from click); path/cost/status from HUD strip
+  scene.setZoneActionHandler((_room, action) => {
+    if (action === "select") return; // already handled by click → selectRoom
+    // HUD owns path/cost/status buttons; no auto-fire here
+  });
+
   async function refresh() {
     const health = await fetchHealth();
     const [{ map, source }, gates, pipeline] = await Promise.all([
