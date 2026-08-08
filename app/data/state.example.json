@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-05T04:05:00Z",
+  "poll_interval_sec": 4,
+  "global": {
+    "spend_month_usd": null,
+    "spend_budget_usd": 10.0,
+    "tasks_running": 2,
+    "gates_pending": 0,
+    "stale": false
+  },
+  "rooms": [
+    {
+      "id": "war_table",
+      "name": "The War Table",
+      "lock": "live",
+      "agent_id": "analyst"
+    },
+    {
+      "id": "scriptorium",
+      "name": "The Scriptorium",
+      "lock": "live",
+      "agent_id": "researcher"
+    },
+    {
+      "id": "forge",
+      "name": "The Content Forge",
+      "lock": "live",
+      "agent_id": "content_studio"
+    },
+    {
+      "id": "throne",
+      "name": "The Throne",
+      "lock": "live",
+      "agent_id": "raziel"
+    },
+    {
+      "id": "observatory",
+      "name": "The Observatory",
+      "lock": "unforged",
+      "agent_id": null
+    }
+  ],
+  "agents": [
+    {
+      "id": "analyst",
+      "name": "Analyst",
+      "sprite_key": "mage_blue",
+      "room": "war_table",
+      "state": "working",
+      "task_text": "Reviewing package draft",
+      "confidence": 0.8,
+      "source": "poll",
+      "updated_at": "2026-08-05T04:05:00Z"
+    },
+    {
+      "id": "researcher",
+      "name": "Researcher",
+      "sprite_key": "mage_green",
+      "room": "scriptorium",
+      "state": "idle",
+      "task_text": null,
+      "confidence": null,
+      "source": "poll",
+      "updated_at": "2026-08-05T04:05:00Z"
+    },
+    {
+      "id": "content_studio",
+      "name": "Content Studio",
+      "sprite_key": "mage_red",
+      "room": "forge",
+      "state": "working",
+      "task_text": "Drafting short script",
+      "confidence": 0.6,
+      "source": "poll",
+      "updated_at": "2026-08-05T04:05:00Z"
+    },
+    {
+      "id": "raziel",
+      "name": "Raziel",
+      "sprite_key": "mage_gold",
+      "room": "throne",
+      "state": "idle",
+      "task_text": null,
+      "confidence": null,
+      "source": "poll",
+      "updated_at": "2026-08-05T04:05:00Z"
+    }
+  ],
+  "gates": []
+}

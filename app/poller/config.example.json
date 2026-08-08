@@ -1,0 +1,29 @@
+{
+  "poll_interval_sec": 4,
+  "gate_poll_interval_sec": 2,
+  "state_path": "data/state.json",
+  "events_path": "data/events.jsonl",
+  "cursor_path": "data/cursor.json",
+  "events_max_bytes": 10485760,
+  "endpoints": {
+    "reclaw_health": "http://127.0.0.1:8000/health",
+    "openclaw_health": "http://127.0.0.1:18789/health",
+    "dashboard_status": "http://127.0.0.1:8081/status.json",
+    "platform_state": "http://127.0.0.1:8000/state",
+    "fortress_state": "http://127.0.0.1:8000/fortress-state"
+  },
+  "rooms": [
+    {"id": "war_table", "name": "The War Table", "lock": "live", "agent_id": "analyst", "map_from_dashboard": null},
+    {"id": "scriptorium", "name": "The Scriptorium", "lock": "live", "agent_id": "researcher", "map_from_dashboard": null},
+    {"id": "forge", "name": "The Content Forge", "lock": "live", "agent_id": "content_studio", "map_from_dashboard": null},
+    {"id": "throne", "name": "The Throne", "lock": "live", "agent_id": "raziel", "map_from_dashboard": "orchestrator-throne"},
+    {"id": "observatory", "name": "The Observatory", "lock": "unforged", "agent_id": null, "map_from_dashboard": "oracle-chamber-empty"}
+  ],
+  "agents": [
+    {"id": "analyst", "name": "Analyst", "sprite_key": "mage_blue", "room": "war_table"},
+    {"id": "researcher", "name": "Researcher", "sprite_key": "mage_green", "room": "scriptorium"},
+    {"id": "content_studio", "name": "Content Studio", "sprite_key": "mage_red", "room": "forge"},
+    {"id": "raziel", "name": "Raziel", "sprite_key": "mage_gold", "room": "throne"}
+  ],
+  "notes": "County queue is FROZEN — poller only reads. spend_month_usd stays null until a real ledger exists."
+}

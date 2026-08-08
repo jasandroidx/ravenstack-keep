@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ravenstack Keep</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #0c0a10;
+      color: #c8c0d0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      overflow: hidden;
+    }
+    #hud {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 10;
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      padding: 0.5rem 0.75rem;
+      background: rgba(8, 6, 12, 0.85);
+      border-bottom: 1px solid #3a3048;
+      font-size: 12px;
+    }
+    #hud .ok { color: #7dcea0; }
+    #hud .warn { color: #f0b429; }
+    #hud .bad { color: #e74c3c; }
+    #hud .stale { color: #e67e22; font-weight: bold; }
+    #game-wrap {
+      margin-top: 36px;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+    #game-wrap canvas {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      border: 2px solid #3a3048;
+      box-shadow: 0 0 24px rgba(120, 40, 40, 0.25);
+    }
+    #legend {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      padding: 0.4rem 0.75rem;
+      font-size: 11px;
+      background: rgba(8, 6, 12, 0.9);
+      border-top: 1px solid #3a3048;
+      color: #8a8098;
+    }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    <strong>RAVENSTACK KEEP</strong>
+    <span id="status-line" class="ok">loading…</span>
+    <span id="gate-line">gates: —</span>
+    <span id="tasks-line">tasks: —</span>
+    <span id="clock-line"></span>
+  </div>
+  <div id="game-wrap"></div>
+  <div id="legend">
+    Read-only observability · state.json only · waiting_on_human = amber room + alert · FROZEN county ignored · kill: see app/README.md
+  </div>
+  <!-- Phaser 3 MIT via jsDelivr CDN — free, no API key -->
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
