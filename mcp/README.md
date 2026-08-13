@@ -93,7 +93,7 @@ One-liners:
 # stdio
 python mcp/src/server.py
 
-# HTTP on :8111
+# HTTP on :8110 (this is the port the server binds — see DUAL-MCP-OPERATOR-GUIDE.md)
 KEEP_MCP_TRANSPORT=http KEEP_MCP_PORT=8110 python mcp/src/server.py
 ```
 
