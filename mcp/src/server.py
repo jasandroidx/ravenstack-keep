@@ -125,6 +125,64 @@ SEED_ROOMS: list[dict[str, Any]] = [
     },
 ]
 
+# Suikoden-HQ wings. Added to an EXISTING keep without touching live rooms:
+# insert-if-missing only, never UPDATE. All start UNFORGED — a wing is earned
+# with a Clawforge Spec + a human stamp (approve_spec / unlock_room), never by
+# a deploy. Coords keep every wing Manhattan-adjacent to the live core so
+# get_path BFS can walk to them.
+NEW_WINGS: list[dict[str, Any]] = [
+    {
+        "room_id": "round-table",
+        "name": "Round Table",
+        "x": 2,
+        "y": 1,
+        "status": "Restricted",
+        "lock_state": "UNFORGED",
+        "notes": "Council chamber — multi-model debate. Sealed until stamped.",
+        "occupant_agent_id": None,
+    },
+    {
+        "room_id": "clock-tower",
+        "name": "Clock Tower",
+        "x": 0,
+        "y": 2,
+        "status": "Restricted",
+        "lock_state": "UNFORGED",
+        "notes": "Crons and heartbeats — the Keep's pulse. Sealed.",
+        "occupant_agent_id": None,
+    },
+    {
+        "room_id": "kitchen",
+        "name": "Kitchen",
+        "x": -1,
+        "y": 0,
+        "status": "Restricted",
+        "lock_state": "UNFORGED",
+        "notes": "The hearth — local models, cost-free routing. Sealed.",
+        "occupant_agent_id": None,
+    },
+    {
+        "room_id": "roost",
+        "name": "Roost",
+        "x": 2,
+        "y": 0,
+        "status": "Restricted",
+        "lock_state": "UNFORGED",
+        "notes": "Corvid's perch — fetch and graph memory. Sealed.",
+        "occupant_agent_id": "corvid",
+    },
+    {
+        "room_id": "gatehouse",
+        "name": "Gatehouse",
+        "x": 0,
+        "y": -1,
+        "status": "Restricted",
+        "lock_state": "UNFORGED",
+        "notes": "Windows node — stamps and grants pass through here. Sealed.",
+        "occupant_agent_id": None,
+    },
+]
+
 mcp = FastMCP(
     name="ravenstack-keep",
     instructions=(
@@ -200,42 +258,62 @@ def init_db() -> None:
             );
             """
         )
-        n = conn.execute("SELECT COUNT(*) AS c FROM rooms").fetchone()["c"]
-        if n == 0:
-            now = _utc_now()
-            for r in SEED_ROOMS:
-                conn.execute(
-                    """
-                    INSERT INTO rooms (
-                      room_id, name, x, y, status, lock_state,
-                      occupant_agent_id, notes, status_summary, updated_at
-                    ) VALUES (?,?,?,?,?,?,?,?,?,?)
-                    """,
-                    (
-                        r["room_id"],
-                        r["name"],
-                        r["x"],
-                        r["y"],
-                        r["status"],
-                        r["lock_state"],
-                        r["occupant_agent_id"],
-                        r["notes"],
-                        r["notes"],
-                        now,
-                    ),
-                )
-        else:
-            # Phase A: ensure Raziel home room occupant without wiping live status
-            conn.execute(
-                """
-                UPDATE rooms
-                SET occupant_agent_id = COALESCE(occupant_agent_id, 'raziel'),
-                    notes = COALESCE(notes, 'Orchestrator / command center (Raziel)')
-                WHERE room_id = 'great-hall'
-                  AND (occupant_agent_id IS NULL OR occupant_agent_id = ''
-                       OR occupant_agent_id = 'raziel')
-                """
-            )
+        # Insert-if-missing only. Never UPDATE an existing room: a live Keep
+        # may already carry status/lock_state a human changed, and a deploy
+        # must not silently re-seal or re-open a wing.
+        _insert_missing_rooms(conn, [*SEED_ROOMS, *NEW_WINGS])
+
+        # Phase A: ensure Raziel home room occupant without wiping live status
+        conn.execute(
+            """
+            UPDATE rooms
+            SET occupant_agent_id = COALESCE(occupant_agent_id, 'raziel'),
+                notes = COALESCE(notes, 'Orchestrator / command center (Raziel)')
+            WHERE room_id = 'great-hall'
+              AND (occupant_agent_id IS NULL OR occupant_agent_id = ''
+                   OR occupant_agent_id = 'raziel')
+            """
+        )
+
+
+def _insert_missing_rooms(
+    conn: sqlite3.Connection, rooms: list[dict[str, Any]]
+) -> list[str]:
+    """Insert rooms absent by room_id. Returns the ids actually added.
+
+    Idempotent and non-destructive — safe to run against the live keep.db on
+    every boot. Existing rooms are left exactly as the humans left them.
+    """
+    existing = {
+        row["room_id"] for row in conn.execute("SELECT room_id FROM rooms")
+    }
+    now = _utc_now()
+    added: list[str] = []
+    for r in rooms:
+        if r["room_id"] in existing:
+            continue
+        conn.execute(
+            """
+            INSERT INTO rooms (
+              room_id, name, x, y, status, lock_state,
+              occupant_agent_id, notes, status_summary, updated_at
+            ) VALUES (?,?,?,?,?,?,?,?,?,?)
+            """,
+            (
+                r["room_id"],
+                r["name"],
+                r["x"],
+                r["y"],
+                r["status"],
+                r["lock_state"],
+                r["occupant_agent_id"],
+                r["notes"],
+                r["notes"],
+                now,
+            ),
+        )
+        added.append(r["room_id"])
+    return added
 
 
 def _row_room(row: sqlite3.Row) -> dict[str, Any]:

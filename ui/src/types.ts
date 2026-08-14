@@ -18,6 +18,8 @@ export interface RoomChip {
   lock_state: LockState;
   x: number;
   y: number;
+  /** Grid coords [gx, gy] from the spatial SOT (used for corridors + walking). */
+  grid?: [number, number] | null;
   occupant_agent_id: string | null;
   status_summary?: string;
   queue_depth?: number;

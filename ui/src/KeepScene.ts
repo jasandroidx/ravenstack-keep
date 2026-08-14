@@ -2,68 +2,94 @@ import Phaser from "phaser";
 import type { CastleMapResponse, PipelineConfig, RoomChip } from "./types";
 import {
   PALETTE,
-  ROOM_SIZE,
+  WORLD_ROOM_H,
+  WORLD_ROOM_W,
   chipTextureKey,
   roomFallbackTextureKey,
-  roomTextureKey,
   stateColor,
+  worldRoomTextureKey,
 } from "./palette";
-import { getSeatByRoomId, getSeatByAgentId } from "./config/seats";
+import { getSeatByAgentId, getSeatByRoomId } from "./config/seats";
+import { OFFICERS, officersInRoom } from "./hq";
 
 export type RoomClickFn = (room: RoomChip) => void;
-/** Zone / room activate — for HUD Path/Cost/Status strip and future enter-zone. */
-export type ZoneActionFn = (room: RoomChip, action: "select" | "path" | "cost" | "status") => void;
+export type ZoneActionFn = (
+  room: RoomChip,
+  action: "select" | "path" | "cost" | "status",
+) => void;
+
+/** Room ids the world art ships interiors for. */
+const WORLD_ROOMS = [
+  "great-hall",
+  "library",
+  "alchemy-lab",
+  "armory",
+  "observatory",
+  "vault",
+  "round-table",
+  "clock-tower",
+  "kitchen",
+  "roost",
+  "gatehouse",
+] as const;
+
+const TILE = 48;
+/** Pixel slack between rooms — where the conduit trenches run. */
+const FLOOR_PAD = 220;
 
 interface RoomSpriteBundle {
   room: RoomChip;
   body: Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle;
-  select: Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle;
+  select: Phaser.GameObjects.Rectangle;
   chip: Phaser.GameObjects.Image | Phaser.GameObjects.Arc;
   label: Phaser.GameObjects.Text;
   sub: Phaser.GameObjects.Text;
   useSprites: boolean;
 }
 
-const FACADE_ROOMS = [
-  "oracle",
-  "orchestrator",
-  "clawforge",
-  "scribe",
-  "auditor",
-  "suno_studio",
-  "flipper",
-  "lead_forge",
-  "great-hall",
-  "alchemy-lab",
-  "library",
-  "armory",
-  "observatory",
-  "vault",
-] as const;
+interface AgentActor {
+  agentId: string;
+  sprite: Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle;
+  glow: Phaser.GameObjects.Arc;
+  homeRoomId: string;
+  bob?: Phaser.Tweens.Tween;
+  walking: boolean;
+}
+
+/** px = ox + gx*sx ; py = oy - gy*sy  (mirrors http_api._grid_to_px) */
+interface GridTransform {
+  ox: number;
+  oy: number;
+  sx: number;
+  sy: number;
+}
+
+const DEFAULT_TRANSFORM: GridTransform = { ox: 420, oy: 360, sx: 200, sy: 170 };
 
 /**
- * Top-down fortress map. Coords from castle_map (SOT).
- * Loads 48×48 art from /art/ when present; falls back to rectangles.
+ * Top-down keep. Stone floor, conduit corridors, 160x136 room interiors and
+ * officers standing at their posts — the map is a place, not a chip chart.
  *
- * TODO(Stage 3/4 — Agent Town conversion):
- * - Replace room-chip bodies with full Tiled keep_map + 32×32 keep_tiles layer.
- * - Spawn walking character sprites from seats[].spriteKey at defaultPosition / room center.
- * - Drive locomotion via get_path path_cells + tween along grid.
- * - Keep pixelArt: true / antialias: false.
+ * Falls back to the old rectangle rendering if world art is missing, so a
+ * half-deployed tree still draws something honest.
  */
 export class KeepScene extends Phaser.Scene {
   private bundles = new Map<string, RoomSpriteBundle>();
+  private actors = new Map<string, AgentActor>();
+  private floor: Phaser.GameObjects.TileSprite | null = null;
+  private corridorLayer: Phaser.GameObjects.Container | null = null;
   private edgeGraphics!: Phaser.GameObjects.Graphics;
   private mapData: CastleMapResponse | null = null;
+  private gateAlert = false;
   private pipeline: PipelineConfig = { edges: [] };
   private onRoomClick: RoomClickFn | null = null;
   private onZoneAction: ZoneActionFn | null = null;
   private selectedId: string | null = null;
-  private vignette!: Phaser.GameObjects.Rectangle;
+  private transform: GridTransform = DEFAULT_TRANSFORM;
   private worldW = 1000;
   private worldH = 700;
   private ready = false;
-  private artLoaded = false;
+  private worldArt = false;
   private pending: { map: CastleMapResponse; pipeline: PipelineConfig } | null =
     null;
 
@@ -75,12 +101,10 @@ export class KeepScene extends Phaser.Scene {
     this.onRoomClick = fn;
   }
 
-  /** HUD / external: select | path | cost | status against current room. */
   setZoneActionHandler(fn: ZoneActionFn) {
     this.onZoneAction = fn;
   }
 
-  /** Fire zone action from HUD strip without a second click on the map. */
   emitZoneAction(action: "select" | "path" | "cost" | "status") {
     if (!this.selectedId || !this.mapData) return;
     const room = this.mapData.rooms.find((r) => r.room_id === this.selectedId);
@@ -88,93 +112,53 @@ export class KeepScene extends Phaser.Scene {
   }
 
   preload() {
-    // Base tiles (existing 48×48)
+    // --- Suikoden-HQ world art ---
+    this.load.image("stone_floor", "/art/floor/stone_floor.png");
+    this.load.image("corridor_h", "/art/floor/corridor_h.png");
+    this.load.image("corridor_v", "/art/floor/corridor_v.png");
+    this.load.image("corridor_x", "/art/floor/corridor_x.png");
+    for (const id of WORLD_ROOMS) {
+      this.load.image(`room_${id}`, `/art/rooms/room_${id}.png`);
+      this.load.image(`room_${id}_sealed`, `/art/rooms/room_${id}_sealed.png`);
+      this.load.image(`room_${id}_locked`, `/art/rooms/room_${id}_locked.png`);
+    }
+    for (const o of OFFICERS) {
+      this.load.image(`agent_${o.agentId}`, o.sprite);
+    }
+
+    // --- legacy 48x48 pack (chips still used for state dots) ---
     this.load.image("room_unforged", "/art/tiles/base/room_unforged_48.png");
     this.load.image("room_live", "/art/tiles/base/room_live_48.png");
     this.load.image("room_locked", "/art/tiles/base/room_locked_48.png");
-    // Chips
     this.load.image("chip_idle", "/art/chips/chip_idle.png");
     this.load.image("chip_work", "/art/chips/chip_work.png");
     this.load.image("chip_wait", "/art/chips/chip_wait.png");
     this.load.image("chip_fail", "/art/chips/chip_fail.png");
     this.load.image("chip_retired", "/art/chips/chip_retired.png");
-    // Selection
-    this.load.image("selection_outline", "/art/hud/selection_outline.png");
-    // Facades
-    for (const id of FACADE_ROOMS) {
-      this.load.image(
-        `facade_${id}_unforged`,
-        `/art/tiles/facades/facade_${id}_unforged.png`,
-      );
-      this.load.image(
-        `facade_${id}_live`,
-        `/art/tiles/facades/facade_${id}_live.png`,
-      );
-    }
 
-    // --- Future 32×32 gothic tileset + character sprites (Stage 3/4) ---
-    // Paths match keep-asset-pipeline destination under public/assets.
-    // 404s are expected until assets land; loaderror + textureOrFallback handle it.
-    this.load.image("keep_tiles", "/assets/tilesets/keep-tiles.png");
-    this.load.spritesheet("raziel_sprite", "/assets/sprites/raziel.png", {
-      frameWidth: 32,
-      frameHeight: 32,
-    });
-    this.load.spritesheet("ops_sprite", "/assets/sprites/ops.png", {
-      frameWidth: 32,
-      frameHeight: 32,
-    });
-    this.load.spritesheet("research_sprite", "/assets/sprites/research.png", {
-      frameWidth: 32,
-      frameHeight: 32,
-    });
-    this.load.spritesheet("architect_sprite", "/assets/sprites/architect.png", {
-      frameWidth: 32,
-      frameHeight: 32,
-    });
-    this.load.spritesheet("gardener_sprite", "/assets/sprites/gardener.png", {
-      frameWidth: 32,
-      frameHeight: 32,
-    });
-
-    this.load.on("loaderror", () => {
-      this.artLoaded = false;
+    // Missing files are tolerated — every draw path checks textures.exists().
+    this.load.on("loaderror", (f: Phaser.Loader.File) => {
+      console.debug(`[keep-art] missing ${f.key} (${f.url})`);
     });
   }
 
   create() {
-    this.artLoaded = this.textures.exists("room_live");
+    this.worldArt = this.textures.exists("stone_floor");
     this.cameras.main.setBackgroundColor(PALETTE.bg);
-    this.edgeGraphics = this.add.graphics().setDepth(0);
 
-    this.vignette = this.add
-      .rectangle(
-        0,
-        0,
-        this.scale.width * 2,
-        this.scale.height * 2,
-        PALETTE.neonAmber,
-        0,
-      )
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(100)
-      .setVisible(false);
+    this.corridorLayer = this.add.container(0, 0).setDepth(1);
+    this.edgeGraphics = this.add.graphics().setDepth(2);
 
-    this.scale.on("resize", () => {
-      this.vignette.setPosition(this.scale.width / 2, this.scale.height / 2);
-      this.vignette.setSize(this.scale.width, this.scale.height);
-    });
-    this.vignette.setPosition(this.scale.width / 2, this.scale.height / 2);
-    this.vignette.setSize(this.scale.width, this.scale.height);
+    // Gate alert is drawn by CSS (body.gate-alert in hud.ts). A scroll-locked
+    // Phaser rectangle does not survive camera zoom — it painted a band across
+    // part of the map instead of a full-screen tint.
 
-    const g = this.add.graphics().setDepth(-1).setAlpha(0.12);
-    g.lineStyle(1, PALETTE.stone, 1);
-    for (let x = 0; x < 1200; x += 48) {
-      g.lineBetween(x, 0, x, 800);
-    }
-    for (let y = 0; y < 800; y += 48) {
-      g.lineBetween(0, y, 1200, y);
+    if (!this.worldArt) {
+      // No world art on disk — keep the old faint grid so the map is not void.
+      const g = this.add.graphics().setDepth(-1).setAlpha(0.12);
+      g.lineStyle(1, PALETTE.stone, 1);
+      for (let x = 0; x < 1600; x += TILE) g.lineBetween(x, 0, x, 1000);
+      for (let y = 0; y < 1000; y += TILE) g.lineBetween(0, y, 1600, y);
     }
 
     this.ready = true;
@@ -192,10 +176,13 @@ export class KeepScene extends Phaser.Scene {
       this.pending = { map, pipeline };
       return;
     }
+    this.transform = deriveTransform(map.rooms);
+
     const nextIds = new Set(map.rooms.map((r) => r.room_id));
     const sameSet =
       this.bundles.size === nextIds.size &&
       [...this.bundles.keys()].every((id) => nextIds.has(id));
+
     if (sameSet && this.bundles.size > 0) {
       for (const room of map.rooms) {
         const b = this.bundles.get(room.room_id);
@@ -204,35 +191,38 @@ export class KeepScene extends Phaser.Scene {
           this.styleBundle(b);
         }
       }
+      this.syncActors();
       this.drawEdges();
       this.refreshVignette();
       return;
     }
-    this.rebuildRooms();
+
+    this.rebuildWorld();
     this.drawEdges();
     this.fitCamera();
   }
 
   updateMap(map: CastleMapResponse) {
     this.mapData = map;
+    let missing = false;
     for (const room of map.rooms) {
       const b = this.bundles.get(room.room_id);
       if (b) {
         b.room = room;
         this.styleBundle(b);
       } else {
-        this.rebuildRooms();
+        missing = true;
         break;
       }
     }
+    if (missing) this.rebuildWorld();
+    else this.syncActors();
     this.refreshVignette();
   }
 
   setSelected(roomId: string | null) {
     this.selectedId = roomId;
-    for (const b of this.bundles.values()) {
-      this.styleBundle(b);
-    }
+    for (const b of this.bundles.values()) this.styleBundle(b);
   }
 
   focusRoom(roomId: string) {
@@ -241,7 +231,11 @@ export class KeepScene extends Phaser.Scene {
     this.cameras.main.pan(b.room.x, b.room.y, 250, "Sine.easeInOut");
   }
 
-  private rebuildRooms() {
+  // -------------------------------------------------------------------------
+  // World build
+  // -------------------------------------------------------------------------
+
+  private rebuildWorld() {
     for (const b of this.bundles.values()) {
       b.body.destroy();
       b.select.destroy();
@@ -250,30 +244,97 @@ export class KeepScene extends Phaser.Scene {
       b.sub.destroy();
     }
     this.bundles.clear();
+    for (const a of this.actors.values()) {
+      a.bob?.remove();
+      a.sprite.destroy();
+      a.glow.destroy();
+    }
+    this.actors.clear();
     if (!this.mapData) return;
 
-    let maxX = 0;
-    let maxY = 0;
-    for (const room of this.mapData.rooms) {
-      maxX = Math.max(maxX, room.x + ROOM_SIZE);
-      maxY = Math.max(maxY, room.y + ROOM_SIZE);
-      this.spawnRoom(room);
+    const xs = this.mapData.rooms.map((r) => r.x);
+    const ys = this.mapData.rooms.map((r) => r.y);
+    const minX = Math.min(...xs) - FLOOR_PAD;
+    const minY = Math.min(...ys) - FLOOR_PAD;
+    const maxX = Math.max(...xs) + FLOOR_PAD;
+    const maxY = Math.max(...ys) + FLOOR_PAD;
+
+    this.worldW = maxX - minX;
+    this.worldH = maxY - minY;
+
+    // Stone floor across the whole keep footprint — this is what kills the void.
+    this.floor?.destroy();
+    this.floor = null;
+    if (this.worldArt) {
+      // Overdraw far past the camera bounds: at zoom < 1 the viewport shows
+      // more world than the bounds rect, and any gap reads as the old void.
+      const over = 1600;
+      this.floor = this.add
+        .tileSprite(
+          minX - over,
+          minY - over,
+          this.worldW + over * 2,
+          this.worldH + over * 2,
+          "stone_floor",
+        )
+        .setOrigin(0, 0)
+        .setDepth(0);
     }
-    this.worldW = Math.max(900, maxX + 120);
-    this.worldH = Math.max(600, maxY + 120);
+
+    this.drawCorridors();
+
+    for (const room of this.mapData.rooms) this.spawnRoom(room);
+    this.syncActors();
     this.refreshVignette();
   }
 
-  private textureOrFallback(key: string, fallback: string): string {
-    if (this.textures.exists(key)) return key;
-    if (this.textures.exists(fallback)) return fallback;
-    return "";
+  /** Conduit trenches between grid-adjacent rooms. */
+  private drawCorridors() {
+    const layer = this.corridorLayer;
+    if (!layer || !this.mapData) return;
+    layer.removeAll(true);
+    if (!this.worldArt) return;
+
+    const rooms = this.mapData.rooms;
+    for (let i = 0; i < rooms.length; i++) {
+      for (let j = i + 1; j < rooms.length; j++) {
+        const a = rooms[i];
+        const b = rooms[j];
+        const link = adjacency(a, b, this.transform);
+        if (!link) continue;
+
+        if (link === "h") {
+          const [left, right] = a.x < b.x ? [a, b] : [b, a];
+          const x0 = left.x + WORLD_ROOM_W / 2;
+          const x1 = right.x - WORLD_ROOM_W / 2;
+          const w = x1 - x0;
+          if (w <= 0) continue;
+          layer.add(
+            this.add
+              .tileSprite(x0, left.y - TILE / 2, w, TILE, "corridor_h")
+              .setOrigin(0, 0),
+          );
+        } else {
+          const [top, bottom] = a.y < b.y ? [a, b] : [b, a];
+          const y0 = top.y + WORLD_ROOM_H / 2;
+          const y1 = bottom.y - WORLD_ROOM_H / 2;
+          const h = y1 - y0;
+          if (h <= 0) continue;
+          layer.add(
+            this.add
+              .tileSprite(top.x - TILE / 2, y0, TILE, h, "corridor_v")
+              .setOrigin(0, 0),
+          );
+        }
+      }
+    }
   }
 
   private spawnRoom(room: RoomChip) {
     const cx = room.x;
     const cy = room.y;
-    const useSprites = this.artLoaded;
+    const worldKey = worldRoomTextureKey(room.room_id, room.lock_state);
+    const useSprites = this.worldArt && this.textures.exists(worldKey);
 
     const onClick = () => {
       const live = this.bundles.get(room.room_id)?.room ?? room;
@@ -282,72 +343,65 @@ export class KeepScene extends Phaser.Scene {
     };
 
     let body: Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle;
-    let select: Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle;
-    let chip: Phaser.GameObjects.Image | Phaser.GameObjects.Arc;
-
     if (useSprites) {
-      const tKey = this.textureOrFallback(
-        roomTextureKey(room.room_id, room.lock_state),
-        roomFallbackTextureKey(room.lock_state),
-      );
       body = this.add
-        .image(cx, cy, tKey || "room_unforged")
-        .setDisplaySize(ROOM_SIZE, ROOM_SIZE)
-        .setDepth(2)
+        .image(cx, cy, worldKey)
+        .setDisplaySize(WORLD_ROOM_W, WORLD_ROOM_H)
+        .setDepth(3)
         .setInteractive({ useHandCursor: true });
-      body.on("pointerdown", onClick);
-
-      select = this.add
-        .image(cx, cy, "selection_outline")
-        .setDisplaySize(ROOM_SIZE + 4, ROOM_SIZE + 4)
-        .setDepth(4)
-        .setVisible(false);
-
-      const ck = chipTextureKey(room.agent_state);
-      chip = this.add
-        .image(cx + ROOM_SIZE / 2 - 8, cy - ROOM_SIZE / 2 + 8, ck)
-        .setDisplaySize(12, 12)
-        .setDepth(5);
     } else {
-      body = this.add
-        .rectangle(cx, cy, ROOM_SIZE, ROOM_SIZE, PALETTE.stone, 1)
-        .setStrokeStyle(1, PALETTE.stoneDim, 1)
-        .setDepth(2)
-        .setInteractive({ useHandCursor: true });
-      body.on("pointerdown", onClick);
-
-      select = this.add
-        .rectangle(cx, cy, ROOM_SIZE + 6, ROOM_SIZE + 6, PALETTE.neonCyan, 0)
-        .setStrokeStyle(2, PALETTE.neonCyan, 0.9)
-        .setDepth(1)
-        .setVisible(false);
-
-      chip = this.add
-        .circle(cx + ROOM_SIZE / 2 - 8, cy - ROOM_SIZE / 2 + 8, 5, PALETTE.neonCyan)
-        .setDepth(3);
+      const legacy = roomFallbackTextureKey(room.lock_state);
+      if (this.textures.exists(legacy)) {
+        body = this.add
+          .image(cx, cy, legacy)
+          .setDisplaySize(WORLD_ROOM_W, WORLD_ROOM_H)
+          .setDepth(3)
+          .setInteractive({ useHandCursor: true });
+      } else {
+        body = this.add
+          .rectangle(cx, cy, WORLD_ROOM_W, WORLD_ROOM_H, PALETTE.stone, 1)
+          .setStrokeStyle(1, PALETTE.stoneDim, 1)
+          .setDepth(3)
+          .setInteractive({ useHandCursor: true });
+      }
     }
+    body.on("pointerdown", onClick);
+
+    const select = this.add
+      .rectangle(cx, cy, WORLD_ROOM_W + 8, WORLD_ROOM_H + 8, PALETTE.neonCyan, 0)
+      .setStrokeStyle(2, PALETTE.neonCyan, 0.9)
+      .setDepth(4)
+      .setVisible(false);
+
+    const chipX = cx + WORLD_ROOM_W / 2 - 12;
+    const chipY = cy - WORLD_ROOM_H / 2 + 12;
+    const ck = chipTextureKey(room.agent_state);
+    const chip: Phaser.GameObjects.Image | Phaser.GameObjects.Arc =
+      this.textures.exists(ck)
+        ? this.add.image(chipX, chipY, ck).setDisplaySize(14, 14).setDepth(8)
+        : this.add.circle(chipX, chipY, 6, PALETTE.neonCyan).setDepth(8);
 
     const label = this.add
-      .text(cx, cy + ROOM_SIZE / 2 + 10, room.name, {
+      .text(cx, cy + WORLD_ROOM_H / 2 + 6, room.name, {
         fontFamily: "monospace",
-        fontSize: "11px",
+        fontSize: "12px",
         color: "#e8ecf1",
         align: "center",
       })
       .setOrigin(0.5, 0)
-      .setDepth(3)
+      .setDepth(9)
       .setInteractive({ useHandCursor: true });
     label.on("pointerdown", onClick);
 
     const sub = this.add
-      .text(cx, cy + ROOM_SIZE / 2 + 24, "", {
+      .text(cx, cy + WORLD_ROOM_H / 2 + 20, "", {
         fontFamily: "monospace",
         fontSize: "9px",
         color: "#8b93a7",
         align: "center",
       })
       .setOrigin(0.5, 0)
-      .setDepth(3)
+      .setDepth(9)
       .setInteractive({ useHandCursor: true });
     sub.on("pointerdown", onClick);
 
@@ -365,96 +419,57 @@ export class KeepScene extends Phaser.Scene {
   }
 
   private styleBundle(b: RoomSpriteBundle) {
-    const { room, body, select, chip, label, sub, useSprites } = b;
+    const { room, body, select, chip, label, sub } = b;
     const unforged = room.lock_state === "UNFORGED";
     const locked = room.lock_state === "locked";
     const selected = this.selectedId === room.room_id;
     const waiting =
       room.agent_state === "waiting_human" ||
-      (room.lock_state === "UNFORGED" && room.spec_status === "draft");
+      (unforged && room.spec_status === "draft");
 
     const seat =
-      getSeatByRoomId(room.room_id) ||
-      getSeatByAgentId(room.occupant_agent_id);
+      getSeatByRoomId(room.room_id) || getSeatByAgentId(room.occupant_agent_id);
 
-    if (useSprites && body instanceof Phaser.GameObjects.Image) {
-      const key = this.textureOrFallback(
-        roomTextureKey(room.room_id, room.lock_state),
-        roomFallbackTextureKey(room.lock_state),
-      );
-      if (key && body.texture.key !== key) {
+    if (body instanceof Phaser.GameObjects.Image) {
+      const key = worldRoomTextureKey(room.room_id, room.lock_state);
+      if (this.textures.exists(key) && body.texture.key !== key) {
         body.setTexture(key);
-        body.setDisplaySize(ROOM_SIZE, ROOM_SIZE);
+        body.setDisplaySize(WORLD_ROOM_W, WORLD_ROOM_H);
       }
-      body.setAlpha(unforged && !room.agent_real ? 0.92 : 1);
-      label.setColor(unforged ? "#8b93a7" : "#e8ecf1");
-
-      if (select instanceof Phaser.GameObjects.Image) {
-        select.setVisible(selected || waiting);
-        if (selected) {
-          select.setTint(PALETTE.neonMagenta);
-          select.setAlpha(1);
-        } else if (waiting) {
-          select.clearTint();
-          select.setTint(PALETTE.neonAmber);
-          select.setAlpha(0.85);
-        } else {
-          select.clearTint();
-        }
-      }
-
-      if (chip instanceof Phaser.GameObjects.Image) {
-        if (!room.occupant_agent_id) {
-          chip.setVisible(false);
-        } else {
-          chip.setVisible(true);
-          const ck = chipTextureKey(room.agent_state);
-          if (this.textures.exists(ck)) chip.setTexture(ck);
-          chip.setDisplaySize(12, 12);
-          chip.setAlpha(room.agent_real ? 1 : 0.5);
-        }
-      }
+      body.setAlpha(1);
     } else if (body instanceof Phaser.GameObjects.Rectangle) {
-      if (unforged) {
-        body.setFillStyle(PALETTE.stoneDim, 0.85);
-        body.setStrokeStyle(1, PALETTE.seal, 0.7);
-        label.setColor("#8b93a7");
-      } else if (locked) {
-        body.setFillStyle(PALETTE.stoneDim, 1);
-        body.setStrokeStyle(2, PALETTE.textMuted, 0.8);
-        label.setColor("#8b93a7");
+      if (unforged) body.setFillStyle(PALETTE.stoneDim, 0.9);
+      else if (locked) body.setFillStyle(PALETTE.stoneDim, 1);
+      else body.setFillStyle(PALETTE.stoneLive, 1);
+    }
+
+    label.setColor(unforged || locked ? "#8b93a7" : "#e8ecf1");
+
+    select.setVisible(selected || waiting);
+    select.setStrokeStyle(
+      selected ? 3 : 2,
+      selected ? PALETTE.neonMagenta : PALETTE.neonAmber,
+      selected ? 1 : 0.9,
+    );
+
+    if (!room.occupant_agent_id) {
+      chip.setVisible(false);
+    } else {
+      chip.setVisible(true);
+      if (chip instanceof Phaser.GameObjects.Image) {
+        const ck = chipTextureKey(room.agent_state);
+        if (this.textures.exists(ck)) chip.setTexture(ck);
+        chip.setDisplaySize(14, 14);
+        chip.setAlpha(room.agent_real ? 1 : 0.5);
       } else {
-        body.setFillStyle(PALETTE.stoneLive, 1);
-        body.setStrokeStyle(1, PALETTE.neonCyan, 0.5);
-        label.setColor("#e8ecf1");
-      }
-      if (select instanceof Phaser.GameObjects.Rectangle) {
-        select.setVisible(selected || waiting);
-        if (selected) {
-          select.setStrokeStyle(3, PALETTE.neonMagenta, 1);
-        } else if (waiting) {
-          select.setStrokeStyle(2, PALETTE.neonAmber, 0.9);
-        }
-      }
-      if (chip instanceof Phaser.GameObjects.Arc) {
-        if (!room.occupant_agent_id) {
-          chip.setVisible(false);
-        } else {
-          chip.setVisible(true);
-          chip.setFillStyle(
-            stateColor(room.agent_state),
-            room.agent_real ? 1 : 0.45,
-          );
-        }
+        chip.setFillStyle(
+          stateColor(room.agent_state),
+          room.agent_real ? 1 : 0.45,
+        );
       }
     }
 
-    const lockBadge =
-      room.lock_state === "UNFORGED"
-        ? "SEALED"
-        : room.lock_state === "locked"
-          ? "LOCKED"
-          : "LIVE";
+    const lockBadge = unforged ? "SEALED" : locked ? "LOCKED" : "LIVE";
     const reality = !room.occupant_agent_id
       ? "empty"
       : room.agent_real
@@ -463,51 +478,257 @@ export class KeepScene extends Phaser.Scene {
           ? "draft"
           : "candidate";
     const act = room.agent_state || "—";
-    const seatHint = seat ? ` · ${seat.name}` : "";
-    sub.setText(`${lockBadge} · ${reality} · ${act}${seatHint}`);
+    // Rooms sit 200px apart; a long sub-label overlaps its neighbour.
+    const who = seat?.name ?? "";
+    const full =
+      `${lockBadge} · ${reality}` +
+      (act !== "—" ? ` · ${act}` : "") +
+      (who ? ` · ${who}` : "");
+    sub.setText(full.length > 30 ? `${full.slice(0, 29)}…` : full);
+  }
+
+  // -------------------------------------------------------------------------
+  // Officers
+  // -------------------------------------------------------------------------
+
+  /** Place / refresh an officer sprite for each room that has one posted. */
+  private syncActors() {
+    if (!this.mapData) return;
+    const roomById = new Map(this.mapData.rooms.map((r) => [r.room_id, r]));
+
+    for (const officer of OFFICERS) {
+      const room = roomById.get(officer.roomId);
+      const key = `agent_${officer.agentId}`;
+      if (!room || !this.textures.exists(key)) continue;
+
+      const peers = officersInRoom(officer.roomId);
+      const idx = peers.findIndex((p) => p.agentId === officer.agentId);
+      const spread = peers.length > 1 ? (idx - (peers.length - 1) / 2) * 34 : 0;
+      const px = room.x + spread;
+      const py = room.y + WORLD_ROOM_H / 2 - 26;
+
+      let actor = this.actors.get(officer.agentId);
+      if (!actor) {
+        const glow = this.add
+          .circle(px, py + 12, 10, stateColor(room.agent_state), 0.18)
+          .setDepth(5);
+        const sprite = this.add
+          .image(px, py, key)
+          .setDisplaySize(32, 32)
+          .setDepth(6);
+        const bob = this.tweens.add({
+          targets: sprite,
+          y: py - 2,
+          duration: 1400 + idx * 180,
+          yoyo: true,
+          repeat: -1,
+          ease: "Sine.easeInOut",
+        });
+        actor = {
+          agentId: officer.agentId,
+          sprite,
+          glow,
+          homeRoomId: officer.roomId,
+          bob,
+          walking: false,
+        };
+        this.actors.set(officer.agentId, actor);
+      }
+
+      actor.homeRoomId = officer.roomId;
+      if (!actor.walking) {
+        actor.sprite.setPosition(px, py);
+        actor.glow.setPosition(px, py + 12);
+      }
+
+      // Sealed wings: the officer is a ghost until the room is forged.
+      const sealed = room.lock_state !== "live";
+      actor.sprite.setAlpha(sealed ? 0.35 : 1);
+      actor.glow.setFillStyle(stateColor(room.agent_state), sealed ? 0.06 : 0.2);
+    }
+  }
+
+  /** World-pixel centre of a grid cell (mirrors the server transform). */
+  cellToPixel(cell: [number, number]): { x: number; y: number } {
+    const t = this.transform;
+    return { x: t.ox + cell[0] * t.sx, y: t.oy - cell[1] * t.sy };
+  }
+
+  hasActor(agentId: string): boolean {
+    return this.actors.has(agentId);
+  }
+
+  /**
+   * Walk an officer along real path cells from get_path.
+   * Returns a promise that resolves when the walk finishes (or immediately if
+   * there is nothing to draw — we never pretend a walk happened).
+   */
+  walkAgentCells(
+    agentId: string,
+    cells: Array<[number, number]>,
+    opts: { stepMs?: number; release?: boolean } = {},
+  ): Promise<boolean> {
+    const actor = this.actors.get(agentId);
+    if (!actor || cells.length < 2) return Promise.resolve(false);
+
+    // release=false keeps the officer where the leg ended, so a multi-leg walk
+    // does not snap home between legs (which silently made leg 2 a no-op).
+    const stepMs = opts.stepMs ?? 700;
+    const release = opts.release !== false;
+
+    actor.walking = true;
+    actor.bob?.pause();
+
+    const points = cells.map((c) => this.cellToPixel(c));
+    // Stand near the doorway, not dead centre of the wall art.
+    const yOffset = WORLD_ROOM_H / 2 - 26;
+
+    return new Promise((resolve) => {
+      let i = 0;
+      const stepTo = () => {
+        i++;
+        if (i >= points.length) {
+          if (release) {
+            actor.walking = false;
+            actor.bob?.resume();
+            this.syncActors();
+          }
+          resolve(true);
+          return;
+        }
+        const p = points[i];
+        this.tweens.add({
+          targets: [actor.sprite],
+          x: p.x,
+          y: p.y + yOffset,
+          duration: stepMs,
+          ease: "Sine.easeInOut",
+          onUpdate: () => {
+            actor.glow.setPosition(actor.sprite.x, actor.sprite.y + 12);
+          },
+          onComplete: stepTo,
+        });
+      };
+      stepTo();
+    });
+  }
+
+  /** Pan the camera to follow an officer for the length of a walk. */
+  followAgent(agentId: string, on: boolean) {
+    const actor = this.actors.get(agentId);
+    if (!actor) return;
+    if (on) this.cameras.main.startFollow(actor.sprite, true, 0.06, 0.06);
+    else this.cameras.main.stopFollow();
   }
 
   private drawEdges() {
     this.edgeGraphics.clear();
     if (!this.mapData || !this.pipeline.edges?.length) return;
-
     const byId = new Map(this.mapData.rooms.map((r) => [r.room_id, r]));
-    this.edgeGraphics.lineStyle(1.5, PALETTE.neonMagenta, 0.35);
-
+    this.edgeGraphics.lineStyle(1.5, PALETTE.neonMagenta, 0.22);
     for (const e of this.pipeline.edges) {
       const a = byId.get(e.from);
       const b = byId.get(e.to);
       if (!a || !b) continue;
       this.edgeGraphics.lineBetween(a.x, a.y, b.x, b.y);
-      const mx = (a.x + b.x) / 2;
-      const my = (a.y + b.y) / 2;
-      this.edgeGraphics.fillStyle(PALETTE.neonMagenta, 0.5);
-      this.edgeGraphics.fillCircle(mx, my, 2);
     }
   }
 
   private fitCamera() {
     const cam = this.cameras.main;
-    cam.setBounds(0, 0, this.worldW, this.worldH);
-    if (this.mapData?.rooms.length) {
-      const xs = this.mapData.rooms.map((r) => r.x);
-      const ys = this.mapData.rooms.map((r) => r.y);
-      const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
-      const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
-      cam.centerOn(cx, cy);
-    }
-    cam.setZoom(1);
+    if (!this.mapData?.rooms.length) return;
+    const xs = this.mapData.rooms.map((r) => r.x);
+    const ys = this.mapData.rooms.map((r) => r.y);
+    const minX = Math.min(...xs) - FLOOR_PAD;
+    const minY = Math.min(...ys) - FLOOR_PAD;
+    const maxX = Math.max(...xs) + FLOOR_PAD;
+    const maxY = Math.max(...ys) + FLOOR_PAD;
+    cam.setBounds(minX, minY, maxX - minX, maxY - minY);
+    cam.centerOn((minX + maxX) / 2, (minY + maxY) / 2);
+
+    // Zoom out enough that the whole keep is on screen.
+    const zx = this.scale.width / (maxX - minX);
+    const zy = this.scale.height / (maxY - minY);
+    cam.setZoom(Math.min(1, Math.max(0.4, Math.min(zx, zy))));
   }
 
+  /** Gate alert -> CSS class on <body>; survives camera zoom, unlike a
+   *  scroll-locked Phaser rectangle. */
   private refreshVignette() {
     const needs =
-      this.mapData?.rooms.some((r) => r.agent_state === "waiting_human") ||
-      false;
-    if (needs) {
-      this.vignette.setVisible(true);
-      this.vignette.setFillStyle(PALETTE.neonAmber, 0.08);
-    } else {
-      this.vignette.setVisible(false);
+      this.mapData?.rooms.some((r) => r.agent_state === "waiting_human") || false;
+    if (needs === this.gateAlert) return;
+    this.gateAlert = needs;
+    document.body.classList.toggle("gate-alert", needs);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Grid helpers
+// ---------------------------------------------------------------------------
+
+function gridOf(r: RoomChip): [number, number] | null {
+  const g = r.grid;
+  if (Array.isArray(g) && g.length === 2 && typeof g[0] === "number") {
+    return [g[0], g[1]];
+  }
+  return null;
+}
+
+/**
+ * Recover the server's grid→pixel transform from the rooms themselves, so the
+ * client never hardcodes constants that live may have changed.
+ */
+export function deriveTransform(rooms: RoomChip[]): GridTransform {
+  const withGrid = rooms
+    .map((r) => ({ g: gridOf(r), x: r.x, y: r.y }))
+    .filter((r): r is { g: [number, number]; x: number; y: number } => !!r.g);
+
+  if (withGrid.length < 2) return DEFAULT_TRANSFORM;
+
+  let sx = 0;
+  let sy = 0;
+  for (let i = 0; i < withGrid.length && (!sx || !sy); i++) {
+    for (let j = i + 1; j < withGrid.length; j++) {
+      const a = withGrid[i];
+      const b = withGrid[j];
+      const dgx = b.g[0] - a.g[0];
+      const dgy = b.g[1] - a.g[1];
+      if (!sx && dgx !== 0 && b.g[1] === a.g[1]) sx = (b.x - a.x) / dgx;
+      if (!sy && dgy !== 0 && b.g[0] === a.g[0]) sy = -(b.y - a.y) / dgy;
     }
   }
+  if (!sx) sx = DEFAULT_TRANSFORM.sx;
+  if (!sy) sy = DEFAULT_TRANSFORM.sy;
+
+  const base = withGrid[0];
+  return {
+    sx,
+    sy,
+    ox: base.x - base.g[0] * sx,
+    oy: base.y + base.g[1] * sy,
+  };
+}
+
+/** "h" | "v" if the two rooms are neighbours on the grid, else null. */
+function adjacency(
+  a: RoomChip,
+  b: RoomChip,
+  t: GridTransform,
+): "h" | "v" | null {
+  const ga = gridOf(a);
+  const gb = gridOf(b);
+  if (ga && gb) {
+    const dx = Math.abs(ga[0] - gb[0]);
+    const dy = Math.abs(ga[1] - gb[1]);
+    if (dx === 1 && dy === 0) return "h";
+    if (dy === 1 && dx === 0) return "v";
+    return null;
+  }
+  // No grid in the payload — fall back to pixel spacing.
+  const dx = Math.abs(a.x - b.x);
+  const dy = Math.abs(a.y - b.y);
+  if (dy < 4 && Math.abs(dx - t.sx) < 4) return "h";
+  if (dx < 4 && Math.abs(dy - t.sy) < 4) return "v";
+  return null;
 }

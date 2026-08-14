@@ -211,6 +211,124 @@ export async function fetchCostSummary(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Suikoden-HQ chambers (read-only)
+// ---------------------------------------------------------------------------
+
+export interface HqResponse {
+  hq: {
+    rank: number;
+    title: string;
+    score: number;
+    live_rooms: number;
+    sealed_rooms: number;
+    locked_rooms: number;
+    total_rooms: number;
+    officers_real: number;
+    next_rank_at: number | null;
+    to_next: number;
+  };
+  officers: Array<{
+    agent_id: string;
+    spec_status: string | null;
+    real: boolean;
+    state?: string | null;
+    task?: string | null;
+    updated_at?: string | null;
+    room_id?: string | null;
+  }>;
+}
+
+export interface KitchenResponse {
+  reachable: boolean;
+  models: Array<{ name: string; local: boolean; parameter_size?: string | null }>;
+  count: number;
+  local_count?: number;
+  note: string;
+}
+
+export interface ClockResponse {
+  has_pulse: boolean;
+  last_tick?: string;
+  last_agent?: string;
+  ticks: Array<{ agent_id: string; state: string; task?: string | null; at: string }>;
+  count: number;
+  note: string;
+}
+
+export interface RoundTableResponse {
+  lock_state: string | null;
+  forged: boolean;
+  seats: number;
+  seated: string[];
+  note: string;
+  spend: string;
+}
+
+/** All four fail soft to null — the chamber then says "not on this build". */
+export async function fetchHq(): Promise<HqResponse | null> {
+  try {
+    return await getJson<HqResponse>(`${API}/hq`);
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchKitchen(): Promise<KitchenResponse | null> {
+  try {
+    return await getJson<KitchenResponse>(`${API}/kitchen`);
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchClock(): Promise<ClockResponse | null> {
+  try {
+    return await getJson<ClockResponse>(`${API}/clock`);
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchRoundTable(): Promise<RoundTableResponse | null> {
+  try {
+    return await getJson<RoundTableResponse>(`${API}/round-table`);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Arcane Library compaction hook. The route only exists on builds that wired
+ * it; a 404 is reported honestly rather than faked as success.
+ */
+export async function libraryCompact(): Promise<
+  { ok: true; data: unknown } | { ok: false; reason: string }
+> {
+  try {
+    const res = await fetch(`${API}/library/compact`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirm: true }),
+    });
+    if (res.status === 404 || res.status === 405) {
+      return { ok: false, reason: "no compaction hook on this build" };
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return {
+        ok: false,
+        reason:
+          (data as { message?: string }).message || `compact → ${res.status}`,
+      };
+    }
+    logTool("library-compact", undefined, true);
+    return { ok: true, data };
+  } catch (e) {
+    return { ok: false, reason: (e as Error).message };
+  }
+}
+
 export async function fetchHealth(): Promise<{ status: string } | null> {
   try {
     return await getJson(`${API}/health`);

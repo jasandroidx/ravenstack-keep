@@ -349,12 +349,15 @@ function actionsForGate(g: Gate): string {
   return `<span class="muted">Handle via Grok chat / MCP</span>`;
 }
 
-function escapeHtml(s: string): string {
+/** Escape before interpolating into innerHTML. The entities here had been
+ *  HTML-decoded in a previous edit, which broke the build and silently turned
+ *  this into a no-op. */
+export function escapeHtml(s: string): string {
   return s
-    .replace(/&/g, "&")
-    .replace(/</g, "<")
-    .replace(/>/g, ">")
-    .replace(/"/g, """);
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 export function applyMapMeta(map: CastleMapResponse, el: HTMLElement) {

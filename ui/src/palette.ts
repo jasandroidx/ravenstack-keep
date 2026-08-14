@@ -68,6 +68,19 @@ export function roomTextureKey(
   return facade;
 }
 
+/** Suikoden-HQ world art: full 160x136 interiors under /art/rooms/. */
+export const WORLD_ROOM_W = 160;
+export const WORLD_ROOM_H = 136;
+
+export function worldRoomTextureKey(
+  roomId: string,
+  lockState: string | null | undefined,
+): string {
+  if (lockState === "locked") return `room_${roomId}_locked`;
+  if (lockState === "live") return `room_${roomId}`;
+  return `room_${roomId}_sealed`;
+}
+
 export function roomFallbackTextureKey(
   lockState: string | null | undefined,
 ): string {

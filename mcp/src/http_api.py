@@ -146,7 +146,7 @@ async def castle_map(_: Request) -> JSONResponse:
         {
             "sot_status": "CANONICAL",
             "sot_note": "Keep MCP spatial six + Phase-1 agent status (live SQLite).",
-            "version": "keep-mcp-0.1",
+            "version": "keep-hq-0.4-suikoden",
             "rooms": rooms_out,
             "agent_statuses": list(live.values()),
         }
@@ -282,6 +282,194 @@ async def specs(_: Request) -> JSONResponse:
     return _json({"agents": agents, "count": len(agents)})
 
 
+# ---------------------------------------------------------------------------
+# Suikoden-HQ chambers — read-only. Every field below is measured or absent.
+# If a source cannot be reached we say so; we never synthesise a number.
+# ---------------------------------------------------------------------------
+
+OLLAMA_URL = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
+
+
+def _hq_rank(rooms: list[dict[str, Any]], officers: list[dict[str, Any]]) -> dict[str, Any]:
+    """HQ rank from live rooms + real officers. Suikoden-style castle level."""
+    live_rooms = [r for r in rooms if r.get("lock_state") == "live"]
+    real = [o for o in officers if o.get("real")]
+    score = len(live_rooms) + len(real)
+    if score >= 16:
+        rank, title = 5, "Fortress"
+    elif score >= 12:
+        rank, title = 4, "Citadel"
+    elif score >= 9:
+        rank, title = 3, "Keep"
+    elif score >= 6:
+        rank, title = 2, "Hold"
+    else:
+        rank, title = 1, "Waystation"
+    nxt = {1: 6, 2: 9, 3: 12, 4: 16, 5: None}[rank]
+    return {
+        "rank": rank,
+        "title": title,
+        "score": score,
+        "live_rooms": len(live_rooms),
+        "sealed_rooms": len([r for r in rooms if r.get("lock_state") == "UNFORGED"]),
+        "locked_rooms": len([r for r in rooms if r.get("lock_state") == "locked"]),
+        "total_rooms": len(rooms),
+        "officers_real": len(real),
+        "next_rank_at": nxt,
+        "to_next": (nxt - score) if nxt else 0,
+        "basis": "live rooms + officers with an approved/live Spec",
+    }
+
+
+def _officer_roster() -> list[dict[str, Any]]:
+    """Officers from Agent Specs on disk + their live status row."""
+    out: list[dict[str, Any]] = []
+    with keep._connect() as conn:
+        live = keep._live_agents(conn)
+        rooms = {
+            r["occupant_agent_id"]: r["room_id"]
+            for r in (keep._row_room(x) for x in conn.execute("SELECT * FROM rooms"))
+            if r["occupant_agent_id"]
+        }
+    for aid in sorted(keep._list_agent_specs()):
+        data, _path, err = keep._load_spec(aid)
+        status = (data or {}).get("status")
+        st = live.get(aid) or {}
+        out.append(
+            {
+                "agent_id": aid,
+                "spec_status": status,
+                "spec_valid": err is None and data is not None,
+                "real": bool(err is None and status in ("approved", "live")),
+                "state": st.get("state"),
+                "task": st.get("task"),
+                "updated_at": st.get("updated_at"),
+                "room_id": rooms.get(aid),
+            }
+        )
+    return out
+
+
+async def hq(_: Request) -> JSONResponse:
+    keep.init_db()
+    with keep._connect() as conn:
+        rooms = [keep._row_room(r) for r in conn.execute("SELECT * FROM rooms")]
+    officers = _officer_roster()
+    return _json({"hq": _hq_rank(rooms, officers), "officers": officers})
+
+
+async def kitchen(_: Request) -> JSONResponse:
+    """The hearth: local models we can actually see. No pretend GPU meters."""
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen(f"{OLLAMA_URL}/api/tags", timeout=2.0) as r:
+            data = json.loads(r.read().decode("utf-8"))
+    except Exception as e:  # noqa: BLE001
+        return _json(
+            {
+                "source": "ollama",
+                "reachable": False,
+                "models": [],
+                "count": 0,
+                "note": f"no hearth source — {OLLAMA_URL} unreachable ({e.__class__.__name__})",
+            }
+        )
+    models = []
+    for m in data.get("models", []):
+        name = m.get("name") or m.get("model")
+        if not name:
+            continue
+        models.append(
+            {
+                "name": name,
+                "size_bytes": m.get("size"),
+                "family": (m.get("details") or {}).get("family"),
+                "parameter_size": (m.get("details") or {}).get("parameter_size"),
+                "local": not str(name).endswith(":cloud"),
+            }
+        )
+    models.sort(key=lambda m: (not m["local"], m["name"]))
+    return _json(
+        {
+            "source": "ollama",
+            "reachable": True,
+            "endpoint": OLLAMA_URL,
+            "models": models,
+            "count": len(models),
+            "local_count": sum(1 for m in models if m["local"]),
+            "note": "cost-free routing inventory — local models run on the fortress",
+        }
+    )
+
+
+async def clock(_: Request) -> JSONResponse:
+    """The pulse: real agent_status heartbeats. No source -> say so."""
+    keep.init_db()
+    with keep._connect() as conn:
+        rows = list(
+            conn.execute(
+                "SELECT agent_id, state, task, updated_at FROM agent_status "
+                "ORDER BY updated_at DESC"
+            )
+        )
+    if not rows:
+        return _json(
+            {
+                "has_pulse": False,
+                "ticks": [],
+                "count": 0,
+                "note": "no pulse source — nothing has reported agent status yet",
+            }
+        )
+    ticks = [
+        {
+            "agent_id": r["agent_id"],
+            "state": r["state"],
+            "task": r["task"],
+            "at": r["updated_at"],
+        }
+        for r in rows
+    ]
+    return _json(
+        {
+            "has_pulse": True,
+            "last_tick": ticks[0]["at"],
+            "last_agent": ticks[0]["agent_id"],
+            "ticks": ticks,
+            "count": len(ticks),
+            "note": "measured from Keep agent_status writes (real heartbeats only)",
+        }
+    )
+
+
+async def round_table(_: Request) -> JSONResponse:
+    """Council status. Read-only until the wing is stamped."""
+    keep.init_db()
+    with keep._connect() as conn:
+        row = keep._find_room(conn, "round-table")
+        lock = row["lock_state"] if row else None
+    officers = _officer_roster()
+    seated = [o for o in officers if o["real"]]
+    forged = lock == "live"
+    return _json(
+        {
+            "room_id": "round-table",
+            "exists": row is not None,
+            "lock_state": lock,
+            "forged": forged,
+            "seats": len(seated),
+            "seated": [o["agent_id"] for o in seated],
+            "note": (
+                "Council is live — sit the table to open a question."
+                if forged
+                else "Council is UNFORGED — stamp the room after a Spec."
+            ),
+            "spend": "none — no multi-model routing is wired",
+        }
+    )
+
+
 def _spa_index() -> Optional[Path]:
     for base in (UI_DIST, UI_PUBLIC):
         idx = base / "index.html"
@@ -331,6 +519,11 @@ routes = [
     Route("/api/approve-spec", approve_spec_http, methods=["POST"]),
     Route("/api/unlock-room", unlock_room_http, methods=["POST"]),
     Route("/api/specs", specs),
+    # Suikoden-HQ chambers (read-only)
+    Route("/api/hq", hq),
+    Route("/api/kitchen", kitchen),
+    Route("/api/clock", clock),
+    Route("/api/round-table", round_table),
     Route("/", spa_or_root),
     Route("/{path:path}", static_fallback),
 ]

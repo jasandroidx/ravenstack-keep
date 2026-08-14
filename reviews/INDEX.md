@@ -12,6 +12,7 @@ When you add a finding, add a row here.
 | 2026-07-29 | Grok (research) | [findings/2026-07-29-grok-roundtable-vehicle-recommendation.md](./findings/2026-07-29-grok-roundtable-vehicle-recommendation.md) | First Round Table vehicle: Roundtable.sh (superseded by v0 decision) | superseded |
 | 2026-07-29 | Grok (research) | [findings/2026-07-29-grok-research-roundtable-kill-skills.md](./findings/2026-07-29-grok-research-roundtable-kill-skills.md) | Round Table research, kill architecture, skills inventory, Phase 1 feedback | ready for review |
 | 2026-07-29 | Grok (Build) | [findings/2026-07-29-grok-phase1-session.md](./findings/2026-07-29-grok-phase1-session.md) | Phase 1 deliverables, session handoff, improvement backlog | ready for review |
+| 2026-08-14 | Claude (Claude Code) | [findings/2026-08-14-claude-suikoden-hq-deploy.md](./findings/2026-08-14-claude-suikoden-hq-deploy.md) | Suikoden HQ built + verified in-container; NOT deployed to live :8120 | needs operator decision |
 
 ## Status legend
 

@@ -71,6 +71,17 @@ export const SEATS: Seat[] = [
     notes: "Alchemy Lab · Spec APPROVED; runtime still human-gated",
   },
   {
+    id: "seat_scribe",
+    name: "Scribe",
+    role: "Inbox Mill / Drafts",
+    roomId: "library",
+    roomAliases: ["scriptorium"],
+    agentId: "scribe",
+    spriteKey: "scribe_sprite",
+    defaultPosition: { x: 1, y: 0 },
+    notes: "Library · second desk; summaries and drafts, never sends",
+  },
+  {
     id: "seat_gardener",
     name: "Corvid",
     role: "Graph Gardener / Memory",

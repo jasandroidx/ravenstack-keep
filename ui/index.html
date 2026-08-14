@@ -11,8 +11,13 @@
     <div id="app">
       <header class="app-bar">
         <h1>Ravenstack Keep</h1>
+        <span id="hq-rank" class="pill pill-rank" title="HQ rank — live rooms + real officers">HQ …</span>
         <span id="data-source" class="pill">…</span>
+        <button type="button" id="btn-rally" title="Write real presence, then walk Raziel the pipes">Rally</button>
+        <button type="button" id="btn-tour" title="Walk Raziel the pipes — no writes">Tour</button>
+        <button type="button" id="btn-compact" title="Arcane Library compaction hook — not a visual mode">Compact</button>
         <button type="button" id="btn-refresh">Refresh</button>
+        <span id="keep-status" class="keep-status"></span>
         <span id="map-meta"></span>
       </header>
       <div id="game" aria-label="Castle map"></div>
@@ -24,6 +29,14 @@
         <section>
           <h2>Room</h2>
           <div id="room-detail"><p class="muted">Click a room on the map (or a gate card).</p></div>
+        </section>
+        <section>
+          <h2>How to command</h2>
+          <ul id="how-to-command" class="how-list"></ul>
+        </section>
+        <section>
+          <h2>Roster</h2>
+          <div id="roster"><p class="muted">Loading…</p></div>
         </section>
         <section>
           <h2>Notes</h2>

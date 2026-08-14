@@ -240,3 +240,212 @@ button:disabled {
     border-bottom: 1px solid #2a3142;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Suikoden-HQ: talk box, roster, HQ rank                              */
+/* ------------------------------------------------------------------ */
+
+.pill-rank {
+  background: #1e222b;
+  border: 1px solid #3a3f4b;
+  color: var(--amber);
+  letter-spacing: 0.06em;
+}
+
+.how-list {
+  margin: 0;
+  padding-left: 1rem;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.how-list li {
+  margin-bottom: 0.35rem;
+}
+
+.roster-card {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.4rem;
+  margin-bottom: 0.35rem;
+  background: #121722;
+  border: 1px solid #2a3142;
+  border-left: 3px solid var(--neon);
+  cursor: pointer;
+}
+.roster-card:hover {
+  background: #172033;
+}
+.roster-card.sealed {
+  border-left-color: var(--amber);
+  opacity: 0.72;
+}
+.roster-face {
+  width: 40px;
+  height: 40px;
+  image-rendering: pixelated;
+  border: 1px solid #2a3142;
+  flex: 0 0 auto;
+}
+.roster-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+.roster-meta strong {
+  color: var(--text);
+}
+.roster-post {
+  color: var(--neon);
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+}
+.roster-ask {
+  color: var(--muted);
+  font-size: 0.64rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Talk box --- */
+
+.talkbox {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translate(-50%, 130%);
+  width: min(760px, calc(100vw - 48px));
+  display: flex;
+  gap: 14px;
+  padding: 14px;
+  background: linear-gradient(180deg, #141a26, #0e121b);
+  border: 2px solid #3a3f4b;
+  box-shadow:
+    0 0 0 1px #0b0e14,
+    0 12px 40px rgba(0, 0, 0, 0.6);
+  z-index: 60;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 160ms ease-out,
+    opacity 160ms ease-out;
+}
+.talkbox.show {
+  transform: translate(-50%, 0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.talk-portrait {
+  width: 128px;
+  height: 128px;
+  flex: 0 0 128px;
+  background-size: cover;
+  background-position: center;
+  image-rendering: pixelated;
+  border: 2px solid #2a3142;
+}
+.talk-portrait-empty {
+  background:
+    repeating-linear-gradient(45deg, #1e222b 0 6px, #191d25 6px 12px);
+  border-color: #3a3f4b;
+}
+
+.talk-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.talk-plate {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  border-bottom: 1px solid #2a3142;
+  padding-bottom: 4px;
+  margin-bottom: 6px;
+}
+.talk-name {
+  color: var(--amber);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+}
+.talk-role {
+  color: var(--muted);
+  font-size: 0.66rem;
+}
+
+.talk-text {
+  margin: 0 0 6px;
+  min-height: 2.6em;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.talk-asks {
+  margin: 0 0 6px;
+  padding-left: 1rem;
+  font-size: 0.7rem;
+  color: var(--neon);
+  line-height: 1.45;
+}
+
+.talk-footer {
+  margin: 0 0 8px;
+  font-size: 0.64rem;
+  color: var(--muted);
+}
+
+.talk-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.talk-actions button {
+  background: #1e222b;
+  color: var(--text);
+  border: 1px solid #3a3f4b;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+.talk-actions button:hover {
+  border-color: var(--neon);
+  color: var(--neon);
+}
+.talk-actions button.gate {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+
+.talk-hint {
+  font-size: 0.6rem;
+  color: #5c6478;
+  align-self: flex-end;
+}
+
+.keep-status {
+  font-size: 0.68rem;
+  color: var(--amber);
+  margin-left: auto;
+  max-width: 46ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#map-meta {
+  font-size: 0.68rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
