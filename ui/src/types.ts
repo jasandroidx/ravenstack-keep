@@ -1,4 +1,4 @@
-/** Keep Visual Shell — types aligned with ui/docs/UI-CONTRACT.md */
+/** Keep Visual Shell — types aligned with live /api/castle-map */
 
 export type LockState = "UNFORGED" | "live" | "locked" | string;
 
@@ -12,13 +12,29 @@ export type AgentState =
   | null
   | undefined;
 
+export interface OccupantChip {
+  agent_id: string;
+  agent_state?: AgentState;
+  agent_task?: string | null;
+  sprite_hint?: string | null;
+  presence_room_id?: string | null;
+  spec_status?: string | null;
+  spec_valid?: boolean | null;
+  agent_real?: boolean;
+}
+
 export interface RoomChip {
   room_id: string;
   name: string;
   lock_state: LockState;
+  status?: string;
   x: number;
   y: number;
+  grid?: number[] | null;
   occupant_agent_id: string | null;
+  co_occupants?: string[];
+  agent_ids?: string[];
+  occupants?: OccupantChip[];
   status_summary?: string;
   queue_depth?: number;
   updated_at?: string;
@@ -28,7 +44,9 @@ export interface RoomChip {
   spec_status?: string | null;
   spec_valid?: boolean | null;
   agent_real?: boolean;
-  /** Optional seat binding (client-side only; not from SOT). */
+  sprite_hint?: string | null;
+  presence_room_id?: string | null;
+  model_tier?: string | null;
   seat_id?: string | null;
   preferred_agent?: string | null;
 }
@@ -49,6 +67,8 @@ export interface AgentStatus {
   session_id?: string | null;
   detail?: string | null;
   updated_at?: string;
+  room_id?: string | null;
+  sprite_hint?: string | null;
 }
 
 export interface Gate {
@@ -81,7 +101,6 @@ export interface PipelineConfig {
 
 export type RoomSelectHandler = (room: RoomChip | null) => void;
 
-/** Seat binding — see config/seats.ts */
 export interface Seat {
   id: string;
   name: string;
@@ -95,7 +114,6 @@ export interface Seat {
   notes?: string;
 }
 
-/** Cost summary from get_cost_summary (Phase 0 may be zeros). */
 export interface CostSummary {
   month: string;
   currency: string;
@@ -110,12 +128,11 @@ export interface CostSummary {
   notes?: string;
 }
 
-/** Path result from get_path spatial tool. */
-export interface PathResult {
-  from_room: string;
-  to_room: string;
-  manhattan: number;
-  rooms: string[];
+export interface PathResponse {
+  from_room?: string;
+  to_room?: string;
+  manhattan?: number;
+  rooms?: string[];
   path_cells?: number[][];
   steps?: Array<{ from: number[]; to: number[]; dir: string }>;
   step_count?: number;
@@ -123,3 +140,6 @@ export interface PathResult {
   message?: string;
   code?: string;
 }
+
+/** @deprecated use PathResponse */
+export type PathResult = PathResponse;

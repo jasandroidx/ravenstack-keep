@@ -74,8 +74,8 @@ export const SEATS: Seat[] = [
     id: "seat_gardener",
     name: "Corvid",
     role: "Graph Gardener / Memory",
-    roomId: "library", // shares knowledge wing; roost is seed-only
-    roomAliases: ["roost", "graph-gardener", "graph_gardener"],
+    roomId: "roost",
+    roomAliases: ["library", "graph-gardener", "graph_gardener"],
     agentId: "corvid",
     spriteKey: "gardener_sprite",
     defaultPosition: { x: 1, y: 0 },

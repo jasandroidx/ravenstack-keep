@@ -1,4 +1,4 @@
-/** Mystical stone + neon — 48×48 era palette tokens (v0 solid blocks). */
+/** Mystical stone + neon — fortress visual tokens (v2 interiors + corridors). */
 
 export const PALETTE = {
   bg: 0x0b0e14,
@@ -15,15 +15,31 @@ export const PALETTE = {
   seal: 0x6b5b95,
 } as const;
 
-export const ROOM_SIZE = 48;
-export const ROOM_GAP_SCALE = 1; // coords from castle_map used as-is (world units)
+/** Room display size in world units (art is 96px, scaled up for detail). */
+export const ROOM_SIZE = 128;
+export const AGENT_SIZE = 48;
+export const ROOM_GAP_SCALE = 1;
+/** Half-size used for corridor/door anchoring. */
+export const ROOM_HALF = ROOM_SIZE / 2;
+
+/** Must match mcp/src/http_api.py _PX_ORIGIN / _PX_SCALE */
+export const GRID_ORIGIN = { x: 480, y: 420 } as const;
+export const GRID_SCALE = { x: 168, y: 156 } as const;
+
+/** Castle grid cell → Phaser world pixels (same formula as Keep HTTP). */
+export function gridToPx(gx: number, gy: number): { x: number; y: number } {
+  return {
+    x: GRID_ORIGIN.x + gx * GRID_SCALE.x,
+    y: GRID_ORIGIN.y - gy * GRID_SCALE.y,
+  };
+}
 
 /** Phaser tint / legacy circle fill (matches art pack chips). */
 export function stateColor(state: string | null | undefined): number {
   switch (state) {
     case "working":
     case "answering":
-      return PALETTE.neonMagenta; // art bible: work = magenta
+      return PALETTE.neonMagenta;
     case "waiting_human":
       return PALETTE.neonAmber;
     case "failed":
@@ -54,18 +70,31 @@ export function chipTextureKey(state: string | null | undefined): string {
   }
 }
 
-/** Room body texture: prefer per-room façade, else universal base tile. */
+/** Prefer detailed interior art for spatial room_ids. */
+export function roomInteriorKey(
+  roomId: string,
+  lockState: string | null | undefined,
+): string {
+  const sealed =
+    lockState === "UNFORGED" || lockState === "locked" ? "_sealed" : "";
+  return `room_${roomId}${sealed}`;
+}
+
+/** Room body texture: interior art preferred. */
 export function roomTextureKey(
   roomId: string,
   lockState: string | null | undefined,
 ): string {
-  const live = lockState === "live";
-  const locked = lockState === "locked";
-  if (locked) return "room_locked";
-  const state = live ? "live" : "unforged";
-  const facade = `facade_${roomId}_${state}`;
-  // facades registered for known rooms; missing keys fall back in scene
-  return facade;
+  return roomInteriorKey(roomId, lockState);
+}
+
+/** Facade key for non-spatial / legacy blueprint rooms. */
+export function facadeTextureKey(
+  roomId: string,
+  lockState: string | null | undefined,
+): string {
+  const live = lockState === "live" ? "live" : "unforged";
+  return `facade_${roomId}_${live}`;
 }
 
 export function roomFallbackTextureKey(
@@ -74,4 +103,51 @@ export function roomFallbackTextureKey(
   if (lockState === "locked") return "room_locked";
   if (lockState === "live") return "room_live";
   return "room_unforged";
+}
+
+/** Keep agent_id / sprite_hint → agent sprite texture key. */
+export function agentTextureKey(
+  agentId: string | null | undefined,
+  spriteHint?: string | null,
+): string | null {
+  if (spriteHint) {
+    const h = spriteHint.toLowerCase().replace(/^agent_/, "");
+    const knownHint = [
+      "raziel",
+      "oracle",
+      "clawforge",
+      "corvid",
+      "scribe",
+      "generic",
+    ];
+    if (knownHint.includes(h)) return `agent_${h}`;
+  }
+  if (!agentId) return null;
+  const id = agentId.toLowerCase();
+  if (id.includes("raziel")) return "agent_raziel";
+  if (id.includes("oracle")) return "agent_oracle";
+  if (id.includes("clawforge") || id.includes("clawsmith"))
+    return "agent_clawforge";
+  if (id.includes("corvid")) return "agent_corvid";
+  if (id.includes("scribe") || id.includes("scriptwriter"))
+    return "agent_scribe";
+  return "agent_generic";
+}
+
+export function activityIconKey(state: string | null | undefined): string {
+  switch (state) {
+    case "working":
+    case "answering":
+      return "icon_work";
+    case "waiting_human":
+      return "icon_wait";
+    default:
+      return "icon_idle";
+  }
+}
+
+export function tierBadgeKey(tier: string | null | undefined): string {
+  if (tier === "escalate") return "badge_escalate";
+  if (tier === "god") return "badge_god";
+  return "badge_local";
 }

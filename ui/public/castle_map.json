@@ -1,133 +1,18 @@
 {
-  "sot_status": "CANONICAL",
-  "sot_note": "Canonical per KEEP-SOT-DECISION.md. Repo owns rooms/agents; vault owns narrative. Only schema-valid agents/*.agent-spec.json with status>=approved are real. Room lock_state=live means UI room exists, not ambient runtime. Reconciled 2026-08-01: Spec\u2194room status honesty + architect/graph-gardener rooms.",
-  "version": "1.2-reconciled",
-  "updated": "2026-08-01",
+  "sot_status": "SEED",
+  "sot_note": "Offline fallback. Live SOT is Keep MCP SQLite via /api/castle-map.",
+  "version": "0.4-hq",
   "rooms": [
-    {
-      "room_id": "orchestrator",
-      "name": "Orchestrator",
-      "lock_state": "live",
-      "x": 400,
-      "y": 100,
-      "occupant_agent_id": "raziel-main",
-      "status_summary": "live room; raziel-main is OpenClaw main candidate \u2014 no Keep Agent Spec yet (room live \u2260 Spec real).",
-      "queue_depth": 0
-    },
-    {
-      "room_id": "clawforge",
-      "name": "Clawforge",
-      "lock_state": "live",
-      "x": 520,
-      "y": 320,
-      "occupant_agent_id": "clawforge",
-      "status_summary": "Clawforge Spec APPROVED; room live. Occupant id aligned to clawforge (not clawsmith-compiler). Runtime forge still human-gated.",
-      "queue_depth": 0
-    },
-    {
-      "room_id": "oracle",
-      "name": "Oracle",
-      "lock_state": "UNFORGED",
-      "x": 240,
-      "y": 180,
-      "occupant_agent_id": "oracle",
-      "status_summary": "Oracle Agent Spec APPROVED; room still UNFORGED until unlock_room(confirm=true). Spec != room live.",
-      "queue_depth": 0
-    },
-    {
-      "room_id": "scribe",
-      "name": "Scribe Warden",
-      "lock_state": "UNFORGED",
-      "x": 380,
-      "y": 220,
-      "occupant_agent_id": "content-scriptwriter",
-      "status_summary": "provisional \u2014 blueprint name Scribe Warden",
-      "queue_depth": 0
-    },
-    {
-      "room_id": "suno_studio",
-      "name": "Suno Studio",
-      "lock_state": "UNFORGED",
-      "x": 780,
-      "y": 220,
-      "occupant_agent_id": "suno-audio-gen",
-      "status_summary": "from Drive spatial map only",
-      "queue_depth": 0
-    },
-    {
-      "room_id": "lead_forge",
-      "name": "Lead Forge",
-      "lock_state": "UNFORGED",
-      "x": 120,
-      "y": 450,
-      "occupant_agent_id": "gatekeeper-proxy",
-      "status_summary": "from Drive spatial map; overlaps county gate concerns",
-      "queue_depth": 0
-    },
-    {
-      "room_id": "flipper",
-      "name": "Flipper",
-      "lock_state": "UNFORGED",
-      "x": 640,
-      "y": 450,
-      "occupant_agent_id": null,
-      "status_summary": "blueprint unforged room \u2014 no Drive desk assignment",
-      "queue_depth": 0
-    },
-    {
-      "room_id": "auditor",
-      "name": "Silent Auditor",
-      "lock_state": "UNFORGED",
-      "x": 300,
-      "y": 400,
-      "occupant_agent_id": "silent-auditor",
-      "status_summary": "provisional desk for silent-auditor",
-      "queue_depth": 0
-    },
-    {
-      "room_id": "roost",
-      "name": "The Roost",
-      "lock_state": "UNFORGED",
-      "x": 160,
-      "y": 280,
-      "occupant_agent_id": "corvid",
-      "status_summary": "Corvid Spec DRAFT only; room UNFORGED until approve_spec + unlock_room.",
-      "queue_depth": 0
-    },
-    {
-      "room_id": "architect",
-      "name": "Architect Drafting Room",
-      "lock_state": "live",
-      "x": 300,
-      "y": 260,
-      "occupant_agent_id": "architect",
-      "status_summary": "Architect Spec APPROVED + skill live; room live. On-demand scan/refresh only.",
-      "queue_depth": 0
-    },
-    {
-      "room_id": "graph-gardener",
-      "name": "Graph Garden",
-      "lock_state": "live",
-      "x": 460,
-      "y": 260,
-      "occupant_agent_id": "graph-gardener",
-      "status_summary": "Graph Gardener Spec APPROVED; weekly timer + harvest step; report-only.",
-      "queue_depth": 0
-    }
-  ],
-  "agents_without_spec": [
-    "content-scriptwriter",
-    "gatekeeper-proxy",
-    "raziel-main",
-    "silent-auditor",
-    "suno-audio-gen"
-  ],
-  "agents_with_spec": [
-    "architect",
-    "clawforge",
-    "corvid",
-    "graph-gardener",
-    "oracle"
-  ],
-  "decision": "KEEP-SOT-DECISION.md"
+    { "room_id": "gatehouse", "name": "Gatehouse", "lock_state": "UNFORGED", "x": 480, "y": 576, "occupant_agent_id": null, "status_summary": "Windows node / stamps" },
+    { "room_id": "great-hall", "name": "Great Hall", "lock_state": "live", "x": 480, "y": 420, "occupant_agent_id": "raziel", "status_summary": "Command" },
+    { "room_id": "kitchen", "name": "Kitchen", "lock_state": "UNFORGED", "x": 312, "y": 420, "occupant_agent_id": null, "status_summary": "Local models / hearth" },
+    { "room_id": "library", "name": "Library", "lock_state": "live", "x": 648, "y": 420, "occupant_agent_id": "oracle", "status_summary": "Oracle + Scribe" },
+    { "room_id": "roost", "name": "The Roost", "lock_state": "UNFORGED", "x": 816, "y": 420, "occupant_agent_id": "corvid", "status_summary": "Corvid" },
+    { "room_id": "armory", "name": "Armory", "lock_state": "live", "x": 480, "y": 264, "occupant_agent_id": null, "status_summary": "Tools & MCP" },
+    { "room_id": "alchemy-lab", "name": "Alchemy Lab", "lock_state": "live", "x": 648, "y": 264, "occupant_agent_id": "clawforge", "status_summary": "Clawforge" },
+    { "room_id": "round-table", "name": "Round Table", "lock_state": "UNFORGED", "x": 816, "y": 264, "occupant_agent_id": null, "status_summary": "Council" },
+    { "room_id": "clock-tower", "name": "Clock Tower", "lock_state": "UNFORGED", "x": 480, "y": 108, "occupant_agent_id": null, "status_summary": "Crons" },
+    { "room_id": "observatory", "name": "Observatory", "lock_state": "live", "x": 648, "y": 108, "occupant_agent_id": null, "status_summary": "Arena" },
+    { "room_id": "vault", "name": "Vault", "lock_state": "locked", "x": 312, "y": 576, "occupant_agent_id": null, "status_summary": "Restricted" }
+  ]
 }

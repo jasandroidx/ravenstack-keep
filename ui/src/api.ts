@@ -2,32 +2,11 @@ import type {
   CastleMapResponse,
   CostSummary,
   GatesResponse,
-  PathResult,
+  PathResponse,
   PipelineConfig,
 } from "./types";
-import { isKnownAgent } from "./config/seats";
 
 const API = "/api";
-
-/** Tiny in-memory ring for audit-friendly client logs (no network). */
-const TOOL_LOG: Array<{ ts: string; tool: string; agent_id?: string; ok: boolean }> = [];
-const TOOL_LOG_MAX = 40;
-
-function logTool(tool: string, agent_id: string | undefined, ok: boolean) {
-  TOOL_LOG.push({
-    ts: new Date().toISOString(),
-    tool,
-    agent_id,
-    ok,
-  });
-  if (TOOL_LOG.length > TOOL_LOG_MAX) TOOL_LOG.shift();
-  // eslint-disable-next-line no-console
-  console.debug(`[keep-api] ${tool}`, { agent_id, ok, ts: TOOL_LOG[TOOL_LOG.length - 1].ts });
-}
-
-export function getToolLog() {
-  return [...TOOL_LOG];
-}
 
 async function getJson<T>(path: string): Promise<T> {
   const res = await fetch(path);
@@ -61,12 +40,9 @@ export async function fetchCastleMap(): Promise<{
 }> {
   try {
     const map = await getJson<CastleMapResponse>(`${API}/castle-map`);
-    logTool("castle-map", undefined, true);
     return { map, source: "api" };
   } catch {
-    logTool("castle-map", undefined, false);
     const map = await getJson<CastleMapResponse>("/castle_map.json");
-    // seed lacks live enrichment — do not invent idle activity chips
     map.rooms = map.rooms.map((r) => ({
       ...r,
       agent_state: r.agent_state ?? null,
@@ -78,11 +54,8 @@ export async function fetchCastleMap(): Promise<{
 
 export async function fetchGates(): Promise<GatesResponse> {
   try {
-    const g = await getJson<GatesResponse>(`${API}/gates`);
-    logTool("gates", undefined, true);
-    return g;
+    return await getJson<GatesResponse>(`${API}/gates`);
   } catch {
-    logTool("gates", undefined, false);
     return { gates: [], waiting_human_agents: [], count: 0 };
   }
 }
@@ -95,120 +68,66 @@ export async function fetchPipeline(): Promise<PipelineConfig> {
   }
 }
 
-export async function approveSpec(agentId: string): Promise<unknown> {
-  if (!isKnownAgent(agentId)) {
-    logTool("approve-spec", agentId, false);
-    throw new Error(`Unknown agent_id '${agentId}' — not in seats / known roster`);
-  }
-  try {
-    const r = await postJson(`${API}/approve-spec`, {
-      agent_id: agentId,
-      confirm: true,
-    });
-    logTool("approve-spec", agentId, true);
-    return r;
-  } catch (e) {
-    logTool("approve-spec", agentId, false);
-    throw e;
-  }
-}
-
-export async function unlockRoom(roomId: string): Promise<unknown> {
-  try {
-    const r = await postJson(`${API}/unlock-room`, {
-      room_id: roomId,
-      confirm: true,
-    });
-    logTool("unlock-room", undefined, true);
-    return r;
-  } catch (e) {
-    logTool("unlock-room", undefined, false);
-    throw e;
-  }
-}
-
-/**
- * report_agent_status write path.
- * Only known agent_ids; confirm pattern is implicit (human/UI already gated).
- */
-export async function reportStatus(
-  agentId: string,
-  state: string,
-  task?: string,
-): Promise<unknown> {
-  if (!isKnownAgent(agentId)) {
-    logTool("report-status", agentId, false);
-    throw new Error(`Unknown agent_id '${agentId}' — refuse write (RBAC)`);
-  }
-  try {
-    const r = await postJson(`${API}/report-status`, {
-      agent_id: agentId,
-      state,
-      task,
-    });
-    logTool("report-status", agentId, true);
-    return r;
-  } catch (e) {
-    logTool("report-status", agentId, false);
-    throw e;
-  }
-}
-
-/** Alias used by zone helpers. */
-export const reportAgentStatus = reportStatus;
-
-/**
- * Spatial path between rooms (MCP get_path via HTTP).
- * Fail soft → null so UI never crashes if MCP briefly down.
- */
 export async function fetchPath(
   fromRoom: string,
   toRoom: string,
-): Promise<PathResult | null> {
+): Promise<PathResponse | null> {
   try {
-    const q = new URLSearchParams({ from: fromRoom, to: toRoom });
-    const data = await getJson<PathResult>(`${API}/path?${q}`);
-    logTool("path", undefined, !data.error);
-    if (data.error) return null;
-    return data;
+    return await getJson<PathResponse>(
+      `${API}/path?from=${encodeURIComponent(fromRoom)}&to=${encodeURIComponent(toRoom)}`,
+    );
   } catch {
-    logTool("path", undefined, false);
     return null;
   }
 }
 
-/**
- * Cost summary (Phase 0 may return zeros / notes).
- * Fail soft → null-shaped Phase 0 note.
- */
 export async function fetchCostSummary(
   agentId?: string,
 ): Promise<CostSummary | null> {
   try {
     const q = agentId ? `?agent_id=${encodeURIComponent(agentId)}` : "";
-    const data = await getJson<CostSummary>(`${API}/cost-summary${q}`);
-    logTool("cost-summary", agentId, true);
-    return data;
+    return await getJson<CostSummary>(`${API}/cost-summary${q}`);
   } catch {
-    logTool("cost-summary", agentId, false);
-    return {
-      month: new Date().toISOString().slice(0, 7),
-      currency: "USD",
-      monthly_ceiling: null,
-      total_est_usd: 0,
-      by_agent: agentId
-        ? [
-            {
-              agent_id: agentId,
-              tier_breakdown: { local: 0, escalate: 0, god: 0 },
-              est_usd: 0,
-              call_count: 0,
-            },
-          ]
-        : [],
-      notes: "cost unknown — Phase 0 open (or /api/cost-summary not wired yet)",
-    };
+    return null;
   }
+}
+
+export async function approveSpec(agentId: string): Promise<unknown> {
+  return postJson(`${API}/approve-spec`, {
+    agent_id: agentId,
+    confirm: true,
+  });
+}
+
+export async function unlockRoom(roomId: string): Promise<unknown> {
+  return postJson(`${API}/unlock-room`, {
+    room_id: roomId,
+    confirm: true,
+  });
+}
+
+export async function reportStatus(
+  agentId: string,
+  state: string,
+  task?: string,
+  roomId?: string,
+): Promise<unknown> {
+  return postJson(`${API}/report-status`, {
+    agent_id: agentId,
+    state,
+    task,
+    room_id: roomId,
+  });
+}
+
+export async function reportPresence(body: {
+  room_id: string;
+  state: string;
+  task_summary?: string;
+  agent_id?: string;
+  sprite_hint?: string;
+}): Promise<unknown> {
+  return postJson(`${API}/report-presence`, body);
 }
 
 export async function fetchHealth(): Promise<{ status: string } | null> {
@@ -217,4 +136,153 @@ export async function fetchHealth(): Promise<{ status: string } | null> {
   } catch {
     return null;
   }
+}
+
+export interface LibraryInboxFile {
+  name: string;
+  bytes: number;
+  modified: string;
+  rel_path: string;
+  abs_path?: string;
+}
+
+export interface LibraryInboxResponse {
+  inbox_dir: string;
+  rel_root: string;
+  count: number;
+  files: LibraryInboxFile[];
+  notes?: string;
+}
+
+export async function fetchLibraryInbox(): Promise<LibraryInboxResponse | null> {
+  try {
+    return await getJson<LibraryInboxResponse>(`${API}/library/inbox`);
+  } catch {
+    return null;
+  }
+}
+
+/** Operator file pick → stage + default auto library-distill local-batch. */
+export async function uploadLibraryFiles(
+  files: FileList | File[],
+  opts?: { agentId?: string; note?: string; autoDistill?: boolean },
+): Promise<{
+  ok: boolean;
+  saved?: Array<{ original_name: string; rel_path: string; bytes: number }>;
+  errors?: string[];
+  next_step?: string;
+  error?: string;
+  distill?: DistillResponse;
+}> {
+  const fd = new FormData();
+  const list = Array.from(files as FileList);
+  for (const f of list) fd.append("files", f, f.name);
+  fd.append("agent_id", opts?.agentId || "scribe");
+  if (opts?.note) fd.append("note", opts.note);
+  // Default ON — select file should finish the loop
+  fd.append("auto_distill", opts?.autoDistill === false ? "0" : "1");
+  const res = await fetch(`${API}/library/upload`, {
+    method: "POST",
+    body: fd,
+  });
+  const data = (await res.json()) as {
+    ok?: boolean;
+    saved?: Array<{ original_name: string; rel_path: string; bytes: number }>;
+    errors?: string[];
+    next_step?: string;
+    error?: string;
+    message?: string;
+    distill?: DistillResponse;
+  };
+  if (!res.ok) {
+    return {
+      ok: false,
+      error: data.message || data.error || `upload ${res.status}`,
+      errors: data.errors,
+    };
+  }
+  return {
+    ok: !!data.ok,
+    saved: data.saved,
+    errors: data.errors,
+    next_step: data.next_step,
+    distill: data.distill,
+  };
+}
+
+export interface DistillResultRow {
+  ok?: boolean;
+  disposition?: string;
+  score?: number;
+  reason?: string;
+  source_name?: string;
+  output_rel?: string | null;
+  error?: string;
+}
+
+export interface DistillResponse {
+  ok?: boolean;
+  count?: number;
+  results?: DistillResultRow[];
+  presence_summary?: string;
+  skill?: string;
+  mode?: string;
+}
+
+/** library-distill local-batch on inbox (skill SOT). */
+export async function distillLibraryInbox(opts?: {
+  files?: string[];
+  limit?: number;
+}): Promise<DistillResponse> {
+  const res = await fetch(`${API}/library/distill`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      files: opts?.files,
+      limit: opts?.limit ?? 10,
+    }),
+  });
+  return (await res.json()) as DistillResponse;
+}
+
+/** Walk-up jobs: distill_inbox | wake | sync_openclaw */
+export async function runKeepJob(
+  job: string,
+  extra?: Record<string, unknown>,
+): Promise<{ ok?: boolean; job?: string; result?: unknown; message?: string }> {
+  const res = await fetch(`${API}/jobs/run`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ job, ...extra }),
+  });
+  return (await res.json()) as {
+    ok?: boolean;
+    job?: string;
+    result?: unknown;
+    message?: string;
+  };
+}
+
+/** Observatory Arena bout v0 */
+export async function runArenaBout(question: string): Promise<{
+  ok?: boolean;
+  chair?: string;
+  log_rel?: string;
+  seats?: Array<{ name?: string; mode?: string; text?: string }>;
+  message?: string;
+  error?: string;
+}> {
+  const res = await fetch(`${API}/arena/bout`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question }),
+  });
+  return (await res.json()) as {
+    ok?: boolean;
+    chair?: string;
+    log_rel?: string;
+    seats?: Array<{ name?: string; mode?: string; text?: string }>;
+    message?: string;
+    error?: string;
+  };
 }

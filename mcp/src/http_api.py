@@ -145,8 +145,8 @@ async def castle_map(_: Request) -> JSONResponse:
     return _json(
         {
             "sot_status": "CANONICAL",
-            "sot_note": "Keep MCP spatial six + Phase-1 agent status (live SQLite).",
-            "version": "keep-mcp-0.1",
+            "sot_note": "Keep MCP spatial HQ + Phase-1 agent status (live SQLite).",
+            "version": "keep-mcp-0.4-hq",
             "rooms": rooms_out,
             "agent_statuses": list(live.values()),
         }

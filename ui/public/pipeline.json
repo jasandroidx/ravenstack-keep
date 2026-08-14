@@ -1,41 +1,18 @@
 {
-  "version": "0.1",
-  "note": "UI-only domain pipeline edges. Not SOT — promote into Agent Specs later. Neon conduits between Keep rooms.",
+  "version": "0.2-hq",
+  "note": "UI conduits between spatial HQ wings. Not SOT.",
   "edges": [
-    {
-      "from": "oracle",
-      "to": "scribe",
-      "label": "knowledge → content"
-    },
-    {
-      "from": "oracle",
-      "to": "auditor",
-      "label": "cite → verify"
-    },
-    {
-      "from": "auditor",
-      "to": "orchestrator",
-      "label": "audit → route"
-    },
-    {
-      "from": "scribe",
-      "to": "suno_studio",
-      "label": "script → audio"
-    },
-    {
-      "from": "orchestrator",
-      "to": "clawforge",
-      "label": "need → forge"
-    },
-    {
-      "from": "scribe",
-      "to": "flipper",
-      "label": "content → commerce"
-    },
-    {
-      "from": "lead_forge",
-      "to": "orchestrator",
-      "label": "gates → route (provisional)"
-    }
+    { "from": "gatehouse", "to": "great-hall", "label": "gate → command" },
+    { "from": "great-hall", "to": "library", "label": "command → knowledge" },
+    { "from": "great-hall", "to": "armory", "label": "command → tools" },
+    { "from": "great-hall", "to": "kitchen", "label": "command → hearth" },
+    { "from": "library", "to": "alchemy-lab", "label": "knowledge → forge" },
+    { "from": "armory", "to": "alchemy-lab", "label": "tools → forge" },
+    { "from": "armory", "to": "clock-tower", "label": "tools → bells" },
+    { "from": "library", "to": "roost", "label": "knowledge → scouts" },
+    { "from": "alchemy-lab", "to": "round-table", "label": "forge → council" },
+    { "from": "alchemy-lab", "to": "observatory", "label": "forge → sky" },
+    { "from": "clock-tower", "to": "observatory", "label": "bells → sky" },
+    { "from": "great-hall", "to": "vault", "label": "command → secrets" }
   ]
 }

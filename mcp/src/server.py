@@ -123,6 +123,56 @@ SEED_ROOMS: list[dict[str, Any]] = [
         "notes": "Cost, secrets, restricted",
         "occupant_agent_id": None,
     },
+    {
+        "room_id": "round-table",
+        "name": "Round Table",
+        "x": 2,
+        "y": 1,
+        "status": "Active",
+        "lock_state": "UNFORGED",
+        "notes": "Council chamber — multi-model, human chair",
+        "occupant_agent_id": None,
+    },
+    {
+        "room_id": "clock-tower",
+        "name": "Clock Tower",
+        "x": 0,
+        "y": 2,
+        "status": "Active",
+        "lock_state": "UNFORGED",
+        "notes": "Crons and heartbeats",
+        "occupant_agent_id": None,
+    },
+    {
+        "room_id": "kitchen",
+        "name": "Kitchen",
+        "x": -1,
+        "y": 0,
+        "status": "Active",
+        "lock_state": "UNFORGED",
+        "notes": "Local models / hearth",
+        "occupant_agent_id": None,
+    },
+    {
+        "room_id": "roost",
+        "name": "The Roost",
+        "x": 2,
+        "y": 0,
+        "status": "Active",
+        "lock_state": "UNFORGED",
+        "notes": "Corvid — residential fetch",
+        "occupant_agent_id": "corvid",
+    },
+    {
+        "room_id": "gatehouse",
+        "name": "Gatehouse",
+        "x": 0,
+        "y": -1,
+        "status": "Secure",
+        "lock_state": "UNFORGED",
+        "notes": "Windows node / stamps / grants",
+        "occupant_agent_id": None,
+    },
 ]
 
 mcp = FastMCP(
@@ -201,8 +251,8 @@ def init_db() -> None:
             """
         )
         n = conn.execute("SELECT COUNT(*) AS c FROM rooms").fetchone()["c"]
+        now = _utc_now()
         if n == 0:
-            now = _utc_now()
             for r in SEED_ROOMS:
                 conn.execute(
                     """
@@ -225,17 +275,45 @@ def init_db() -> None:
                     ),
                 )
         else:
-            # Phase A: ensure Raziel home room occupant without wiping live status
-            conn.execute(
-                """
-                UPDATE rooms
-                SET occupant_agent_id = COALESCE(occupant_agent_id, 'raziel'),
-                    notes = COALESCE(notes, 'Orchestrator / command center (Raziel)')
-                WHERE room_id = 'great-hall'
-                  AND (occupant_agent_id IS NULL OR occupant_agent_id = ''
-                       OR occupant_agent_id = 'raziel')
-                """
-            )
+            # Grow the castle: insert any new HQ wings without touching live rooms.
+            have = {
+                row["room_id"]
+                for row in conn.execute("SELECT room_id FROM rooms").fetchall()
+            }
+            for r in SEED_ROOMS:
+                if r["room_id"] in have:
+                    continue
+                conn.execute(
+                    """
+                    INSERT INTO rooms (
+                      room_id, name, x, y, status, lock_state,
+                      occupant_agent_id, notes, status_summary, updated_at
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?)
+                    """,
+                    (
+                        r["room_id"],
+                        r["name"],
+                        r["x"],
+                        r["y"],
+                        r["status"],
+                        r["lock_state"],
+                        r["occupant_agent_id"],
+                        r["notes"],
+                        r["notes"],
+                        now,
+                    ),
+                )
+        # Phase A: ensure Raziel home room occupant without wiping live status
+        conn.execute(
+            """
+            UPDATE rooms
+            SET occupant_agent_id = COALESCE(occupant_agent_id, 'raziel'),
+                notes = COALESCE(notes, 'Orchestrator / command center (Raziel)')
+            WHERE room_id = 'great-hall'
+              AND (occupant_agent_id IS NULL OR occupant_agent_id = ''
+                   OR occupant_agent_id = 'raziel')
+            """
+        )
 
 
 def _row_room(row: sqlite3.Row) -> dict[str, Any]:

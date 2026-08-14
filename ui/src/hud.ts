@@ -1,19 +1,11 @@
 import type { CastleMapResponse, Gate, RoomChip } from "./types";
-import {
-  approveSpec,
-  fetchCostSummary,
-  fetchPath,
-  reportAgentStatus,
-  unlockRoom,
-} from "./api";
-import { getSeatByAgentId, getSeatByRoomId } from "./config/seats";
+import { approveSpec, unlockRoom } from "./api";
+import { keepAudio } from "./audio";
 
 export interface HudCallbacks {
   onRefresh: () => void;
   /** Select a room on the map + detail panel (room_id). */
   onSelectRoom: (roomId: string | null) => void;
-  /** Optional: request zone action from scene (path/cost/status). */
-  onZoneAction?: (roomId: string, action: "path" | "cost" | "status") => void;
 }
 
 export class Hud {
@@ -25,7 +17,6 @@ export class Hud {
   private gates: Gate[] = [];
   private rooms: RoomChip[] = [];
   private callbacks: HudCallbacks;
-  private costNote = "";
 
   constructor(callbacks: HudCallbacks) {
     this.callbacks = callbacks;
@@ -57,24 +48,91 @@ export class Hud {
     this.gates = gates;
     this.renderGates();
     this.setGateVignette(gates.length > 0);
+    this.renderForgeFlow();
   }
 
   setSelectedRoom(room: RoomChip | null) {
     this.selected = room;
-    this.costNote = "";
     this.renderDetail();
     this.highlightGateForRoom(room);
+    this.renderForgeFlow();
   }
 
-  /** Surface cost / path note from zone helpers. */
-  setCostNote(note: string) {
-    this.costNote = note;
-    this.renderDetail();
+  /** Clawforge visual loop — always human-gated (item 4). */
+  renderForgeFlow() {
+    let el = document.getElementById("forge-flow");
+    if (!el) {
+      const host = document.getElementById("hud");
+      if (!host) return;
+      el = document.createElement("section");
+      el.id = "forge-flow-section";
+      el.innerHTML = `<h2>Clawforge loop</h2><div id="forge-flow" class="forge-flow"></div>`;
+      const gates = host.querySelector("section");
+      if (gates?.nextSibling) host.insertBefore(el, gates.nextSibling);
+      else host.appendChild(el);
+    }
+    const box = document.getElementById("forge-flow");
+    if (!box) return;
+
+    const forgeGate = this.gates.find(
+      (g) =>
+        g.gate_type === "approve_spec" &&
+        (g.subject_id === "clawforge" || g.subject_id.includes("claw")),
+    );
+    const room =
+      this.rooms.find((r) => r.room_id === "alchemy-lab") ||
+      this.rooms.find((r) => r.occupant_agent_id === "clawforge");
+    const spec = room?.spec_status;
+    const unlocked = room?.lock_state === "live";
+
+    const stages: Array<{ id: string; label: string; cls: string }> = [
+      { id: "idea", label: "Idea / need", cls: "done" },
+      {
+        id: "draft",
+        label: "Agent Spec draft",
+        cls:
+          spec === "draft" || spec === "approved" || spec === "live"
+            ? "done"
+            : "active",
+      },
+      {
+        id: "gate",
+        label: "Human Gate · APPROVE_SPEC",
+        cls: forgeGate
+          ? "active"
+          : spec === "approved" || spec === "live"
+            ? "done"
+            : "locked",
+      },
+      {
+        id: "provision",
+        label: "Provision (spec approved)",
+        cls: spec === "approved" || spec === "live" ? "done" : "locked",
+      },
+      {
+        id: "unlock",
+        label: "Room unlock (Alchemy Lab)",
+        cls: unlocked ? "done" : spec === "approved" ? "active" : "locked",
+      },
+    ];
+
+    box.innerHTML = `
+      <p class="muted" style="margin:0 0 0.35rem;font-size:0.68rem">
+        Never auto-executes. Hard gate stays human.
+      </p>
+      <ol>
+        ${stages
+          .map((s) => `<li class="${s.cls}">${escapeHtml(s.label)}</li>`)
+          .join("")}
+      </ol>
+    `;
   }
 
   toast(msg: string, kind: "ok" | "err" = "ok") {
     this.toastEl.textContent = msg;
     this.toastEl.className = `toast toast-${kind} show`;
+    if (kind === "ok") keepAudio.sfxSuccess();
+    else keepAudio.sfxError();
     window.setTimeout(() => {
       this.toastEl.classList.remove("show");
     }, 4000);
@@ -139,6 +197,7 @@ export class Hud {
         this.selectRoomFromGate(subject);
       };
       el.addEventListener("click", (ev) => {
+        // Buttons handle their own clicks; card body selects room.
         if ((ev.target as HTMLElement).closest("[data-action]")) return;
         select();
       });
@@ -156,6 +215,7 @@ export class Hud {
         const el = ev.currentTarget as HTMLElement;
         const action = el.dataset.action!;
         const subject = el.dataset.subject!;
+        // Focus related room before confirm so user sees context.
         this.selectRoomFromGate(subject);
         await this.runGatedAction(action, subject);
       });
@@ -170,41 +230,21 @@ export class Hud {
       this.detailEl.innerHTML = `<p class="muted">Click a room on the map (or a gate card).</p>`;
       return;
     }
-
-    const seat =
-      getSeatByRoomId(r.room_id) || getSeatByAgentId(r.occupant_agent_id);
-    const seatBlock = seat
-      ? `<dt>seat</dt><dd><strong>${escapeHtml(seat.name)}</strong> · ${escapeHtml(seat.role)} <code>${escapeHtml(seat.id)}</code></dd>
-         <dt>agent</dt><dd><code>${escapeHtml(seat.agentId)}</code>${seat.openclawAgentId ? ` · openclaw <code>${escapeHtml(seat.openclawAgentId)}</code>` : ""}</dd>`
-      : `<dt>seat</dt><dd class="muted">— (no seat binding)</dd>`;
-
     const unlockBlocked =
       r.lock_state === "UNFORGED" &&
       !!r.occupant_agent_id &&
       r.spec_status === "draft";
-
     this.detailEl.innerHTML = `
       <h3>${escapeHtml(r.name)}</h3>
       <dl class="kv">
         <dt>room_id</dt><dd><code>${escapeHtml(r.room_id)}</code></dd>
         <dt>lock</dt><dd>${escapeHtml(String(r.lock_state))}</dd>
         <dt>occupant</dt><dd>${escapeHtml(r.occupant_agent_id || "—")}</dd>
-        ${seatBlock}
         <dt>reality</dt><dd>${r.agent_real ? "REAL (approved+)" : r.spec_status === "draft" ? "DRAFT spec" : r.occupant_agent_id ? "CANDIDATE" : "EMPTY"}</dd>
         <dt>status</dt><dd>${escapeHtml(String(r.agent_state || "—"))}</dd>
         <dt>task</dt><dd>${escapeHtml(r.agent_task || "—")}</dd>
         <dt>summary</dt><dd>${escapeHtml(r.status_summary || "—")}</dd>
       </dl>
-      ${
-        this.costNote
-          ? `<p class="cost-note muted">${escapeHtml(this.costNote)}</p>`
-          : ""
-      }
-      <div class="detail-actions zone-strip" role="group" aria-label="Path Cost Status">
-        <button type="button" data-zone="path" title="get_path from Great Hall (or current) to this room">Path</button>
-        <button type="button" data-zone="cost" title="get_cost_summary for seat agent">Cost</button>
-        <button type="button" data-zone="status" title="report_agent_status probe (read-only toast)">Status</button>
-      </div>
       <div class="detail-actions">
         ${
           r.spec_status === "draft" && r.occupant_agent_id
@@ -227,77 +267,12 @@ export class Hud {
           : ""
       }
     `;
-
     this.detailEl.querySelectorAll("[data-action]").forEach((btn) => {
       btn.addEventListener("click", async (ev) => {
         const el = ev.currentTarget as HTMLElement;
         await this.runGatedAction(el.dataset.action!, el.dataset.subject!);
       });
     });
-
-    this.detailEl.querySelectorAll("[data-zone]").forEach((btn) => {
-      btn.addEventListener("click", async (ev) => {
-        const el = ev.currentTarget as HTMLElement;
-        const zone = el.dataset.zone as "path" | "cost" | "status";
-        await this.runZoneAction(zone);
-      });
-    });
-  }
-
-  /**
-   * Thin spatial / cost / status helpers — fail soft, surface notes in HUD.
-   * No unthrottled writes; status action only toasts current chip state.
-   */
-  private async runZoneAction(action: "path" | "cost" | "status") {
-    const r = this.selected;
-    if (!r) return;
-    const seat =
-      getSeatByRoomId(r.room_id) || getSeatByAgentId(r.occupant_agent_id);
-    const agentId = seat?.agentId || r.occupant_agent_id || undefined;
-
-    if (action === "path") {
-      const origin =
-        this.rooms.find((x) => x.room_id === "great-hall")?.name ||
-        this.rooms.find((x) => x.room_id === "orchestrator")?.name ||
-        "Great Hall";
-      const target = r.name;
-      this.toast(`Path ${origin} → ${target}…`);
-      const path = await fetchPath(origin, target);
-      if (!path) {
-        this.setCostNote("path: unavailable (MCP down or non-spatial rooms)");
-        this.toast("Path unavailable", "err");
-        return;
-      }
-      const note = `path ${path.from_room}→${path.to_room} · manhattan ${path.manhattan} · steps ${path.step_count ?? "—"}`;
-      this.setCostNote(note);
-      this.toast(note, "ok");
-      return;
-    }
-
-    if (action === "cost") {
-      this.toast(`Cost for ${agentId || "all"}…`);
-      const cost = await fetchCostSummary(agentId || undefined);
-      if (!cost) {
-        this.setCostNote("cost unknown — Phase 0 open");
-        this.toast("Cost unknown", "err");
-        return;
-      }
-      const note =
-        cost.notes ||
-        `cost ${cost.month}: $${cost.total_est_usd.toFixed(4)} (${cost.by_agent.length} agents)`;
-      this.setCostNote(note);
-      this.toast(note, "ok");
-      return;
-    }
-
-    if (action === "status") {
-      const note = agentId
-        ? `status ${agentId}: ${r.agent_state || "—"} · task ${r.agent_task || "—"} · real=${!!r.agent_real}`
-        : `status: empty room · lock ${r.lock_state}`;
-      this.setCostNote(note);
-      this.toast(note, "ok");
-      void reportAgentStatus; // keep import for future gated write
-    }
   }
 
   /**
@@ -351,10 +326,10 @@ function actionsForGate(g: Gate): string {
 
 function escapeHtml(s: string): string {
   return s
-    .replace(/&/g, "&")
-    .replace(/</g, "<")
-    .replace(/>/g, ">")
-    .replace(/"/g, """);
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 export function applyMapMeta(map: CastleMapResponse, el: HTMLElement) {
