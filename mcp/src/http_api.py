@@ -319,6 +319,115 @@ async def static_fallback(request: Request) -> Response:
     return _err("not_found", f"No file {rel}", status=404)
 
 
+
+# ── ReClaw bridge ────────────────────────────────────────────────────────────
+#
+# The Keep shows what exists and what needs a decision; ReClaw (:8000) owns the
+# county queue, jobs and capability gates. The browser cannot call :8000
+# directly without CORS and a second hostname, so the Keep proxies a small,
+# explicit allow-list. This is deliberately NOT a general proxy: only the
+# endpoints below are reachable, so the Keep can never be used to drive
+# arbitrary ReClaw routes.
+#
+# stdlib only — this package depends on fastmcp + jsonschema and nothing else,
+# and urlopen runs in a worker thread so it never blocks the event loop.
+
+RECLAW_BASE = os.environ.get("RECLAW_API_BASE", "http://127.0.0.1:8000").rstrip("/")
+RECLAW_TIMEOUT = float(os.environ.get("RECLAW_TIMEOUT", "10"))
+
+
+def _reclaw_call(method: str, path: str, payload: Optional[dict] = None) -> tuple[int, Any]:
+    """Blocking call to ReClaw. Returns (status, parsed-or-text)."""
+    import urllib.error
+    import urllib.request
+
+    url = f"{RECLAW_BASE}{path}"
+    data = json.dumps(payload).encode() if payload is not None else None
+    req = urllib.request.Request(url, data=data, method=method)
+    if data is not None:
+        req.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(req, timeout=RECLAW_TIMEOUT) as resp:
+            raw = resp.read().decode("utf-8", "replace")
+            try:
+                return resp.status, json.loads(raw)
+            except json.JSONDecodeError:
+                return resp.status, raw
+    except urllib.error.HTTPError as exc:
+        raw = exc.read().decode("utf-8", "replace")
+        try:
+            return exc.code, json.loads(raw)
+        except json.JSONDecodeError:
+            return exc.code, raw
+    except Exception as exc:  # connection refused, DNS, timeout
+        return 0, str(exc)
+
+
+async def _reclaw(method: str, path: str, payload: Optional[dict] = None) -> JSONResponse:
+    import asyncio
+
+    status, body = await asyncio.to_thread(_reclaw_call, method, path, payload)
+    if status == 0:
+        # ReClaw down is a normal state, not a crash — the Keep stays usable.
+        return _err("reclaw_unreachable", f"{RECLAW_BASE}: {body}", status=503)
+    return _json(body if isinstance(body, (dict, list)) else {"result": body}, status=status)
+
+
+async def reclaw_state(_: Request) -> JSONResponse:
+    """Queue, running/recent jobs, sessions and pending capability gates."""
+    return await _reclaw("GET", "/state")
+
+
+async def reclaw_county_status(_: Request) -> JSONResponse:
+    return await _reclaw("GET", "/county-queue/status")
+
+
+async def reclaw_county_approve(request: Request) -> JSONResponse:
+    body, err = await _body(request)
+    if err:
+        return err
+    body = body or {}
+    if not body.get("confirm"):
+        return _err("confirm_required", "Approving publishes a county package. Send confirm=true.", status=400)
+    payload = {"granted_by": body.get("granted_by") or "human:keep"}
+    if body.get("publish_formats"):
+        payload["publish_formats"] = body["publish_formats"]
+    return await _reclaw("POST", "/county-queue/approve", payload)
+
+
+async def reclaw_county_reject(request: Request) -> JSONResponse:
+    body, err = await _body(request)
+    if err:
+        return err
+    body = body or {}
+    reason = (body.get("reason") or "").strip()
+    if not reason:
+        # ReClaw logs the reason into the lessons ledger, so it must be real.
+        return _err("reason_required", "Reject needs a reason — it is logged for the next run.", status=400)
+    return await _reclaw("POST", "/county-queue/reject", {"reason": reason})
+
+
+async def reclaw_session_approve(request: Request) -> JSONResponse:
+    """Grant one pending capability for one session (the /state gates)."""
+    body, err = await _body(request)
+    if err:
+        return err
+    body = body or {}
+    session_id = (body.get("session_id") or "").strip()
+    capability = (body.get("capability") or "").strip()
+    if not session_id or not capability:
+        return _err("bad_request", "session_id and capability are required", status=400)
+    if not body.get("confirm"):
+        return _err("confirm_required", "Granting a capability is a real permission change. Send confirm=true.", status=400)
+    # Path segments are user-supplied; refuse anything that could traverse.
+    if "/" in session_id or ".." in session_id:
+        return _err("bad_request", "invalid session_id", status=400)
+    from urllib.parse import quote, urlencode
+
+    qs = urlencode({"capability": capability, "granted_by": "human:keep"})
+    return await _reclaw("POST", f"/sessions/{quote(session_id)}/approve?{qs}")
+
+
 routes = [
     Route("/api/health", health),
     Route("/health", health),
@@ -331,6 +440,12 @@ routes = [
     Route("/api/approve-spec", approve_spec_http, methods=["POST"]),
     Route("/api/unlock-room", unlock_room_http, methods=["POST"]),
     Route("/api/specs", specs),
+    # ReClaw bridge (allow-listed; see _reclaw above)
+    Route("/api/reclaw/state", reclaw_state),
+    Route("/api/reclaw/county", reclaw_county_status),
+    Route("/api/reclaw/county/approve", reclaw_county_approve, methods=["POST"]),
+    Route("/api/reclaw/county/reject", reclaw_county_reject, methods=["POST"]),
+    Route("/api/reclaw/session/approve", reclaw_session_approve, methods=["POST"]),
     Route("/", spa_or_root),
     Route("/{path:path}", static_fallback),
 ]
