@@ -1,4 +1,5 @@
 import type {
+  ReclawState,
   CastleMapResponse,
   CostSummary,
   GatesResponse,
@@ -285,4 +286,48 @@ export async function runArenaBout(question: string): Promise<{
     message?: string;
     error?: string;
   };
+}
+
+
+// ── ReClaw bridge ───────────────────────────────────────────────────────────
+// All of these go through the Keep server's allow-list, never straight to
+// :8000, so there is no CORS surface and no second hostname to configure.
+
+/** Fail soft: ReClaw being down must not blank the Keep. */
+export async function fetchReclawState(): Promise<ReclawState | null> {
+  try {
+    return await getJson<ReclawState>(`${API}/reclaw/state`);
+  } catch {
+    return null;
+  }
+}
+
+/** Approve the pending county review card. Publishes — hence confirm. */
+export async function approveCounty(): Promise<unknown> {
+  const r = await postJson(`${API}/reclaw/county/approve`, {
+    confirm: true,
+    granted_by: "human:keep",
+  });
+  return r;
+}
+
+/** Reject it. ReClaw writes the reason to the lessons ledger, so it is required. */
+export async function rejectCounty(reason: string): Promise<unknown> {
+  const trimmed = reason.trim();
+  if (!trimmed) throw new Error("A reject reason is required — it is logged for the next run.");
+  const r = await postJson(`${API}/reclaw/county/reject`, { reason: trimmed });
+  return r;
+}
+
+/** Grant one capability a session is blocked on. Real permission change. */
+export async function approveSessionCapability(
+  sessionId: string,
+  capability: string,
+): Promise<unknown> {
+  const r = await postJson(`${API}/reclaw/session/approve`, {
+    session_id: sessionId,
+    capability,
+    confirm: true,
+  });
+  return r;
 }

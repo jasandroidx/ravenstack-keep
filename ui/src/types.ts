@@ -143,3 +143,43 @@ export interface PathResponse {
 
 /** @deprecated use PathResponse */
 export type PathResult = PathResponse;
+
+
+/**
+ * ReClaw (:8000) operator state, reached through the Keep's allow-listed
+ * bridge at /api/reclaw/*. This is the "what needs a decision from me" half —
+ * the Keep's own gates cover specs and rooms, ReClaw covers the county queue
+ * and capability grants.
+ */
+export interface ReclawPendingApproval {
+  session_id: string;
+  capability?: string;
+  name?: string;
+  risk?: string;
+  requested_at?: string;
+  reason?: string;
+}
+
+export interface ReclawCountyCard {
+  county?: string;
+  status?: string;
+  risk_score?: number | null;
+  flag_count?: number;
+  short_count?: number;
+  top_finding?: string | null;
+}
+
+export interface ReclawState {
+  generated_at?: string;
+  county_queue?: {
+    cursor?: number;
+    status?: string;
+    next_county?: { name?: string; fips?: string } | null;
+    pending_card?: ReclawCountyCard | null;
+    pending_review?: ReclawCountyCard | null;
+    error?: string;
+  };
+  jobs?: { running?: unknown[]; recent?: unknown[] };
+  pending_approvals?: ReclawPendingApproval[];
+  error?: string;
+}

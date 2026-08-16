@@ -1,5 +1,11 @@
-import type { CastleMapResponse, Gate, RoomChip } from "./types";
-import { approveSpec, unlockRoom } from "./api";
+import type { CastleMapResponse, Gate, ReclawState, RoomChip } from "./types";
+import {
+  approveCounty,
+  approveSessionCapability,
+  approveSpec,
+  rejectCounty,
+  unlockRoom,
+} from "./api";
 import { keepAudio } from "./audio";
 
 export interface HudCallbacks {
@@ -16,6 +22,7 @@ export class Hud {
   private selected: RoomChip | null = null;
   private gates: Gate[] = [];
   private rooms: RoomChip[] = [];
+  private reclaw: ReclawState | null = null;
   private callbacks: HudCallbacks;
 
   constructor(callbacks: HudCallbacks) {
@@ -126,6 +133,125 @@ export class Hud {
           .join("")}
       </ol>
     `;
+  }
+
+  /** ReClaw operator state — the county card and capability gates. */
+  setReclaw(state: ReclawState | null) {
+    this.reclaw = state;
+    this.renderOperator();
+  }
+
+  /**
+   * The decisions that are actually waiting on a human, from ReClaw (:8000).
+   * The Keep's own gates cover specs and rooms; these cover the county review
+   * card and capabilities an agent is blocked on mid-run.
+   */
+  private renderOperator() {
+    let host = document.getElementById("operator-panel");
+    if (!host) {
+      const hud = document.getElementById("hud");
+      if (!hud) return;
+      const section = document.createElement("section");
+      section.innerHTML = `<h2>Awaiting you</h2><div id="operator-panel"></div>`;
+      hud.insertBefore(section, hud.firstChild);
+      host = document.getElementById("operator-panel");
+      if (!host) return;
+    }
+
+    const st = this.reclaw;
+    if (!st) {
+      host.innerHTML = `<p class="muted">ReClaw offline — county queue and capability gates unavailable.</p>`;
+      return;
+    }
+
+    const q = st.county_queue || {};
+    const card = q.pending_card || q.pending_review || null;
+    const approvals = st.pending_approvals || [];
+    const parts: string[] = [];
+
+    if (card) {
+      const risk = typeof card.risk_score === "number" ? `${Math.round(card.risk_score * 100)}%` : "—";
+      parts.push(`
+        <article class="gate-card" data-kind="county">
+          <header>
+            <span class="gate-type">county review</span>
+            <span class="gate-subject">${escapeHtml(card.county || "pending")}</span>
+          </header>
+          <p>risk ${escapeHtml(risk)} · ${card.flag_count ?? 0} flags · ${card.short_count ?? 0} shorts</p>
+          ${card.top_finding ? `<p class="muted">${escapeHtml(card.top_finding)}</p>` : ""}
+          <div class="gate-actions">
+            <button type="button" data-op="county_approve">Approve…</button>
+            <button type="button" data-op="county_reject">Reject…</button>
+          </div>
+        </article>`);
+    }
+
+    for (const a of approvals) {
+      const cap = a.capability || a.name || "unknown";
+      parts.push(`
+        <article class="gate-card" data-kind="capability">
+          <header>
+            <span class="gate-type">capability</span>
+            <span class="gate-subject">${escapeHtml(cap)}</span>
+          </header>
+          <p class="muted">session ${escapeHtml(a.session_id)}${a.risk ? ` · risk ${escapeHtml(a.risk)}` : ""}</p>
+          <div class="gate-actions">
+            <button type="button" data-op="grant"
+              data-session="${escapeHtml(a.session_id)}"
+              data-capability="${escapeHtml(cap)}">Grant…</button>
+          </div>
+        </article>`);
+    }
+
+    host.innerHTML = parts.length
+      ? parts.join("")
+      : `<p class="muted">Nothing awaiting you. Queue cursor ${q.cursor ?? "—"}.</p>`;
+
+    host.querySelectorAll("[data-op]").forEach((btn) => {
+      btn.addEventListener("click", async (ev) => {
+        const el = ev.currentTarget as HTMLElement;
+        await this.runOperatorAction(el.dataset.op!, el);
+      });
+    });
+  }
+
+  /** Every one of these is a real write; each confirms before it fires. */
+  private async runOperatorAction(op: string, el: HTMLElement) {
+    try {
+      if (op === "county_approve") {
+        if (!window.confirm(
+          "Approve the pending county package?\n\n" +
+          "• Advances the queue cursor\n" +
+          "• Marks the package approved for publish\n\n" +
+          "Cancel = no change.",
+        )) return this.toast("Cancelled — nothing approved", "err");
+        await approveCounty();
+        this.toast("County package approved", "ok");
+      } else if (op === "county_reject") {
+        const reason = window.prompt(
+          "Reject reason? It is written to the auditor lessons ledger and shapes the next run.",
+          "",
+        );
+        if (reason === null) return this.toast("Cancelled", "err");
+        await rejectCounty(reason);
+        this.toast("Rejected — reason logged", "ok");
+      } else if (op === "grant") {
+        const session = el.dataset.session!;
+        const capability = el.dataset.capability!;
+        if (!window.confirm(
+          `Grant "${capability}" to session ${session}?\n\n` +
+          "This is a real permission change — the agent proceeds with it.\n\n" +
+          "Cancel = stays blocked.",
+        )) return this.toast("Cancelled — still blocked", "err");
+        await approveSessionCapability(session, capability);
+        this.toast(`Granted ${capability}`, "ok");
+      } else {
+        return;
+      }
+      this.callbacks.onRefresh();
+    } catch (e) {
+      this.toast(e instanceof Error ? e.message : String(e), "err");
+    }
   }
 
   toast(msg: string, kind: "ok" | "err" = "ok") {

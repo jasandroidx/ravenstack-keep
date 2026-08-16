@@ -15,6 +15,7 @@ import {
   distillLibraryInbox,
   runKeepJob,
   runArenaBout,
+  fetchReclawState,
 } from "./api";
 import { keepAudio } from "./audio";
 import {
@@ -750,16 +751,18 @@ async function boot() {
 
   async function refresh() {
     const health = await fetchHealth();
-    const [{ map, source }, gates, pipeline] = await Promise.all([
+    const [{ map, source }, gates, pipeline, reclaw] = await Promise.all([
       fetchCastleMap(),
       fetchGates(),
       fetchPipeline(),
+      fetchReclawState(),
     ]);
 
     lastRooms = map.rooms;
     hud.setSource(source, map.sot_status);
     hud.setRooms(map.rooms);
     hud.setGates(gates.gates);
+    hud.setReclaw(reclaw);
     keepAudio.onGateCount(gates.count ?? gates.gates.length);
 
     // Map gate subjects → room alert markers on canvas
