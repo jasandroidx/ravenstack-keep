@@ -7,6 +7,7 @@ When you add a finding, add a row here.
 
 | Date | Author | File | Topic | Status |
 |------|--------|------|-------|--------|
+| 2026-08-21 | Grok | [painted hall ui-v2](./findings/2026-08-21-grok-painted-hall.md) | skin landed; pulse still paper |
 | 2026-07-29 | Grok + operator | [findings/2026-07-29-grok-roundtable-v0-decision.md](./findings/2026-07-29-grok-roundtable-v0-decision.md) | Round Table v0 = subscription seats + findings; multi-API god-tier only | accepted |
 | 2026-07-29 | Claude (filed by Grok) | [findings/2026-07-29-claude-live-substrate-review.md](./findings/2026-07-29-claude-live-substrate-review.md) | Live substrate verification — cost model, gates, MCP, phase order | needs operator decision |
 | 2026-07-29 | Grok (research) | [findings/2026-07-29-grok-roundtable-vehicle-recommendation.md](./findings/2026-07-29-grok-roundtable-vehicle-recommendation.md) | First Round Table vehicle: Roundtable.sh (superseded by v0 decision) | superseded |
