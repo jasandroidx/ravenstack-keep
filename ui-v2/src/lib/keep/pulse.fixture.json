@@ -1,0 +1,59 @@
+{
+  "source": "paper",
+  "asOf": "2026-08-21T18:47:02Z",
+  "note": "Captured from dashboard_status while this UI still cannot reach the box. Replace by setting KEEP_PULSE_URL.",
+  "network": "CONNECTED",
+  "networkDetail": "RECLAW + OPENCLAW + MCP OK",
+  "agentsActive": 2,
+  "rooms": [
+    {
+      "id": "orchestrator-throne",
+      "keepSlug": "great-hall",
+      "name": "Orchestrator's Throne",
+      "empty": false,
+      "agent": "The Orchestrator",
+      "status": "COMMANDING"
+    },
+    {
+      "id": "clawforge-anvil",
+      "keepSlug": "alchemy-lab",
+      "name": "Clawforge Anvil",
+      "empty": false,
+      "agent": "Clawforge the Blacksmith",
+      "status": "HAMMERING"
+    },
+    {
+      "id": "grant-hall-empty",
+      "keepSlug": null,
+      "name": "Grant Hall",
+      "empty": true,
+      "agent": "Scribe Warden",
+      "status": "UNFORGED"
+    },
+    {
+      "id": "oracle-chamber-empty",
+      "keepSlug": "library",
+      "name": "Oracle Chamber",
+      "empty": true,
+      "agent": "The Oracle",
+      "status": "UNFORGED"
+    },
+    {
+      "id": "marketplace-forge-empty",
+      "keepSlug": "yard",
+      "name": "Marketplace Forge",
+      "empty": true,
+      "agent": "Flipper",
+      "status": "UNFORGED"
+    }
+  ],
+  "services": {
+    "reclaw": "ok",
+    "openclaw": "live",
+    "mcp": "ok"
+  },
+  "queue": {
+    "status": "idle",
+    "cursor": 6
+  }
+}

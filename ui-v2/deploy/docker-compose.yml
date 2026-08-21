@@ -1,0 +1,15 @@
+# Run on the box, bound to loopback / tailnet — not the public internet.
+# Join the OpenClaw docker network when you are ready to set KEEP_PULSE_URL.
+services:
+  keep:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    ports:
+      - "127.0.0.1:8090:8080"
+    env_file:
+      - ../.env
+    environment:
+      VITE_AUTH_ENABLED: "false"
+      # KEEP_PULSE_URL: http://host.docker.internal:8088/status.json
+    restart: unless-stopped

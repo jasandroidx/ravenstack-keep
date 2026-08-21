@@ -1,0 +1,10 @@
+node_modules
+.git
+screenshots
+attachments
+artifacts
+.grok
+AGENTS.md
+AGENTS.project.md
+.env
+*.log
