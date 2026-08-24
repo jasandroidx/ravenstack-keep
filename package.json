@@ -1,0 +1,18 @@
+{
+  "name": "ravenstack-keep-root",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "ui-v2",
+    "ui"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=ui-v2",
+    "build": "npm run build --workspace=ui-v2",
+    "typecheck": "npm run typecheck --workspace=ui-v2",
+    "lint": "npm run lint --workspace=ui-v2"
+  },
+  "dependencies": {
+    "@google/genai": "^2.18.0"
+  }
+}
