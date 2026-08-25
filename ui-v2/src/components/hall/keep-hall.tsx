@@ -2,9 +2,12 @@ import { useEffect, useRef, useState, type ButtonHTMLAttributes, type PointerEve
 import { Link } from "@tanstack/react-router";
 import { TalkSheet } from "@/components/hall/talk-sheet";
 import type { HallScene } from "@/lib/hall/scene";
-import type { HallNpc } from "@/lib/hall/world";
+import { RAVENLORD_SKINS, type HallNpc, type RavenlordSkin } from "@/lib/hall/world";
 import { getKeepSnapshot } from "@/lib/keep/server";
 import type { KeepPulse } from "@/lib/keep/pulse";
+import { hallAudio } from "@/lib/hall/audio";
+import { FastMCPStatusBadge } from "@/components/keep/fastmcp-status-badge";
+import { toast } from "sonner";
 
 type Stick = { x: number; y: number };
 
@@ -21,7 +24,10 @@ export function KeepHall() {
   const [atTable, setAtTable] = useState(false);
   const [talk, setTalk] = useState<HallNpc | null>(null);
   const [tableOpen, setTableOpen] = useState(false);
+  const [wardrobeOpen, setWardrobeOpen] = useState(false);
+  const [activeSkin, setActiveSkin] = useState("ravenlord");
   const [pulse, setPulse] = useState<KeepPulse | null>(null);
+  const [audioMuted, setAudioMuted] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -35,6 +41,14 @@ export function KeepHall() {
     };
   }, []);
 
+  function handleEquipSkin(skin: RavenlordSkin) {
+    setActiveSkin(skin.id);
+    sceneRef.current?.setSkin(skin.id);
+    hallAudio.playArmorEquip();
+    toast.success(`Equipped ${skin.name} Armor Plate`);
+  }
+
+
   useEffect(() => {
     const el = host.current;
     if (!el) return;
@@ -42,47 +56,56 @@ export function KeepHall() {
     let starting = false;
 
     async function boot(w: number, h: number) {
-      if (dead || starting || gameRef.current || !host.current) return;
+      if (typeof window === "undefined" || dead || starting || gameRef.current || !host.current) return;
       starting = true;
-      const Phaser = (await import("phaser")).default;
-      const { HallScene } = await import("@/lib/hall/scene");
-      if (dead || !host.current) return;
+      try {
+        const phaserMod = await import("phaser");
+        const Phaser = (phaserMod as unknown as { default?: typeof phaserMod }).default || phaserMod;
+        const { HallScene } = await import("@/lib/hall/scene");
+        if (dead || !host.current || gameRef.current) return;
 
-      const scene = new HallScene({
-        onZone: (name, nextLock) => {
-          setZone(name);
-          setLock(nextLock);
-        },
-        onPrompt: (npc, table) => {
-          setNear(npc);
-          setAtTable(table);
-        },
-        onTalk: (npc) => {
-          setTalk(npc);
-          setTableOpen(false);
-        },
-        onTable: () => {
-          setTalk(null);
-          setTableOpen(true);
-        },
-      });
-      sceneRef.current = scene;
+        const scene = new HallScene({
+          onZone: (name, nextLock) => {
+            setZone(name);
+            setLock(nextLock);
+          },
+          onPrompt: (npc, table) => {
+            setNear(npc);
+            setAtTable(table);
+          },
+          onTalk: (npc) => {
+            setTalk(npc);
+            setTableOpen(false);
+          },
+          onTable: () => {
+            setTalk(null);
+            setTableOpen(true);
+          },
+        });
+        sceneRef.current = scene;
 
-      const game = new Phaser.Game({
-        type: Phaser.AUTO,
-        parent: host.current,
-        width: w,
-        height: h,
-        backgroundColor: "#0b0e14",
-        pixelArt: true,
-        antialias: false,
-        roundPixels: true,
-        physics: { default: "arcade", arcade: { gravity: { x: 0, y: 0 } } },
-        scale: { mode: Phaser.Scale.NONE },
-        scene,
-      });
-      gameRef.current = game;
-      host.current.querySelector("canvas")?.focus();
+        const game = new Phaser.Game({
+          type: Phaser.AUTO,
+          parent: host.current,
+          width: Math.max(w, 400),
+          height: Math.max(h, 300),
+          backgroundColor: "#0b0e14",
+          pixelArt: true,
+          antialias: false,
+          roundPixels: true,
+          physics: { default: "arcade", arcade: { gravity: { x: 0, y: 0 } } },
+          scale: { mode: Phaser.Scale?.NONE ?? 0 },
+          scene,
+        });
+        gameRef.current = game;
+        host.current.querySelector("canvas")?.focus();
+      } catch (err) {
+        if (!dead && err) {
+          console.error("KeepHall boot error:", err);
+        }
+      } finally {
+        starting = false;
+      }
     }
 
     const ro = new ResizeObserver(() => {
@@ -94,9 +117,19 @@ export function KeepHall() {
         void boot(w, h);
         return;
       }
-      gameRef.current.scale.resize(w, h);
+      try {
+        gameRef.current.scale.resize(w, h);
+      } catch {
+        /* ignore resize error during teardown */
+      }
     });
     ro.observe(el);
+
+    const initialW = Math.floor(el.clientWidth || window.innerWidth || 800);
+    const initialH = Math.floor(el.clientHeight || window.innerHeight || 600);
+    if (initialW >= 16 && initialH >= 16) {
+      void boot(initialW, initialH);
+    }
 
     return () => {
       dead = true;
@@ -107,19 +140,23 @@ export function KeepHall() {
       } catch {
         /* Phaser may already be tearing down */
       }
-      gameRef.current?.destroy(true);
+      try {
+        gameRef.current?.destroy(true);
+      } catch {
+        /* ignore */
+      }
       gameRef.current = null;
     };
   }, []);
 
   useEffect(() => {
-    if (sceneRef.current) sceneRef.current.paused = Boolean(talk || tableOpen);
-  }, [talk, tableOpen]);
+    if (sceneRef.current) sceneRef.current.paused = Boolean(talk || tableOpen || wardrobeOpen);
+  }, [talk, tableOpen, wardrobeOpen]);
 
   useEffect(() => {
     const held = new Set<string>();
     function sync() {
-      if (talk || tableOpen) {
+      if (talk || tableOpen || wardrobeOpen) {
         sceneRef.current?.setDir(0, 0);
         return;
       }
@@ -130,14 +167,22 @@ export function KeepHall() {
     function onKey(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
-      if (talk || tableOpen) {
+      if (talk || tableOpen || wardrobeOpen) {
         if (e.key === "Escape") {
+          hallAudio.playInteract();
           setTalk(null);
           setTableOpen(false);
+          setWardrobeOpen(false);
         }
         return;
       }
       const k = e.key.toLowerCase();
+      if (k === "c") {
+        e.preventDefault();
+        hallAudio.playInteract();
+        setWardrobeOpen(true);
+        return;
+      }
       if (k === "e" || e.key === " ") {
         e.preventDefault();
         sceneRef.current?.interact();
@@ -161,7 +206,7 @@ export function KeepHall() {
       window.removeEventListener("keyup", onKey);
       sceneRef.current?.setDir(0, 0);
     };
-  }, [talk, tableOpen]);
+  }, [talk, tableOpen, wardrobeOpen]);
 
   function hold(dir: Stick) {
     return {
@@ -175,42 +220,91 @@ export function KeepHall() {
   }
 
   const hint = near
-    ? `Talk to ${near.name}`
+    ? `[E / SPACE] Talk to ${near.name}`
     : atTable
-      ? "Sit the war table"
-      : "WASD or tap the floor · arrows if the keyboard is captured";
+      ? "[E / SPACE] Sit the war table"
+      : "WASD / ARROWS to walk · [C] Ravenlord Wardrobe · Click floor to travel";
 
   return (
-    <div className="absolute inset-0 overflow-hidden bg-[#0b0e14] overscroll-none">
+    <div className="absolute inset-0 overflow-hidden bg-[#0b0e14] overscroll-none select-none">
       <div
         ref={host}
         className="absolute inset-0 z-0"
         onPointerDown={() => host.current?.querySelector("canvas")?.focus()}
       />
 
-      {talk || tableOpen ? null : (
+      {talk || tableOpen || wardrobeOpen ? null : (
         <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between p-3 md:p-4">
-          <div className="rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/80 px-3 py-2 backdrop-blur-md">
-            <p className="text-[10px] uppercase tracking-[0.2em] text-[#9aa3b2]">Ravenstack Keep</p>
-            <p className="font-display text-xl leading-none text-[#e8ecf1]">
+          <div className="rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/85 px-3.5 py-2.5 shadow-[0_0_20px_rgba(0,0,0,0.6)] backdrop-blur-md">
+            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[#9aa3b2]">Ravenstack Keep</p>
+            <p className="font-mono text-base font-bold text-[#e8ecf1]">
               {zone}{" "}
               <span className={lock === "live" ? "text-[#39ff14]" : "text-[#ffc857]"}>· {lock}</span>
             </p>
-            <p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-[#9aa3b2]">
+            <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.16em] text-[#9aa3b2]">
               occupancy {pulse?.source ?? "…"}
               {pulse ? ` · ${pulse.agentsActive} active` : ""}
             </p>
           </div>
-          <div className="pointer-events-auto flex gap-2">
+          <div className="pointer-events-auto flex items-center gap-2">
+            <FastMCPStatusBadge />
+            <button
+              type="button"
+              onClick={() => {
+                hallAudio.playInteract();
+                setWardrobeOpen(true);
+              }}
+              title="Open Ravenlord Armor Wardrobe [C]"
+              className="rounded-sm border border-[#ffc857]/60 bg-[#ffc857]/10 px-2.5 py-2 font-mono text-xs uppercase tracking-wider text-[#ffc857] backdrop-blur-md transition hover:bg-[#ffc857]/25 hover:text-[#e8ecf1]"
+            >
+              🛡️ Armor [C]
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                sceneRef.current?.triggerOracleManifestation();
+              }}
+              title="Summon The Oracle (Spectral Inquisitor)"
+              className="rounded-sm border border-[#39ff14]/60 bg-[#39ff14]/10 px-2.5 py-2 font-mono text-xs uppercase tracking-wider text-[#39ff14] backdrop-blur-md transition hover:bg-[#39ff14]/25 hover:text-[#e8ecf1]"
+            >
+              👁️ Oracle
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const next = !audioMuted;
+                setAudioMuted(next);
+                hallAudio.enabled = !next;
+                if (!next) hallAudio.playInteract();
+              }}
+              title={audioMuted ? "Unmute Audio" : "Mute Audio"}
+              className="rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/85 px-2.5 py-2 font-mono text-xs uppercase tracking-wider text-[#9aa3b2] backdrop-blur-md transition hover:border-[#2de2e6] hover:text-[#e8ecf1]"
+            >
+              {audioMuted ? "🔇 Muted" : "🔊 Audio"}
+            </button>
+            <Link
+              to="/oracle"
+              onClick={() => hallAudio.playOracleGaze()}
+              className="rounded-sm border border-[#39ff14]/40 bg-[#0b0e14]/85 px-3 py-2 font-mono text-xs uppercase tracking-[0.14em] text-[#39ff14] backdrop-blur-md transition hover:border-[#39ff14] hover:text-[#e8ecf1]"
+            >
+              Registry
+            </Link>
+            <Link
+              to="/gallery"
+              onClick={() => hallAudio.playZoneTransition()}
+              className="rounded-sm border border-[#2de2e6]/60 bg-[#2de2e6]/10 px-3 py-2 font-mono text-xs uppercase tracking-[0.14em] text-[#2de2e6] backdrop-blur-md transition hover:bg-[#2de2e6]/25"
+            >
+              Gallery
+            </Link>
             <Link
               to="/rooms"
-              className="rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/80 px-3 py-2 text-xs uppercase tracking-[0.14em] text-[#9aa3b2] backdrop-blur-md hover:text-[#e8ecf1]"
+              className="rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/85 px-3 py-2 font-mono text-xs uppercase tracking-[0.14em] text-[#9aa3b2] backdrop-blur-md transition hover:text-[#e8ecf1]"
             >
               Ledger
             </Link>
             <Link
               to="/table"
-              className="rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/80 px-3 py-2 text-xs uppercase tracking-[0.14em] text-[#9aa3b2] backdrop-blur-md hover:text-[#e8ecf1]"
+              className="rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/85 px-3 py-2 font-mono text-xs uppercase tracking-[0.14em] text-[#9aa3b2] backdrop-blur-md transition hover:text-[#e8ecf1]"
             >
               Table
             </Link>
@@ -218,8 +312,9 @@ export function KeepHall() {
         </div>
       )}
 
-      {talk || tableOpen ? null : (
-        <div className="pointer-events-auto absolute bottom-4 left-4 z-10 grid grid-cols-3 gap-1">
+      {/* D-Pad on Touch Devices */}
+      {talk || tableOpen || wardrobeOpen ? null : (
+        <div className="pointer-events-auto absolute bottom-4 left-4 z-10 grid grid-cols-3 gap-1 md:hidden">
           <span />
           <Pad {...hold({ x: 0, y: -1 })}>▲</Pad>
           <span />
@@ -229,21 +324,23 @@ export function KeepHall() {
         </div>
       )}
 
-      {talk || tableOpen ? null : (
+      {/* Center Action & Interaction HUD Banner */}
+      {talk || tableOpen || wardrobeOpen ? null : (
         <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2">
-          <p className="rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/80 px-3 py-1.5 text-[11px] uppercase tracking-[0.14em] text-[#9aa3b2] backdrop-blur-md">
+          <p className="rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/85 px-3.5 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[#e8ecf1] shadow-[0_0_15px_rgba(0,0,0,0.7)] backdrop-blur-md">
             {hint}
           </p>
           {near || atTable ? (
             <button
               type="button"
-              className="pointer-events-auto rounded-sm bg-[#2de2e6] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#0b0e14]"
+              className="pointer-events-auto rounded-sm bg-[#2de2e6] px-3.5 py-2 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-[#0b0e14] shadow-[0_0_15px_rgba(45,226,230,0.4)] transition hover:bg-[#2de2e6]/90"
               onClick={() => {
+                hallAudio.playInteract();
                 if (near) setTalk(near);
                 else setTableOpen(true);
               }}
             >
-              Talk
+              Engage [E]
             </button>
           ) : null}
         </div>
@@ -252,6 +349,11 @@ export function KeepHall() {
       {talk ? (
         <TalkSheet
           npc={talk}
+          currentSkinId={activeSkin}
+          onSelectSkin={(skinId) => {
+            setActiveSkin(skinId);
+            sceneRef.current?.setSkin(skinId);
+          }}
           onClose={() => setTalk(null)}
           onTable={() => {
             setTalk(null);
@@ -260,28 +362,147 @@ export function KeepHall() {
         />
       ) : null}
 
-      {tableOpen ? (
-        <div className="pointer-events-auto absolute inset-x-0 bottom-0 z-20 border-t border-[#3a3f4b] bg-[#0b0e14]/95 p-5 backdrop-blur-md">
-          <div className="mx-auto max-w-xl">
-            <div className="flex items-baseline justify-between">
-              <h2 className="font-display text-2xl">War table</h2>
+      {/* Standalone Wardrobe / Armor Cuirass Screen */}
+      {wardrobeOpen ? (
+        <div className="pointer-events-auto absolute inset-0 z-30 flex items-center justify-center bg-black/75 p-4 backdrop-blur-md">
+          <div className="w-full max-w-4xl rounded-md border border-[#3a3f4b] bg-[#0b0e14]/95 p-6 shadow-[0_0_50px_rgba(0,0,0,0.9)] backdrop-blur-xl">
+            <div className="flex items-center justify-between border-b border-[#1e222b] pb-4">
+              <div>
+                <h2 className="font-mono text-lg font-bold tracking-wider text-[#e8ecf1]">
+                  🛡️ Sovereign Ravenlord Wardrobe
+                </h2>
+                <p className="font-mono text-xs text-[#9aa3b2]">
+                  Customize Jason Boyd's tactical cuirass. Textures and walk lean dynamics update instantaneously.
+                </p>
+              </div>
               <button
                 type="button"
-                onClick={() => setTableOpen(false)}
-                className="text-xs uppercase tracking-[0.16em] text-[#9aa3b2]"
+                onClick={() => {
+                  hallAudio.playInteract();
+                  setWardrobeOpen(false);
+                }}
+                className="rounded-sm border border-[#3a3f4b] bg-[#1e222b] px-3 py-1.5 font-mono text-xs uppercase tracking-wider text-[#9aa3b2] hover:border-[#2de2e6] hover:text-[#e8ecf1]"
               >
-                Stand
+                [ESC] Close
               </button>
             </div>
-            <p className="mt-2 text-sm text-[#9aa3b2]">
-              The oak is live. Convene the seats for a hard question — they argue, then stop for you.
+
+            <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
+              {RAVENLORD_SKINS.map((skin) => {
+                const isEquipped = activeSkin === skin.id;
+                return (
+                  <div
+                    key={skin.id}
+                    className={`flex flex-col justify-between rounded-sm border p-4 transition-all ${
+                      isEquipped
+                        ? "border-[#2de2e6] bg-[#2de2e6]/10 shadow-[0_0_20px_rgba(45,226,230,0.25)]"
+                        : "border-[#3a3f4b] bg-[#1e222b]/50 hover:border-[#9aa3b2]"
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-[10px] font-bold tracking-wider" style={{ color: skin.accent }}>
+                          {skin.badge}
+                        </span>
+                        {isEquipped && (
+                          <span className="rounded bg-[#2de2e6] px-1.5 py-0.5 font-mono text-[9px] font-bold text-[#0b0e14]">
+                            ACTIVE
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="my-3 flex h-28 items-center justify-center rounded-sm bg-[#0b0e14] border border-[#3a3f4b]/60">
+                        <img
+                          src={skin.src}
+                          alt={skin.name}
+                          className="h-20 w-auto object-none object-top pixelated"
+                          style={{ imageRendering: "pixelated" }}
+                        />
+                      </div>
+
+                      <h4 className="font-mono text-xs font-bold text-[#e8ecf1]">{skin.name}</h4>
+                      <p className="mt-1 font-mono text-[10px] leading-relaxed text-[#9aa3b2]">
+                        {skin.description}
+                      </p>
+
+                      <div className="mt-3 space-y-1 border-t border-[#3a3f4b]/50 pt-2 font-mono text-[9px]">
+                        <div className="flex justify-between text-[#9aa3b2]">
+                          <span>Armor:</span>
+                          <span className="font-bold text-[#e8ecf1]">{skin.stats.armor} DEF</span>
+                        </div>
+                        <div className="flex justify-between text-[#9aa3b2]">
+                          <span>Flux Conduit:</span>
+                          <span style={{ color: skin.accent }}>{skin.stats.conduit}</span>
+                        </div>
+                        <div className="flex justify-between text-[#9aa3b2]">
+                          <span>Affinity:</span>
+                          <span className="text-[#e8ecf1]">{skin.stats.affinity}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isEquipped}
+                      onClick={() => handleEquipSkin(skin)}
+                      className={`mt-4 h-8 w-full rounded-sm font-mono text-[11px] font-bold uppercase tracking-wider transition ${
+                        isEquipped
+                          ? "bg-[#2de2e6]/20 text-[#2de2e6] cursor-default border border-[#2de2e6]/40"
+                          : "bg-[#e8ecf1] text-[#0b0e14] hover:bg-[#2de2e6] hover:text-[#0b0e14]"
+                      }`}
+                    >
+                      {isEquipped ? "Equipped" : "Equip Cuirass"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+
+      {tableOpen ? (
+        <div className="pointer-events-auto absolute inset-x-0 bottom-0 z-20 border-t border-[#3a3f4b] bg-[#0b0e14]/95 p-6 backdrop-blur-xl">
+          <div className="mx-auto max-w-xl">
+            <div className="flex items-baseline justify-between border-b border-[#1e222b] pb-3">
+              <div className="flex items-center gap-3">
+                <span className="h-3 w-3 rounded-full bg-[#2de2e6] animate-pulse" />
+                <h2 className="font-mono text-xl font-bold tracking-wider text-[#e8ecf1]">The War Table</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  hallAudio.playInteract();
+                  setTableOpen(false);
+                }}
+                className="font-mono text-xs uppercase tracking-[0.16em] text-[#9aa3b2] hover:text-[#e8ecf1]"
+              >
+                [ESC] Stand
+              </button>
+            </div>
+            <p className="mt-3 font-mono text-sm leading-relaxed text-[#9aa3b2]">
+              The ancient oak table sits at the center of the Keep. Convene the seats for strategic auditing, county worklists, and agent orchestration.
             </p>
-            <Link
-              to="/table"
-              className="mt-4 inline-flex h-10 items-center rounded-sm bg-[#2de2e6] px-4 text-sm text-[#0b0e14]"
-            >
-              Sit the table
-            </Link>
+            <div className="mt-5 flex gap-3">
+              <Link
+                to="/table"
+                onClick={() => hallAudio.playZoneTransition()}
+                className="inline-flex h-10 items-center rounded-sm bg-[#2de2e6] px-5 font-mono text-xs font-bold uppercase tracking-wider text-[#0b0e14] transition hover:bg-[#2de2e6]/90"
+              >
+                Convene the Council
+              </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  hallAudio.playInteract();
+                  setTableOpen(false);
+                }}
+                className="inline-flex h-10 items-center rounded-sm border border-[#3a3f4b] bg-[#1e222b] px-4 font-mono text-xs uppercase tracking-wider text-[#e8ecf1] hover:border-[#2de2e6]"
+              >
+                Step Away
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
@@ -296,7 +517,7 @@ function Pad({
   return (
     <button
       type="button"
-      className="flex h-11 w-11 items-center justify-center rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/80 text-sm text-[#2de2e6] backdrop-blur-md active:bg-[#2de2e6]/20"
+      className="flex h-11 w-11 items-center justify-center rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/85 font-mono text-sm text-[#2de2e6] backdrop-blur-md active:bg-[#2de2e6]/20"
       {...rest}
     >
       {children}

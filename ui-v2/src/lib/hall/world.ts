@@ -4,10 +4,73 @@ export const MAP_W = 1792;
 export const MAP_H = 1008;
 export const MAP_SRC = "/hall/painted/keep-map.jpg";
 export const TALK_SRC = "/hall/painted/talk-scene.jpg";
-export const PLAYER_SRC = "/hall/sprites/operator-clone.png";
+export const PLAYER_SRC = "/hall/sprites/ravenlord.png";
 export const VALERIE_ACTOR = "/hall/sprites/valerie-hd2d.png";
 export const VALERIE_TALK = "/hall/painted/talk-valerie.jpg";
 export const VALERIE_PORTRAIT = "/hall/portraits/valerie.jpg";
+
+export type RavenlordSkin = {
+  id: string;
+  name: string;
+  title: string;
+  description: string;
+  src: string;
+  accent: string;
+  glow: string;
+  badge: string;
+  stats: {
+    armor: number;
+    conduit: string;
+    affinity: string;
+  };
+};
+
+export const RAVENLORD_SKINS: RavenlordSkin[] = [
+  {
+    id: "ravenlord",
+    name: "Sovereign Ravenlord",
+    title: "Lord Commander",
+    description: "Standard obsidian tactical cuirass with cyan flux conduits and raven-wing cloak.",
+    src: "/hall/sprites/ravenlord.png",
+    accent: "#2de2e6",
+    glow: "rgba(45, 226, 230, 0.4)",
+    badge: "⚔️ SOVEREIGN",
+    stats: { armor: 98, conduit: "Cyan Flux 1200V", affinity: "Agent Orchestration" },
+  },
+  {
+    id: "ravenlord-inquisitor",
+    name: "Spectral Inquisitor",
+    title: "Truth Inquisitor",
+    description: "Sanctified emerald weave infused with canonical truth runes and ghost flames.",
+    src: "/hall/sprites/ravenlord-inquisitor.png",
+    accent: "#39ff14",
+    glow: "rgba(57, 255, 20, 0.4)",
+    badge: "👁️ INQUISITOR",
+    stats: { armor: 104, conduit: "Spectral Ghostfire", affinity: "Zero Hallucination" },
+  },
+  {
+    id: "ravenlord-warlord",
+    name: "Forge Warlord",
+    title: "Master Fabricator",
+    description: "Heavy volcanic slate plates channel hyper-dense magenta forge plasma.",
+    src: "/hall/sprites/ravenlord-warlord.png",
+    accent: "#ff2a6d",
+    glow: "rgba(255, 42, 109, 0.4)",
+    badge: "🔥 WARLORD",
+    stats: { armor: 118, conduit: "Crimson Plasma", affinity: "FastMCP Tooling" },
+  },
+  {
+    id: "ravenlord-archon",
+    name: "Gilded Archon",
+    title: "High Magistrate",
+    description: "Auric trim and golden power glyphs bonded to hardened titanium weave.",
+    src: "/hall/sprites/ravenlord-archon.png",
+    accent: "#ffc857",
+    glow: "rgba(255, 200, 87, 0.4)",
+    badge: "⚡ ARCHON",
+    stats: { armor: 110, conduit: "Auric Ion Arc", affinity: "Autonomous Autonomy" },
+  },
+];
 
 export const PALETTE = {
   bg: 0x0b0e14,
@@ -80,13 +143,33 @@ export type HallNpc = {
 
 export const HALL_NPCS: HallNpc[] = [
   {
+    id: "gallery-arch",
+    name: "The Grand Gallery",
+    role: "Portal",
+    x: 640,
+    y: 270,
+    radius: 64,
+    state: "idle",
+    greeting: "The stone archway opens into The Grand Gallery — Maestro Ross's cyber-arcane portrait studio and sovereign wall frames.",
+    href: "/gallery",
+    actions: [
+      { id: "enter-gallery", label: "Enter The Grand Gallery", href: "/gallery" },
+      {
+        id: "about-gallery",
+        label: "What is The Grand Gallery?",
+        reply: "The Grand Gallery houses the 8 sovereign wall frames, central artifact pedestals, and Maestro Ross's portrait studio.",
+      },
+    ],
+  },
+  {
     id: "raziel",
     name: "Raziel",
     role: "Sovereign",
     x: 904,
     y: 575,
-    radius: 56,
+    radius: 60,
     state: "idle",
+    actor: "/hall/sprites/raziel.png",
     greeting: "The hall is live. Walk it. Doors stay sealed until you approve a Spec.",
     actions: [
       {
@@ -104,47 +187,32 @@ export const HALL_NPCS: HallNpc[] = [
     ],
   },
   {
-    id: "raziel",
-    name: "Raziel",
-    role: "Sovereign",
-    x: 910,
-    y: 145,
-    radius: 56,
-    state: "idle",
-    greeting: "From the dais: the hall is live. Specs still stop for you.",
-    actions: [
-      {
-        id: "live",
-        label: "What's live?",
-        reply:
-          "Great Hall is live. Alchemy Lab is approved. Library, Workshop, Roost, Watchtower stay unforged until you sign a Spec.",
-      },
-      { id: "table", label: "Sit the war table", href: "/table" },
-    ],
-  },
-  {
     id: "oracle",
-    name: "Oracle",
-    role: "Wayfinder",
+    name: "The Oracle",
+    role: "Truth Inquisitor",
     x: 380,
     y: 310,
-    radius: 56,
-    state: "idle",
-    greeting: "Ask where something lives. I answer from the vault, or I say not-in-knowledge.",
+    radius: 64,
+    state: "working",
+    actor: "/hall/sprites/oracle-eye.png",
+    actorH: 48,
+    portrait: "/hall/sprites/oracle-eye.png",
+    greeting: "TRUTH OVER COMFORT. RECEIPTS OVER OPINION. I am the celestial green eye of the Canonical Registry. I do not guess, I do not hallucinate, and I do not tolerate polite AI deceit. Speak your query, or step back before the Inquisitor.",
     href: "/oracle",
     actions: [
       {
-        id: "where",
-        label: "Where do I put this?",
+        id: "truth-law",
+        label: "What is your Law?",
         reply:
-          "Incoming files go to the vault ingest path. Distilled notes go to the Library. Specs go to Clawforge and stop for you. If I do not know the shelf, I say not-in-knowledge.",
+          "Single-source truth. One approved standard per domain. Raw sources stay evidence; distilled notes require primary citations. Any model fabricating facts triggers immediate quarantine.",
       },
-      { id: "library", label: "Open the library", href: "/oracle" },
+      { id: "query-vault", label: "Consult the Registry Shelf", href: "/oracle" },
       {
-        id: "find",
-        label: "Where is the mechanic?",
-        reply: "Valerie is in the east workshop, by the glass and the cauldron. Walk the hall east.",
+        id: "hallucination-penalty",
+        label: "Hallucination Strikes",
+        reply: "Inquisitor engine is watching. All unsourced claims and prompt drifts are struck down and committed to audit_pipeline_mistakes.yaml. Receipts are mandatory.",
       },
+      { id: "war-table", label: "Sit the War Table", href: "/table" },
     ],
   },
   {
@@ -155,6 +223,8 @@ export const HALL_NPCS: HallNpc[] = [
     y: 515,
     radius: 64,
     state: "working",
+    actor: "/hall/sprites/valerie-hd2d.png",
+    actorH: 48,
     greeting: "Workshop is cold until you forge it. I can still diagnose — numbered, reversible, no secret leaks.",
     href: "/mechanic",
     talkScene: VALERIE_TALK,
@@ -183,6 +253,7 @@ export const HALL_NPCS: HallNpc[] = [
     y: 905,
     radius: 56,
     state: "idle",
+    actor: "/hall/sprites/corvid.png",
     greeting: "Roost first. Cited digest only. No rumor, no invented numbers.",
     actions: [
       {
@@ -210,6 +281,7 @@ export type Zone = {
 export const ZONES: Zone[] = [
   { id: "library", name: "Library", lock: "unforged", rect: { x: 140, y: 120, w: 380, h: 540 }, href: "/oracle" },
   { id: "great-hall", name: "Great Hall", lock: "live", rect: { x: 540, y: 220, w: 720, h: 470 } },
+  { id: "gallery-arch", name: "The Grand Gallery", lock: "live", rect: { x: 600, y: 230, w: 100, h: 80 }, href: "/gallery" },
   { id: "watchtower", name: "Watchtower", lock: "unforged", rect: { x: 700, y: 40, w: 400, h: 190 }, href: "/sentinel" },
   { id: "workshop", name: "Workshop", lock: "unforged", rect: { x: 1310, y: 60, w: 420, h: 680 }, href: "/mechanic" },
   { id: "yard", name: "Yard", lock: "unforged", rect: { x: 620, y: 700, w: 540, h: 260 } },
