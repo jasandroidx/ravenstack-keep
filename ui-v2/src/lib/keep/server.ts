@@ -121,6 +121,24 @@ export const runOracle = createServerFn({ method: "POST" })
       insert into oracle_queries (user_id, question, answer)
       values (${context.userId}, ${question}, ${result.answer})
     `;
+
+    // Nothing in the vault matched. If the Oracle answered anyway instead of
+    // standing down, that is a claim made against no evidence — the cell's
+    // first automatic feed. "not-in-knowledge" is the correct answer and is
+    // not a fabrication.
+    if (!result.retrieved) {
+      const saidNothing = /not[- ]in[- ]knowledge/i.test(result.answer);
+      if (!saidNothing) {
+        await sql`
+          insert into quarantine_claims
+            (user_id, claim, model, room, prompt, evidence, detected_by)
+          values (
+            ${context.userId}, ${result.answer}, 'oracle', 'library',
+            ${question}, '', 'no_evidence'
+          )
+        `;
+      }
+    }
     return result;
   });
 
@@ -300,6 +318,88 @@ export const decideGate = createServerFn({ method: "POST" })
     return res.ok
       ? { ok: true as const, source: res.source, latencyMs: res.latencyMs }
       : { ok: false as const, error: res.error ?? "Gate decision failed." };
+  });
+
+/** The Quarantine Cell — claims a model asserted that its evidence did not support. */
+export const listQuarantine = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const sql = await getSql();
+    return sql<{
+      id: number;
+      claim: string;
+      model: string;
+      room: string;
+      prompt: string | null;
+      evidence: string;
+      detected_by: string;
+      consistency_score: number | null;
+      note: string | null;
+      status: string;
+      created_at: string;
+    }>`
+      select id, claim, model, room, prompt, evidence, detected_by,
+             consistency_score, note, status, created_at
+      from quarantine_claims
+      where user_id = ${context.userId}
+      order by id desc
+      limit 100
+    `;
+  });
+
+/**
+ * Commit a fabrication to the cell.
+ *
+ * `evidence` is stored verbatim, including when it is empty — an answer given
+ * against nothing is the strongest finding there is, and blanking it would
+ * lose that.
+ */
+export const logQuarantine = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(
+    (input: {
+      claim: string;
+      model?: string;
+      room?: string;
+      prompt?: string;
+      evidence?: string;
+      detectedBy?: "operator" | "no_evidence" | "hhem";
+      consistencyScore?: number | null;
+      note?: string;
+    }) => input,
+  )
+  .handler(async ({ data, context }) => {
+    const claim = data.claim?.trim();
+    if (!claim) return { ok: false as const, error: "A quarantine record needs the claim itself." };
+    const sql = await getSql();
+    const rows = await sql<{ id: number }>`
+      insert into quarantine_claims
+        (user_id, claim, model, room, prompt, evidence, detected_by, consistency_score, note)
+      values (
+        ${context.userId}, ${claim}, ${data.model ?? "unknown"}, ${data.room ?? "unknown"},
+        ${data.prompt ?? null}, ${data.evidence ?? ""}, ${data.detectedBy ?? "operator"},
+        ${data.consistencyScore ?? null}, ${data.note ?? null}
+      )
+      returning id
+    `;
+    return { ok: true as const, id: rows[0]?.id };
+  });
+
+/**
+ * Mark a record dismissed. It is never deleted — the cell is a record of what
+ * your models did, and a pile you can empty is not a record.
+ */
+export const dismissQuarantine = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: { id: number; note?: string }) => input)
+  .handler(async ({ data, context }) => {
+    const sql = await getSql();
+    await sql`
+      update quarantine_claims
+      set status = 'dismissed', note = coalesce(${data.note ?? null}, note)
+      where id = ${data.id} and user_id = ${context.userId}
+    `;
+    return { ok: true as const };
   });
 
 export const callFastMCP = createServerFn({ method: "POST" })

@@ -14,6 +14,7 @@ import { Route as ForgeRouteImport } from './routes/forge'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MechanicRouteImport } from './routes/mechanic'
 import { Route as OracleRouteImport } from './routes/oracle'
+import { Route as QuarantineRouteImport } from './routes/quarantine'
 import { Route as RoomsRouteImport } from './routes/rooms'
 import { Route as SentinelRouteImport } from './routes/sentinel'
 import { Route as StackRouteImport } from './routes/stack'
@@ -45,6 +46,11 @@ const MechanicRoute = MechanicRouteImport.update({
 const OracleRoute = OracleRouteImport.update({
   id: '/oracle',
   path: '/oracle',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QuarantineRoute = QuarantineRouteImport.update({
+  id: '/quarantine',
+  path: '/quarantine',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RoomsRoute = RoomsRouteImport.update({
@@ -89,6 +95,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/mechanic': typeof MechanicRoute
   '/oracle': typeof OracleRoute
+  '/quarantine': typeof QuarantineRoute
   '/rooms': typeof RoomsRouteWithChildren
   '/sentinel': typeof SentinelRoute
   '/stack': typeof StackRoute
@@ -103,6 +110,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/mechanic': typeof MechanicRoute
   '/oracle': typeof OracleRoute
+  '/quarantine': typeof QuarantineRoute
   '/sentinel': typeof SentinelRoute
   '/stack': typeof StackRoute
   '/table': typeof TableRoute
@@ -117,6 +125,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/mechanic': typeof MechanicRoute
   '/oracle': typeof OracleRoute
+  '/quarantine': typeof QuarantineRoute
   '/rooms': typeof RoomsRouteWithChildren
   '/sentinel': typeof SentinelRoute
   '/stack': typeof StackRoute
@@ -133,6 +142,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/mechanic'
     | '/oracle'
+    | '/quarantine'
     | '/rooms'
     | '/sentinel'
     | '/stack'
@@ -147,6 +157,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/mechanic'
     | '/oracle'
+    | '/quarantine'
     | '/sentinel'
     | '/stack'
     | '/table'
@@ -160,6 +171,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/mechanic'
     | '/oracle'
+    | '/quarantine'
     | '/rooms'
     | '/sentinel'
     | '/stack'
@@ -175,6 +187,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   MechanicRoute: typeof MechanicRoute
   OracleRoute: typeof OracleRoute
+  QuarantineRoute: typeof QuarantineRoute
   RoomsRoute: typeof RoomsRouteWithChildren
   SentinelRoute: typeof SentinelRoute
   StackRoute: typeof StackRoute
@@ -217,6 +230,13 @@ declare module '@tanstack/react-router' {
       path: '/oracle'
       fullPath: '/oracle'
       preLoaderRoute: typeof OracleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/quarantine': {
+      id: '/quarantine'
+      path: '/quarantine'
+      fullPath: '/quarantine'
+      preLoaderRoute: typeof QuarantineRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/rooms': {
@@ -289,6 +309,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   MechanicRoute: MechanicRoute,
   OracleRoute: OracleRoute,
+  QuarantineRoute: QuarantineRoute,
   RoomsRoute: RoomsRouteWithChildren,
   SentinelRoute: SentinelRoute,
   StackRoute: StackRoute,

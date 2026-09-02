@@ -247,6 +247,33 @@ export const HALL_NPCS: HallNpc[] = [
     ],
   },
   {
+    id: "quarantine-warden",
+    name: "The Cell",
+    role: "Quarantine",
+    x: 1095,
+    y: 840,
+    radius: 58,
+    state: "idle",
+    greeting:
+      "Every claim in here was asserted by one of your models and was not supported by its own evidence. Nothing is deleted. Read them before you trust the next answer.",
+    href: "/quarantine",
+    actions: [
+      { id: "open-cell", label: "Open the cell", href: "/quarantine" },
+      {
+        id: "why",
+        label: "Why keep them?",
+        reply:
+          "A model that fabricates once will do it again on the same shape of question. The record is how you find the shape. An empty cell means nothing was committed to it — not that nothing was fabricated.",
+      },
+      {
+        id: "rule",
+        label: "What lands here?",
+        reply:
+          "A claim its evidence did not support: you caught it, or it was answered against an empty retrieval set, or a consistency score came back under threshold. The evidence is stored with the claim, or the record would be another unsourced assertion.",
+      },
+    ],
+  },
+  {
     id: "corvid",
     name: "Corvid",
     role: "Scout",
@@ -287,6 +314,9 @@ export const ZONES: Zone[] = [
   { id: "watchtower", name: "Watchtower", lock: "unforged", rect: { x: 700, y: 40, w: 400, h: 190 }, href: "/sentinel" },
   { id: "workshop", name: "Workshop", lock: "unforged", rect: { x: 1310, y: 60, w: 420, h: 680 }, href: "/mechanic" },
   { id: "yard", name: "Yard", lock: "unforged", rect: { x: 620, y: 700, w: 540, h: 260 } },
+  // The cell sits in the east corner of the yard, deliberately in the open.
+  // Fabrications are not filed away out of sight.
+  { id: "quarantine", name: "The Quarantine Cell", lock: "live", rect: { x: 1030, y: 745, w: 130, h: 190 }, href: "/quarantine" },
 ];
 
 export const PLAYER_SPAWN = { x: 760, y: 650 };

@@ -142,20 +142,34 @@ export async function askOracle(question: string) {
       .filter((t) => t.length > 2)
       .some((t) => hay.includes(t));
   }).slice(0, 5);
-  const pack = (hits.length ? hits : KNOWLEDGE.slice(0, 3))
-    .map((d) => `### ${d.title}\n${d.body}`)
-    .join("\n\n");
+
+  // Retrieval missed. Do NOT substitute arbitrary documents and cite them —
+  // that hands the operator receipts for sources the question never matched.
+  // Answer against nothing, cite nothing, and report that plainly so the
+  // caller can quarantine anything the model asserts anyway.
+  const retrieved = hits.length > 0;
+  const pack = retrieved ? hits.map((d) => `### ${d.title}\n${d.body}`).join("\n\n") : "";
 
   const system = `${FORTRESS_BRIEF}
 
-You are Oracle. Answer only from the provided vault excerpts. Cite titles. If the excerpts do not contain the answer, say not-in-knowledge. Do not invent paths or numbers.`;
+You are Oracle. Answer only from the provided vault excerpts. Cite titles. If the excerpts do not contain the answer, say not-in-knowledge. Do not invent paths or numbers.${
+    retrieved
+      ? ""
+      : "\n\nNo vault excerpt matched this question. You have no evidence. Reply with not-in-knowledge and nothing else — do not answer from general knowledge."
+  }`;
 
-  const result = await complete(system, `Question: ${question}\n\nVault excerpts:\n${pack}`, 1200);
+  const result = await complete(
+    system,
+    `Question: ${question}\n\nVault excerpts:\n${retrieved ? pack : "(none matched)"}`,
+    1200,
+  );
   if (!result.ok) return result;
   return {
     ok: true as const,
     answer: result.text,
-    citations: (hits.length ? hits : KNOWLEDGE.slice(0, 3)).map((d) => d.title),
+    citations: hits.map((d) => d.title),
+    retrieved,
+    evidence: pack,
   };
 }
 

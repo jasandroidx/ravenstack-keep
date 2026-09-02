@@ -13,6 +13,7 @@ const NAV = [
   { to: "/sentinel", label: "Sentinel" },
   { to: "/mechanic", label: "Mechanic" },
   { to: "/stack", label: "Stack" },
+  { to: "/quarantine", label: "Cell" },
 ];
 
 function AuthSlot() {
