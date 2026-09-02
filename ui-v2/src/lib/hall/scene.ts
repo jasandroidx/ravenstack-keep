@@ -24,11 +24,15 @@ export type HallEvents = {
   onSkinChange?: (skinId: string) => void;
 };
 
-/** Map walker = Ravenlord sprite. Cell 38×62. */
-const OP_W = 38;
-const OP_H = 62;
-const NPC_W = 32;
-const NPC_H = 40;
+/** Slicing dimensions in PNG source (128x160 -> 4x4 grid of 32x40) */
+const FRAME_W = 32;
+const FRAME_H = 40;
+
+/** World display scale matched to 48px tile grid and environment */
+const OP_W = 54;
+const OP_H = 68;
+const NPC_W = 54;
+const NPC_H = 68;
 
 type Facing = "down" | "up" | "left" | "right";
 
@@ -56,7 +60,6 @@ export class HallScene extends Phaser.Scene {
   private oracleGlow!: Phaser.GameObjects.Arc;
   private oracleHalo!: Phaser.GameObjects.Arc;
   private oracleChains: Phaser.GameObjects.Line[] = [];
-  private oracleParticles!: Phaser.GameObjects.Particles.ParticleEmitter;
   private oracleProverbText!: Phaser.GameObjects.Text;
   private spectralVignette!: Phaser.GameObjects.Rectangle;
   private oracleSpawnTimer = 0;
@@ -98,15 +101,15 @@ export class HallScene extends Phaser.Scene {
 
     // Load all Ravenlord Armor Skins
     for (const skin of RAVENLORD_SKINS) {
-      this.load.spritesheet(`skin-${skin.id}`, skin.src, { frameWidth: OP_W, frameHeight: OP_H });
+      this.load.spritesheet(`skin-${skin.id}`, skin.src, { frameWidth: FRAME_W, frameHeight: FRAME_H });
     }
 
     for (const npc of HALL_NPCS) {
       if (npc.id === "oracle") continue;
       if (npc.actor) {
         this.load.spritesheet(`actor-${npc.id}`, npc.actor, {
-          frameWidth: NPC_W,
-          frameHeight: npc.actorH ?? NPC_H,
+          frameWidth: FRAME_W,
+          frameHeight: FRAME_H,
         });
       }
     }
@@ -165,13 +168,14 @@ export class HallScene extends Phaser.Scene {
       if (npc.id === "oracle") continue;
       const chip =
         npc.state === "working" ? PALETTE.magenta : npc.state === "waiting_human" ? PALETTE.amber : PALETTE.cyan;
-      const labelLift = npc.actor ? 48 : 38;
+      const labelLift = 74;
 
-      // Pedestal glow
-      this.add.ellipse(npc.x, npc.y, 32, 12, chip, 0.28).setDepth(5).setBlendMode(Phaser.BlendModes.ADD);
+      // Soft ground contact shadow under NPC feet
+      this.add.ellipse(npc.x, npc.y + 2, 34, 12, 0x000000, 0.45).setDepth(5);
 
       if (npc.actor) {
         const spr = this.add.sprite(npc.x, npc.y, `actor-${npc.id}`, 0).setOrigin(0.5, 1).setDepth(7);
+        spr.texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
         spr.setDisplaySize(NPC_W, npc.actorH ?? NPC_H);
         try {
           if (this.textures.get(`actor-${npc.id}`).frameTotal > 1) {
@@ -189,11 +193,12 @@ export class HallScene extends Phaser.Scene {
       }
 
       // Indicator Rune Pip
-      this.add.circle(npc.x, npc.y - labelLift + 4, 4, chip, 0.95).setDepth(8);
+      this.add.circle(npc.x, npc.y - labelLift + 4, 3.5, chip, 0.95).setDepth(8);
       this.add
         .text(npc.x, npc.y - labelLift, npc.name, {
           fontFamily: "monospace",
-          fontSize: "11px",
+          fontSize: "12px",
+          fontStyle: "bold",
           color: "#e8ecf1",
           stroke: "#0b0e14",
           strokeThickness: 3,
@@ -207,29 +212,24 @@ export class HallScene extends Phaser.Scene {
     // ==========================================
     const oracle = HALL_NPCS.find((n) => n.id === "oracle") ?? { x: 380, y: 310, name: "The Oracle" };
 
-    // Ethereal Green Flames & Smoke Emitter
-    this.oracleParticles = this.add.particles(0, 0, undefined, {
-      x: oracle.x,
-      y: oracle.y - 12,
-      quantity: 2,
-      frequency: 90,
-      lifespan: { min: 800, max: 1800 },
-      speedX: { min: -12, max: 12 },
-      speedY: { min: -25, max: -65 },
-      scale: { start: 2.2, end: 0 },
-      alpha: { start: 0.85, end: 0 },
-      tint: [0x39ff14, 0x00ff66, 0x2de2e6],
-      blendMode: Phaser.BlendModes.ADD,
-    });
-    this.oracleParticles.setDepth(6);
+    // Glowing Emerald Halos & Aura
+    this.oracleHalo = this.add.circle(oracle.x, oracle.y - 14, 75, 0x39ff14, 0.22).setDepth(6).setBlendMode(Phaser.BlendModes.ADD);
+    this.oracleGlow = this.add.circle(oracle.x, oracle.y - 14, 40, 0x00ff66, 0.38).setDepth(7).setBlendMode(Phaser.BlendModes.ADD);
 
-    // Glowing Emerald Halos
-    this.oracleHalo = this.add.circle(oracle.x, oracle.y - 14, 65, 0x39ff14, 0.22).setDepth(6).setBlendMode(Phaser.BlendModes.ADD);
-    this.oracleGlow = this.add.circle(oracle.x, oracle.y - 14, 34, 0x00ff66, 0.38).setDepth(7).setBlendMode(Phaser.BlendModes.ADD);
+    // Ethereal Green Flames & Smoke Aura
+    this.tweens.add({
+      targets: this.oracleGlow,
+      scale: 1.25,
+      alpha: 0.55,
+      duration: 1400,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
 
     // The Floating Green Eye Sprite
     this.oracleEye = this.add.image(oracle.x, oracle.y - 14, "oracle-eye").setOrigin(0.5, 0.5).setDepth(9);
-    this.oracleEye.setDisplaySize(54, 54);
+    this.oracleEye.setDisplaySize(68, 68);
 
     // Dark Iron Arcane Chains Anchoring the Eye
     const chainAnchors = [
@@ -245,9 +245,9 @@ export class HallScene extends Phaser.Scene {
 
     // Ghostly Truth Proverb Rune Banner
     this.oracleProverbText = this.add
-      .text(oracle.x, oracle.y - 56, "TRUTH OVER COMFORT", {
+      .text(oracle.x, oracle.y - 68, "TRUTH OVER COMFORT", {
         fontFamily: "monospace",
-        fontSize: "10px",
+        fontSize: "11px",
         fontStyle: "bold",
         color: "#39ff14",
         stroke: "#0b0e14",
@@ -277,16 +277,16 @@ export class HallScene extends Phaser.Scene {
     });
 
     // Spawn Player (Ravenlord Jason Boyd)
-    this.shadow = this.add.ellipse(PLAYER_SPAWN.x, PLAYER_SPAWN.y + 2, 24, 9, 0x000000, 0.55).setDepth(6);
-    this.reticle = this.add.circle(0, 0, 8, PALETTE.cyan, 0.0).setStrokeStyle(2, PALETTE.cyan, 0.9).setDepth(5).setVisible(false);
+    this.shadow = this.add.ellipse(PLAYER_SPAWN.x, PLAYER_SPAWN.y + 2, 34, 12, 0x000000, 0.45).setDepth(6);
+    this.reticle = this.add.circle(0, 0, 3, PALETTE.cyan, 0.7).setDepth(5).setVisible(false);
 
     this.player = this.physics.add.sprite(PLAYER_SPAWN.x, PLAYER_SPAWN.y, `skin-${this.activeSkinId}`, 0);
     this.player.texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
     this.player.setOrigin(0.5, 1).setCollideWorldBounds(true).setDepth(7);
     this.player.setDisplaySize(OP_W, OP_H);
     this.player.body.setAllowGravity(false);
-    this.player.body.setSize(22, 18);
-    this.player.body.setOffset(8, 44);
+    this.player.body.setSize(20, 14);
+    this.player.body.setOffset(6, 26);
     this.player.setPosition(PLAYER_SPAWN.x, PLAYER_SPAWN.y);
 
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
@@ -330,8 +330,6 @@ export class HallScene extends Phaser.Scene {
         hallAudio.playStep();
         return;
       }
-      const mark = this.add.rectangle(w.x, w.y, 8, 8, 0xff3b3b, 0.85).setDepth(20);
-      this.tweens.add({ targets: mark, alpha: 0, duration: 280, onComplete: () => mark.destroy() });
     });
   }
 
@@ -458,9 +456,9 @@ export class HallScene extends Phaser.Scene {
       const eyeX = this.oracleEye.x;
       const eyeY = this.oracleEye.y;
 
-      // Update particle emitter position to follow bobbing eye
-      this.oracleParticles.setPosition(eyeX, eyeY);
-      this.oracleHalo.setPosition(eyeX, eyeY);
+      // Update halo and glow positions to follow bobbing eye
+      this.oracleHalo?.setPosition(eyeX, eyeY);
+      this.oracleGlow?.setPosition(eyeX, eyeY);
 
       // Chains dynamic anchoring to current bobbing eye position
       const chainAnchors = [
@@ -568,28 +566,12 @@ export class HallScene extends Phaser.Scene {
       this.stepTimer = 260; // Ready for immediate step sound on start
     }
 
-    // Orientation Rotation based on Movement Direction & Velocity Vector
-    // Banks naturally into turns (left/right leaning) and adds dynamic stride inertia
-    let targetLean = 0;
-    if (isMoving) {
-      // Dynamic tilt based on horizontal velocity and slight vertical sway
-      const horizRatio = finalVx / speed;
-      const vertRatio = finalVy / speed;
-      targetLean = horizRatio * 0.12 + Math.sin(time * 0.016) * 0.035 * (Math.abs(horizRatio) > 0.1 ? 1 : 0.4);
-
-      // Subtle stride height bobbing on body
-      const strideBob = Math.sin(time * 0.018) * 1.2;
-      this.player.setDisplaySize(OP_W, OP_H + (vertRatio > 0 ? strideBob : -strideBob * 0.5));
-    } else {
-      this.player.setDisplaySize(OP_W, OP_H);
-    }
-
-    // Smoothly interpolate rotation angle
-    this.currentLean = Phaser.Math.Linear(this.currentLean, targetLean, 0.22);
-    this.player.setRotation(this.currentLean);
+    // Keep sprite crisp without rotation distortion or stretching
+    this.player.setRotation(0);
+    this.player.setDisplaySize(OP_W, OP_H);
 
     // Directional Facing & Smooth Animations
-    if (Math.abs(finalVx) > Math.abs(finalVy) && finalVx !== 0) {
+    if (Math.abs(finalVx) >= Math.abs(finalVy) && finalVx !== 0) {
       if (finalVx < 0) {
         this.lastFacing = "left";
         this.player.anims.play(`${this.activeSkinId}-walk-left`, true);
