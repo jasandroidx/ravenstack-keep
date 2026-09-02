@@ -1,5 +1,6 @@
 import * as Phaser from "phaser";
 import {
+  HALL_LIGHTS,
   HALL_NPCS,
   MAP_H,
   MAP_SRC,
@@ -310,6 +311,32 @@ export class HallScene extends Phaser.Scene {
     // Camera per Scroll Back (Keren, GDC 2015): a low lerp so the keep feels
     // heavy, a deadzone so idle shuffling does not slosh the world, and
     // forward focus so entering a room reveals it slightly before you arrive.
+    // ==========================================
+    // LIGHT
+    // ==========================================
+    // Point lights: no normal map, no Light2D shader pass. Cheap enough to put
+    // one on every brazier and conduit in the keep.
+    for (const l of HALL_LIGHTS) {
+      const light = this.add.pointlight(l.x, l.y, l.color, l.radius, l.intensity * 0.06, 0.08);
+      light.setDepth(4);
+      this.hallLights.push(light);
+      this.lightBase.push(l.intensity * 0.06);
+      // Randomised phase so nothing breathes in sync — synchrony is what makes
+      // ambient motion read as a loop.
+      this.lightPhase.push(Math.random() * Math.PI * 2);
+    }
+
+    // Time of day as a multiplied wash over the whole map. The cheapest
+    // whole-keep lighting there is, and it costs one rectangle.
+    this.daylight = this.add
+      .rectangle(0, 0, MAP_W, MAP_H, 0xffffff, 1)
+      .setOrigin(0, 0)
+      .setDepth(20)
+      .setBlendMode(Phaser.BlendModes.MULTIPLY);
+    this.applyTimeOfDay();
+
+    this.cameras.main.postFX.addVignette(0.5, 0.5, 0.75, 0.4);
+
     this.cameras.main.startFollow(this.player, true, 0.09, 0.09);
     this.cameras.main.setDeadzone(200, 130);
     this.cameras.main.setZoom(1.45);
@@ -478,6 +505,12 @@ export class HallScene extends Phaser.Scene {
   // ==========================================
 
   /** Frames of frozen time remaining. Drains in update(). */
+  /** Point lights placed over the painting, plus their flicker phases. */
+  private hallLights: Phaser.GameObjects.PointLight[] = [];
+  private lightPhase: number[] = [];
+  private lightBase: number[] = [];
+  /** Full-screen tint that carries time of day. */
+  private daylight!: Phaser.GameObjects.Rectangle;
   private freezeMs = 0;
   private wasMoving = false;
 
@@ -487,6 +520,29 @@ export class HallScene extends Phaser.Scene {
    * actually happened on the box — sealing a gate, a fabrication being
    * committed — never for navigation.
    */
+  /**
+   * Colour the keep by the real clock. Deep obsidian-blue overnight, ghost
+   * green before dawn, warm at midday. Read on create and on the hour — the
+   * hall should look different at 2am, because it is 2am.
+   */
+  private applyTimeOfDay(hour = new Date().getHours()) {
+    if (!this.daylight) return;
+    // Tuned against a screenshot at each band. Night has to read as night and
+    // still let you find a door — atmosphere that costs legibility is the
+    // failure mode that kills a tool dressed as a place.
+    const wash =
+      hour < 5
+        ? 0x7b86ad // deep night
+        : hour < 8
+          ? 0xb8c4ae // cold dawn
+          : hour < 17
+            ? 0xffffff // day, untinted
+            : hour < 20
+              ? 0xffd9a8 // dusk, warm
+              : 0x8f97bd; // evening
+    this.daylight.setFillStyle(wash, 1);
+  }
+
   public hitPause(ms = 100) {
     this.freezeMs = Math.max(this.freezeMs, ms);
   }
@@ -645,6 +701,15 @@ export class HallScene extends Phaser.Scene {
         if (a && this.oracleChains[i]) this.oracleChains[i].setTo(a.x, a.y, eyeX, eyeY);
       }
       this.oracleEye.setRotation(Math.sin(this.oracleDriftT * 1.7) * 0.05);
+
+      // Flicker. Fire wobbles hard, conduits pulse slow, the cell does neither.
+      for (let i = 0; i < this.hallLights.length; i++) {
+        const cfg = HALL_LIGHTS[i];
+        if (!cfg || cfg.flicker === 0) continue;
+        this.lightPhase[i] += (delta / 1000) * ((Math.PI * 2) / cfg.period);
+        const wobble = Math.sin(this.lightPhase[i]) * 0.6 + Math.sin(this.lightPhase[i] * 2.7) * 0.4;
+        this.hallLights[i].intensity = this.lightBase[i] * (1 + wobble * cfg.flicker);
+      }
 
       this.oracleSpawnTimer += delta;
       if (this.oracleSpawnTimer > 48000) {

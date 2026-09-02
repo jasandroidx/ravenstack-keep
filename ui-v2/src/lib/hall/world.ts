@@ -319,6 +319,44 @@ export const ZONES: Zone[] = [
   { id: "quarantine", name: "The Quarantine Cell", lock: "live", rect: { x: 1030, y: 745, w: 130, h: 190 }, href: "/quarantine" },
 ];
 
+/**
+ * Light sources placed over the painting. These are Phaser point lights, not
+ * Light2D: point lights need no normal map and skip the shader pass, which is
+ * the difference between lighting every room and lighting one.
+ *
+ * `flicker` is the amplitude of the intensity wobble — fire moves, conduits
+ * pulse slowly, and the cell does neither.
+ */
+export type HallLight = {
+  x: number;
+  y: number;
+  radius: number;
+  color: number;
+  intensity: number;
+  flicker: number;
+  /** Seconds per pulse. Randomised phase keeps them from breathing in sync. */
+  period: number;
+};
+
+export const HALL_LIGHTS: HallLight[] = [
+  // Great Hall braziers, flanking the war table
+  { x: 700, y: 400, radius: 190, color: 0xffa53c, intensity: 1.5, flicker: 0.35, period: 1.1 },
+  { x: 1120, y: 400, radius: 190, color: 0xffa53c, intensity: 1.5, flicker: 0.35, period: 1.3 },
+  { x: 760, y: 690, radius: 150, color: 0xffa53c, intensity: 1.2, flicker: 0.4, period: 0.9 },
+  { x: 1080, y: 690, radius: 150, color: 0xffa53c, intensity: 1.2, flicker: 0.4, period: 1.5 },
+  // Throne dais, cooler and steadier
+  { x: 900, y: 120, radius: 240, color: 0x2de2e6, intensity: 1.1, flicker: 0.12, period: 3.2 },
+  // Library — the Oracle's ghost-green wash
+  { x: 380, y: 300, radius: 260, color: 0x39ff14, intensity: 0.9, flicker: 0.18, period: 2.4 },
+  { x: 260, y: 560, radius: 130, color: 0xffc857, intensity: 0.8, flicker: 0.3, period: 1.2 },
+  // Workshop — magenta forge plasma
+  { x: 1500, y: 300, radius: 220, color: 0xff2a6d, intensity: 1.3, flicker: 0.45, period: 0.7 },
+  { x: 1610, y: 560, radius: 180, color: 0xff2a6d, intensity: 1.0, flicker: 0.5, period: 0.6 },
+  // Yard fountain, and the cell — cold, steady, unwelcoming
+  { x: 900, y: 850, radius: 200, color: 0x2de2e6, intensity: 0.8, flicker: 0.1, period: 4.0 },
+  { x: 1095, y: 840, radius: 120, color: 0x8891a5, intensity: 0.7, flicker: 0.0, period: 1.0 },
+];
+
 export const PLAYER_SPAWN = { x: 760, y: 650 };
 
 export function zoneAt(x: number, y: number): Zone | null {
