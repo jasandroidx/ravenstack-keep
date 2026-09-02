@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ForgeRouteImport } from './routes/forge'
+import { Route as GalleryRouteImport } from './routes/gallery'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MechanicRouteImport } from './routes/mechanic'
 import { Route as OracleRouteImport } from './routes/oracle'
@@ -31,6 +32,11 @@ const IndexRoute = IndexRouteImport.update({
 const ForgeRoute = ForgeRouteImport.update({
   id: '/forge',
   path: '/forge',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GalleryRoute = GalleryRouteImport.update({
+  id: '/gallery',
+  path: '/gallery',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -92,6 +98,7 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/forge': typeof ForgeRoute
+  '/gallery': typeof GalleryRoute
   '/login': typeof LoginRoute
   '/mechanic': typeof MechanicRoute
   '/oracle': typeof OracleRoute
@@ -107,6 +114,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/forge': typeof ForgeRoute
+  '/gallery': typeof GalleryRoute
   '/login': typeof LoginRoute
   '/mechanic': typeof MechanicRoute
   '/oracle': typeof OracleRoute
@@ -122,6 +130,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/forge': typeof ForgeRoute
+  '/gallery': typeof GalleryRoute
   '/login': typeof LoginRoute
   '/mechanic': typeof MechanicRoute
   '/oracle': typeof OracleRoute
@@ -139,6 +148,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/forge'
+    | '/gallery'
     | '/login'
     | '/mechanic'
     | '/oracle'
@@ -154,6 +164,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/forge'
+    | '/gallery'
     | '/login'
     | '/mechanic'
     | '/oracle'
@@ -168,6 +179,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/forge'
+    | '/gallery'
     | '/login'
     | '/mechanic'
     | '/oracle'
@@ -184,6 +196,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ForgeRoute: typeof ForgeRoute
+  GalleryRoute: typeof GalleryRoute
   LoginRoute: typeof LoginRoute
   MechanicRoute: typeof MechanicRoute
   OracleRoute: typeof OracleRoute
@@ -209,6 +222,13 @@ declare module '@tanstack/react-router' {
       path: '/forge'
       fullPath: '/forge'
       preLoaderRoute: typeof ForgeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gallery': {
+      id: '/gallery'
+      path: '/gallery'
+      fullPath: '/gallery'
+      preLoaderRoute: typeof GalleryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -306,6 +326,7 @@ const RoomsRouteWithChildren = RoomsRoute._addFileChildren(RoomsRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ForgeRoute: ForgeRoute,
+  GalleryRoute: GalleryRoute,
   LoginRoute: LoginRoute,
   MechanicRoute: MechanicRoute,
   OracleRoute: OracleRoute,
