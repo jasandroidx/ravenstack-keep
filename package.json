@@ -10,5 +10,8 @@
     "build": "npm run build --workspace=ui-v2",
     "preview": "npm run preview --workspace=ui-v2",
     "lint": "npm run lint --workspace=ui-v2"
+  },
+  "dependencies": {
+    "firebase": "^12.18.0"
   }
 }

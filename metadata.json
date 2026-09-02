@@ -1,6 +1,6 @@
 {
   "name": "Ravenstack Keep",
-  "description": "Cyber-arcane fortress command center and painted hall with FastMCP and ReClaw integration",
+  "description": "Cyber-arcane fortress command center, painted hall, and Google Drive vault with FastMCP and ReClaw integration",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
