@@ -15,7 +15,18 @@
  */
 
 export interface FastMCPToolCall {
-  tool: "audit_county_budget" | "tail_gateway_logs" | "get_castle_map" | "oracle_query" | "oracle_verify";
+  tool:
+    | "audit_county_budget"
+    | "tail_gateway_logs"
+    | "get_castle_map"
+    | "oracle_query"
+    | "oracle_verify"
+    | "pending_gates"
+    // Human gates. These write, and only ever with confirm: true supplied by
+    // a deliberate operator action at the war table.
+    | "county_queue_approve"
+    | "county_queue_reject"
+    | "session_approve_capability";
   params?: Record<string, unknown>;
 }
 

@@ -6,6 +6,7 @@ import { RAVENLORD_SKINS, type HallNpc, type RavenlordSkin } from "@/lib/hall/wo
 import { getKeepSnapshot } from "@/lib/keep/server";
 import type { KeepPulse } from "@/lib/keep/pulse";
 import { hallAudio } from "@/lib/hall/audio";
+import { WarTablePanel } from "@/components/keep/war-table-panel";
 import { FastMCPStatusBadge } from "@/components/keep/fastmcp-status-badge";
 import { toast } from "sonner";
 
@@ -464,7 +465,7 @@ export function KeepHall() {
 
       {tableOpen ? (
         <div className="pointer-events-auto absolute inset-x-0 bottom-0 z-20 border-t border-[#3a3f4b] bg-[#0b0e14]/95 p-6 backdrop-blur-xl">
-          <div className="mx-auto max-w-xl">
+          <div className="mx-auto max-w-2xl">
             <div className="flex items-baseline justify-between border-b border-[#1e222b] pb-3">
               <div className="flex items-center gap-3">
                 <span className="h-3 w-3 rounded-full bg-[#2de2e6] animate-pulse" />
@@ -482,8 +483,12 @@ export function KeepHall() {
               </button>
             </div>
             <p className="mt-3 font-mono text-sm leading-relaxed text-[#9aa3b2]">
-              The ancient oak table sits at the center of the Keep. Convene the seats for strategic auditing, county worklists, and agent orchestration.
+              The ancient oak table sits at the center of the Keep. Gates waiting on your
+              seal are laid out here.
             </p>
+
+            <WarTablePanel />
+
             <div className="mt-5 flex gap-3">
               <Link
                 to="/table"

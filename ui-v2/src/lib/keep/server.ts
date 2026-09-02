@@ -5,6 +5,7 @@ import { askOracle, conveneTable, diagnoseMechanicWorkbench, forgeSpec, inspectC
 import { ARCHITECTURE, KNOWLEDGE, ROOMS, SKILL_SURFACE, SPECS, getRoom, getSpecForRoom, roomCounts } from "./catalog";
 import { fetchKeepPulse } from "./pulse";
 import { executeFastMCPTool, type FastMCPToolCall } from "./fastmcp";
+import { noGates, parseGates } from "./gates";
 import type { DraftSpec, TableResult } from "./types";
 
 export const getKeepSnapshot = createServerFn({ method: "GET" }).handler(async () => {
@@ -247,6 +248,59 @@ export function parseTableRow(row: { id: number; question: string; result_json: 
     created_at: row.created_at,
   };
 }
+
+/**
+ * War table read. Fails closed: a dead bridge yields zero gates and an error
+ * string, never an example gate.
+ */
+export const getPendingGates = createServerFn({ method: "POST" }).handler(async () => {
+  const res = await executeFastMCPTool("pending_gates", {});
+  if (!res.ok || res.data == null) {
+    return noGates(res.error ?? "FastMCP bridge unreachable. No gates were retrieved.");
+  }
+  // The bridge returns MCP content envelopes; unwrap a JSON string payload.
+  let payload: unknown = res.data;
+  const envelope = payload as { result?: unknown; content?: Array<{ text?: string }> };
+  if (typeof envelope?.result === "string") {
+    try {
+      payload = JSON.parse(envelope.result);
+    } catch {
+      return noGates("pending_gates returned a result this build could not parse.");
+    }
+  } else if (Array.isArray(envelope?.content) && typeof envelope.content[0]?.text === "string") {
+    try {
+      payload = JSON.parse(envelope.content[0].text as string);
+    } catch {
+      return noGates("pending_gates returned content this build could not parse.");
+    }
+  }
+  return parseGates(payload);
+});
+
+/**
+ * Seal or refuse a gate. `confirm: true` is supplied by the caller and only
+ * ever originates from a deliberate two-step action at the war table — never
+ * from a render, an effect, or a retry.
+ */
+export const decideGate = createServerFn({ method: "POST" })
+  .validator((input: { tool: FastMCPToolCall["tool"]; args: Record<string, unknown> }) => input)
+  .handler(async ({ data }) => {
+    const allowed: FastMCPToolCall["tool"][] = [
+      "county_queue_approve",
+      "county_queue_reject",
+      "session_approve_capability",
+    ];
+    if (!allowed.includes(data.tool)) {
+      return { ok: false as const, error: `${data.tool} is not a gate decision tool.` };
+    }
+    if (data.args?.confirm !== true) {
+      return { ok: false as const, error: "Refused: gate decisions require confirm: true." };
+    }
+    const res = await executeFastMCPTool(data.tool, data.args);
+    return res.ok
+      ? { ok: true as const, source: res.source, latencyMs: res.latencyMs }
+      : { ok: false as const, error: res.error ?? "Gate decision failed." };
+  });
 
 export const callFastMCP = createServerFn({ method: "POST" })
   .validator((input: { tool: FastMCPToolCall["tool"]; params?: Record<string, unknown> }) => input)
