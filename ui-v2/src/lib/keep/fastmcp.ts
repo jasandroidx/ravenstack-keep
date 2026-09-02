@@ -109,6 +109,46 @@ export function isFastMCPConfigured(): boolean {
 /**
  * Server-side execution of FastMCP tools against live endpoints with telemetry fallback.
  */
+
+/**
+ * Read an MCP streamable-HTTP response body.
+ *
+ * The transport may answer with plain JSON or with SSE — a verified reply from
+ * the box looks like:
+ *
+ *   event: message
+ *   data: {"jsonrpc":"2.0","id":"p","result":{...}}
+ *
+ * res.json() throws on that, which previously surfaced as "bridge unreachable"
+ * for a bridge that was answering perfectly well. Returns null when nothing
+ * parseable is found; callers treat that as a failed stage, never as data.
+ */
+async function readMcpBody(res: Response): Promise<unknown> {
+  const text = await res.text();
+  const isEventStream = (res.headers.get("content-type") ?? "").includes("text/event-stream");
+
+  if (isEventStream || text.startsWith("event:") || text.includes("\ndata:")) {
+    // Last complete data: frame wins — a stream may carry progress notifications
+    // before the result.
+    for (const line of text.split(/\r?\n/).reverse()) {
+      const t = line.trim();
+      if (!t.startsWith("data:")) continue;
+      try {
+        return JSON.parse(t.slice(5).trim());
+      } catch {
+        // Partial or non-JSON frame; keep walking backwards.
+      }
+    }
+    return null;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
 export async function executeFastMCPTool<T = unknown>(
   tool: FastMCPToolCall["tool"],
   params: Record<string, unknown> = {},
@@ -156,23 +196,34 @@ export async function executeFastMCPTool<T = unknown>(
     try {
       const res = await fetch(stage.url, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          // Streamable HTTP servers reply with SSE. Advertising only
+          // application/json gets a 406 from some, and a body we cannot read
+          // from others.
+          Accept: "application/json, text/event-stream",
+        },
         body: body(),
         signal: controller.signal,
       });
 
       if (res.ok) {
-        const json = await res.json();
-        return {
-          ok: true,
-          source: stage.source,
-          endpoint: stage.url,
-          data: (json.result ?? json) as T,
-          latencyMs: Date.now() - startTime,
-          timestamp,
-        };
+        const json = (await readMcpBody(res)) as { result?: unknown } | null;
+        if (json == null) {
+          attempts.push(`${stage.label}: HTTP ${res.status} with an unreadable body`);
+        } else {
+          return {
+            ok: true,
+            source: stage.source,
+            endpoint: stage.url,
+            data: (json.result ?? json) as T,
+            latencyMs: Date.now() - startTime,
+            timestamp,
+          };
+        }
+      } else {
+        attempts.push(`${stage.label}: HTTP ${res.status}`);
       }
-      attempts.push(`${stage.label}: HTTP ${res.status}`);
     } catch (err) {
       attempts.push(`${stage.label}: ${err instanceof Error ? err.message : "unreachable"}`);
     } finally {
