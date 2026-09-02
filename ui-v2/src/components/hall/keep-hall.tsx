@@ -7,6 +7,7 @@ import { getKeepSnapshot } from "@/lib/keep/server";
 import type { KeepPulse } from "@/lib/keep/pulse";
 import { hallAudio } from "@/lib/hall/audio";
 import { WarTablePanel } from "@/components/keep/war-table-panel";
+import { listQuarantine } from "@/lib/keep/server";
 import { FastMCPStatusBadge } from "@/components/keep/fastmcp-status-badge";
 import { toast } from "sonner";
 
@@ -151,6 +152,48 @@ export function KeepHall() {
   }, []);
 
   useEffect(() => {
+  // The Inquisitor watches the cell. Open quarantine records colour the eye
+  // the moment you walk in — you learn a model lied before you ask it anything.
+  //
+  // The scene is built inside Phaser's async create(), so it may not exist when
+  // this resolves. Wait for it rather than dropping the signal on a race.
+  useEffect(() => {
+    let alive = true;
+    let tries = 0;
+    let timer: ReturnType<typeof setTimeout>;
+
+    function applyTo(scene: HallScene, openClaim: string | null) {
+      if (openClaim) scene.flareQuarantine(openClaim);
+      else scene.setTruthState("sourced");
+    }
+
+    listQuarantine()
+      .then((rows) => {
+        if (!alive) return;
+        const open = rows.filter((r) => r.status === "open");
+        const claim = open.length > 0 ? open[0].claim : null;
+        const attempt = () => {
+          if (!alive) return;
+          const scene = sceneRef.current;
+          if (scene) {
+            applyTo(scene, claim);
+          } else if (tries++ < 40) {
+            timer = setTimeout(attempt, 150);
+          }
+        };
+        attempt();
+      })
+      .catch(() => {
+        /* Not signed in, or the cell is unreadable. The eye keeps its current
+           colour rather than claiming the cell is clear. */
+      });
+
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, []);
+
     if (sceneRef.current) sceneRef.current.paused = Boolean(talk || tableOpen || wardrobeOpen);
   }, [talk, tableOpen, wardrobeOpen]);
 

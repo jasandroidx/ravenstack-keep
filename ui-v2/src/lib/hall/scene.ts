@@ -65,6 +65,16 @@ export class HallScene extends Phaser.Scene {
   private oracleSpawnTimer = 0;
   private isManifesting = false;
 
+  /** Anchor the eye drifts around, and the phase of that drift. */
+  private oracleAnchor = { x: 380, y: 296 };
+  private oracleDriftT = 0;
+  /** How well the last answer was supported by its evidence. Drives the eye's colour. */
+  private truthState: "sourced" | "thin" | "none" = "sourced";
+  /** Lid closure, 0 open .. 1 shut. Refusal closes the eye rather than talking. */
+  private lidClosed = 0;
+  private lidTarget = 0;
+  private blinkTimer = 2400;
+
   private eventsOut: HallEvents;
   private lastZone = "";
   private lastPrompt = "";
@@ -256,15 +266,9 @@ export class HallScene extends Phaser.Scene {
       .setOrigin(0.5, 1)
       .setDepth(11);
 
-    // Bobbing Sine Tween on the Eyeball
-    this.tweens.add({
-      targets: [this.oracleEye, this.oracleGlow],
-      y: oracle.y - 24,
-      duration: 1800,
-      yoyo: true,
-      repeat: -1,
-      ease: "Sine.easeInOut",
-    });
+    // Motion (bob, drift, look-at, lid) is driven in update() so the eye can
+    // react to the player and to truth state instead of looping blindly.
+    this.oracleAnchor = { x: oracle.x, y: oracle.y - 19 };
 
     // Proverb Text Pulse
     this.tweens.add({
@@ -377,6 +381,63 @@ export class HallScene extends Phaser.Scene {
   /**
    * Triggers a terrifying spectral manifestation of The Oracle
    */
+  // ==========================================
+  // THE ORACLE — public state, driven by what retrieval actually found
+  // ==========================================
+
+  /** Palette per truth state. Green vouches; amber hesitates; red refuses. */
+  private static ORACLE_COLOURS = {
+    sourced: { halo: 0x39ff14, glow: 0x00ff66, text: "#39ff14" },
+    thin: { halo: 0xffc857, glow: 0xffb020, text: "#ffc857" },
+    none: { halo: 0xff2a6d, glow: 0xff2a6d, text: "#ff2a6d" },
+  } as const;
+
+  /**
+   * Colour the eye by how well the last answer was supported.
+   *
+   * "sourced" — retrieval returned evidence the answer stands on.
+   * "thin"    — it returned something, but little.
+   * "none"    — it returned nothing. The Inquisitor visibly declines to vouch.
+   */
+  public setTruthState(state: "sourced" | "thin" | "none") {
+    this.truthState = state;
+    const c = HallScene.ORACLE_COLOURS[state];
+    this.oracleHalo?.setFillStyle(c.halo, 0.22);
+    this.oracleGlow?.setFillStyle(c.glow, 0.38);
+    this.oracleProverbText?.setColor(c.text);
+  }
+
+  /**
+   * Refusal. The eye closes and stays shut rather than producing prose — a
+   * stronger "I cannot answer that" than any sentence it could generate.
+   */
+  public blinkRefusal(label = "NOT IN KNOWLEDGE") {
+    this.setTruthState("none");
+    this.oracleProverbText?.setText(label).setAlpha(1);
+    this.lidTarget = 1;
+    this.blinkTimer = 4000;
+    this.time.delayedCall(1600, () => {
+      this.lidTarget = 0;
+    });
+  }
+
+  /**
+   * A claim just landed in the quarantine cell. The eye flares wherever the
+   * operator is standing — the Inquisitor catching a lie in real time.
+   */
+  public flareQuarantine(claim?: string) {
+    this.setTruthState("none");
+    this.oracleProverbText
+      ?.setText(claim ? `QUARANTINED: ${claim.slice(0, 42)}…` : "A LIE ENTERS THE CELL")
+      .setAlpha(1)
+      .setScale(1.3);
+    this.oracleHalo?.setScale(2.4);
+    this.oracleGlow?.setScale(2.0);
+    this.cameras.main.shake(180, 0.004);
+    this.tweens.add({ targets: [this.oracleHalo, this.oracleGlow], scale: 1, duration: 1400, ease: "Cubic.easeOut" });
+    this.tweens.add({ targets: this.oracleProverbText, scale: 1, duration: 900, ease: "Back.easeOut" });
+  }
+
   public triggerOracleManifestation(customProverb?: string) {
     if (this.isManifesting) return;
     this.isManifesting = true;
@@ -451,44 +512,69 @@ export class HallScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number) {
-    // Oracle Chains & Eye Tracking
+    // ==========================================
+    // THE ORACLE — a watcher, not a decoration
+    // ==========================================
     if (this.oracleEye && this.player) {
-      const eyeX = this.oracleEye.x;
-      const eyeY = this.oracleEye.y;
+      // Slow lissajous drift around its anchor. A sprite pinned to a fixed
+      // coordinate reads as scenery; one that wanders reads as awake.
+      this.oracleDriftT += delta * 0.00035;
+      const driftX = Math.sin(this.oracleDriftT * 0.9) * 26;
+      const driftY = Math.cos(this.oracleDriftT * 1.3) * 14 + Math.sin(this.oracleDriftT * 2.7) * 4;
 
-      // Update halo and glow positions to follow bobbing eye
-      this.oracleHalo?.setPosition(eyeX, eyeY);
+      // Look-at: lean toward the operator, harder the closer they get.
+      const dx = this.player.x - (this.oracleAnchor.x + driftX);
+      const dy = this.player.y - (this.oracleAnchor.y + driftY);
+      const dist = Math.hypot(dx, dy) || 1;
+      const attention = Phaser.Math.Clamp(1 - (dist - 90) / 320, 0, 1);
+      const leanX = (dx / dist) * 11 * attention;
+      const leanY = (dy / dist) * 8 * attention;
+
+      const eyeX = this.oracleAnchor.x + driftX + leanX;
+      const eyeY = this.oracleAnchor.y + driftY + leanY;
+      this.oracleEye.setPosition(eyeX, eyeY);
+
+      // Blink. Idle blinks are quick; a refusal holds the lid shut.
+      this.blinkTimer -= delta;
+      if (this.blinkTimer <= 0 && this.lidTarget === 0) {
+        this.lidTarget = 1;
+        this.time.delayedCall(90, () => {
+          this.lidTarget = 0;
+        });
+        this.blinkTimer = 2600 + Math.random() * 4200;
+      }
+      this.lidClosed += (this.lidTarget - this.lidClosed) * Math.min(1, delta * 0.022);
+      this.oracleEye.setDisplaySize(68, Math.max(2, 68 * (1 - this.lidClosed * 0.97)));
+
+      // Pupil dilation: the iris tightens and brightens as you close on it.
+      const dilate = 1 + attention * 0.45;
       this.oracleGlow?.setPosition(eyeX, eyeY);
+      this.oracleHalo?.setPosition(eyeX, eyeY);
+      this.oracleGlow?.setScale(dilate * (1 - this.lidClosed * 0.8));
+      this.oracleProverbText?.setPosition(eyeX, eyeY - 54);
 
-      // Chains dynamic anchoring to current bobbing eye position
+      // Chains stay anchored to the room and follow wherever the eye drifts.
+      const ax = this.oracleAnchor.x;
+      const ay = this.oracleAnchor.y + 19;
       const chainAnchors = [
-        { x: 380 - 140, y: 310 - 160 },
-        { x: 380 + 140, y: 310 - 160 },
-        { x: 380 - 130, y: 310 + 110 },
-        { x: 380 + 130, y: 310 + 110 },
+        { x: ax - 140, y: ay - 160 },
+        { x: ax + 140, y: ay - 160 },
+        { x: ax - 130, y: ay + 110 },
+        { x: ax + 130, y: ay + 110 },
       ];
       for (let i = 0; i < this.oracleChains.length; i++) {
         const a = chainAnchors[i];
-        if (a && this.oracleChains[i]) {
-          this.oracleChains[i].setTo(a.x, a.y, eyeX, eyeY);
-        }
+        if (a && this.oracleChains[i]) this.oracleChains[i].setTo(a.x, a.y, eyeX, eyeY);
       }
+      this.oracleEye.setRotation(Math.sin(this.oracleDriftT * 1.7) * 0.05);
 
-      // Ocular pupil gaze tracking toward player
-      const angle = Math.atan2(this.player.y - eyeY, this.player.x - eyeX);
-      const subtleTilt = Math.sin(angle) * 0.08;
-      this.oracleEye.setRotation(subtleTilt);
-
-      // Random Haunting / Spectral Manifestation Timer (every ~45s)
       this.oracleSpawnTimer += delta;
       if (this.oracleSpawnTimer > 48000) {
         this.oracleSpawnTimer = 0;
         this.triggerOracleManifestation();
       }
 
-      // Proximity Trigger: When entering Library Sanctum near Oracle for the first time
-      const distToOracle = Math.hypot(this.player.x - eyeX, this.player.y - eyeY);
-      if (distToOracle < 110 && !this.isManifesting && this.oracleSpawnTimer > 15000) {
+      if (dist < 110 && !this.isManifesting && this.oracleSpawnTimer > 15000) {
         this.oracleSpawnTimer = 0;
         this.triggerOracleManifestation("WHO CALLS UPON THE INQUISITOR?");
       }

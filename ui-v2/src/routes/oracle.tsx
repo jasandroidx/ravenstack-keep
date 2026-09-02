@@ -14,6 +14,7 @@ function OraclePage() {
   const [busy, setBusy] = useState(false);
   const [answer, setAnswer] = useState<string | null>(null);
   const [citations, setCitations] = useState<string[]>([]);
+  const [retrieved, setRetrieved] = useState(true);
 
   async function onAsk(e: React.FormEvent) {
     e.preventDefault();
@@ -26,6 +27,7 @@ function OraclePage() {
       }
       setAnswer(out.answer);
       setCitations(out.citations);
+      setRetrieved(out.retrieved);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Oracle failed");
     } finally {
@@ -60,13 +62,27 @@ function OraclePage() {
       </form>
 
       {answer ? (
-        <article className="mt-8 rounded-xl border border-line bg-surface p-6">
+        <article
+          className={`mt-8 rounded-xl border bg-surface p-6 ${
+            retrieved ? "border-line" : "border-[#ff2a6d]/50"
+          }`}
+        >
+          {!retrieved && (
+            <p className="mb-4 font-mono text-[11px] uppercase tracking-[0.16em] text-[#ff2a6d]">
+              ⃠ No vault excerpt matched this question — the Oracle answered against
+              nothing. Anything asserted below is unsourced.
+            </p>
+          )}
           <p className="whitespace-pre-wrap text-muted">{answer}</p>
           {citations.length ? (
             <p className="mt-6 text-xs uppercase tracking-[0.14em] text-subtle">
               Cited: {citations.join(" · ")}
             </p>
-          ) : null}
+          ) : (
+            <p className="mt-6 text-xs uppercase tracking-[0.14em] text-subtle">
+              Cited: nothing. Retrieval returned no matching excerpt.
+            </p>
+          )}
         </article>
       ) : null}
 
