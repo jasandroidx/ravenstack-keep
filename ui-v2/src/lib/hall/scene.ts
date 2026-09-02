@@ -132,35 +132,48 @@ export class HallScene extends Phaser.Scene {
     // Register 4-Directional Animations for ALL Ravenlord Skins
     for (const skin of RAVENLORD_SKINS) {
       const texKey = `skin-${skin.id}`;
-      this.anims.create({
-        key: `${skin.id}-walk-down`,
-        frames: this.anims.generateFrameNumbers(texKey, { start: 0, end: 3 }),
-        frameRate: 8,
-        repeat: -1,
-      });
-      this.anims.create({
-        key: `${skin.id}-walk-left`,
-        frames: this.anims.generateFrameNumbers(texKey, { start: 4, end: 7 }),
-        frameRate: 8,
-        repeat: -1,
-      });
-      this.anims.create({
-        key: `${skin.id}-walk-right`,
-        frames: this.anims.generateFrameNumbers(texKey, { start: 8, end: 11 }),
-        frameRate: 8,
-        repeat: -1,
-      });
-      this.anims.create({
-        key: `${skin.id}-walk-up`,
-        frames: this.anims.generateFrameNumbers(texKey, { start: 12, end: 15 }),
-        frameRate: 8,
-        repeat: -1,
-      });
+      const hasTex = this.textures.exists(texKey);
+      const totalFrames = hasTex ? this.textures.get(texKey).frameTotal : 0;
 
-      this.anims.create({ key: `${skin.id}-idle-down`, frames: [{ key: texKey, frame: 0 }], frameRate: 1 });
-      this.anims.create({ key: `${skin.id}-idle-left`, frames: [{ key: texKey, frame: 4 }], frameRate: 1 });
-      this.anims.create({ key: `${skin.id}-idle-right`, frames: [{ key: texKey, frame: 8 }], frameRate: 1 });
-      this.anims.create({ key: `${skin.id}-idle-up`, frames: [{ key: texKey, frame: 12 }], frameRate: 1 });
+      if (totalFrames >= 4) {
+        this.anims.create({
+          key: `${skin.id}-walk-down`,
+          frames: this.anims.generateFrameNumbers(texKey, { start: 0, end: Math.min(3, totalFrames - 1) }),
+          frameRate: 8,
+          repeat: -1,
+        });
+      }
+      if (totalFrames >= 8) {
+        this.anims.create({
+          key: `${skin.id}-walk-left`,
+          frames: this.anims.generateFrameNumbers(texKey, { start: 4, end: Math.min(7, totalFrames - 1) }),
+          frameRate: 8,
+          repeat: -1,
+        });
+      }
+      if (totalFrames >= 12) {
+        this.anims.create({
+          key: `${skin.id}-walk-right`,
+          frames: this.anims.generateFrameNumbers(texKey, { start: 8, end: Math.min(11, totalFrames - 1) }),
+          frameRate: 8,
+          repeat: -1,
+        });
+      }
+      if (totalFrames >= 16) {
+        this.anims.create({
+          key: `${skin.id}-walk-up`,
+          frames: this.anims.generateFrameNumbers(texKey, { start: 12, end: Math.min(15, totalFrames - 1) }),
+          frameRate: 8,
+          repeat: -1,
+        });
+      }
+
+      if (totalFrames >= 1) {
+        this.anims.create({ key: `${skin.id}-idle-down`, frames: [{ key: texKey, frame: 0 }], frameRate: 1 });
+        this.anims.create({ key: `${skin.id}-idle-left`, frames: [{ key: texKey, frame: totalFrames > 4 ? 4 : 0 }], frameRate: 1 });
+        this.anims.create({ key: `${skin.id}-idle-right`, frames: [{ key: texKey, frame: totalFrames > 8 ? 8 : 0 }], frameRate: 1 });
+        this.anims.create({ key: `${skin.id}-idle-up`, frames: [{ key: texKey, frame: totalFrames > 12 ? 12 : 0 }], frameRate: 1 });
+      }
     }
 
     // Spawn Non-Oracle NPCs
@@ -173,19 +186,20 @@ export class HallScene extends Phaser.Scene {
       // Soft ground contact shadow under NPC feet
       this.add.ellipse(npc.x, npc.y + 2, 34, 12, 0x000000, 0.45).setDepth(5);
 
-      if (npc.actor) {
+      if (npc.actor && this.textures.exists(`actor-${npc.id}`)) {
         const spr = this.add.sprite(npc.x, npc.y, `actor-${npc.id}`, 0).setOrigin(0.5, 1).setDepth(7);
         spr.texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
         spr.setDisplaySize(NPC_W, npc.actorH ?? NPC_H);
         try {
-          if (this.textures.get(`actor-${npc.id}`).frameTotal > 1) {
+          const frames = this.textures.get(`actor-${npc.id}`).frameTotal;
+          if (frames > 1) {
             this.anims.create({
               key: `idle-${npc.id}`,
-              frames: this.anims.generateFrameNumbers(`actor-${npc.id}`, { start: 0, end: Math.min(3, this.textures.get(`actor-${npc.id}`).frameTotal - 1) }),
+              frames: this.anims.generateFrameNumbers(`actor-${npc.id}`, { start: 0, end: Math.min(3, frames - 1) }),
               frameRate: 4,
               repeat: -1,
             });
-            spr.play(`idle-${npc.id}`);
+            this.safePlayAnim(spr, `idle-${npc.id}`);
           }
         } catch {
           // Keep static frame
@@ -333,6 +347,20 @@ export class HallScene extends Phaser.Scene {
     });
   }
 
+  private safePlayAnim(sprite: Phaser.GameObjects.Sprite | null, key: string, ignoreIfPlaying = true) {
+    if (!sprite || !sprite.anims) return;
+    try {
+      if (this.anims.exists(key)) {
+        const anim = this.anims.get(key);
+        if (anim && anim.frames && anim.frames.length > 0) {
+          sprite.anims.play(key, ignoreIfPlaying);
+        }
+      }
+    } catch {
+      // Ignore animation frame playback error
+    }
+  }
+
   /**
    * Applies a Ravenlord Armor Skin swap in real-time
    */
@@ -346,9 +374,11 @@ export class HallScene extends Phaser.Scene {
       // Ignore
     }
 
-    this.player.setTexture(`skin-${skin.id}`);
-    this.player.texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
-    this.player.anims.play(`${this.activeSkinId}-idle-${this.lastFacing}`, true);
+    if (this.textures.exists(`skin-${skin.id}`)) {
+      this.player.setTexture(`skin-${skin.id}`);
+      this.player.texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+      this.safePlayAnim(this.player, `${this.activeSkinId}-idle-${this.lastFacing}`, true);
+    }
 
     // Audio & Visual Armor Forge Burst FX
     hallAudio.playInteract();
@@ -574,22 +604,22 @@ export class HallScene extends Phaser.Scene {
     if (Math.abs(finalVx) >= Math.abs(finalVy) && finalVx !== 0) {
       if (finalVx < 0) {
         this.lastFacing = "left";
-        this.player.anims.play(`${this.activeSkinId}-walk-left`, true);
+        this.safePlayAnim(this.player, `${this.activeSkinId}-walk-left`, true);
       } else {
         this.lastFacing = "right";
-        this.player.anims.play(`${this.activeSkinId}-walk-right`, true);
+        this.safePlayAnim(this.player, `${this.activeSkinId}-walk-right`, true);
       }
     } else if (finalVy !== 0) {
       if (finalVy < 0) {
         this.lastFacing = "up";
-        this.player.anims.play(`${this.activeSkinId}-walk-up`, true);
+        this.safePlayAnim(this.player, `${this.activeSkinId}-walk-up`, true);
       } else {
         this.lastFacing = "down";
-        this.player.anims.play(`${this.activeSkinId}-walk-down`, true);
+        this.safePlayAnim(this.player, `${this.activeSkinId}-walk-down`, true);
       }
     } else {
       // Idle pose facing the last walked direction
-      this.player.anims.play(`${this.activeSkinId}-idle-${this.lastFacing}`, true);
+      this.safePlayAnim(this.player, `${this.activeSkinId}-idle-${this.lastFacing}`, true);
     }
 
     // Zone Transition Triggers

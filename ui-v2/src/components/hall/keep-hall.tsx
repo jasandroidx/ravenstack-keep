@@ -95,6 +95,9 @@ export function KeepHall() {
           roundPixels: true,
           physics: { default: "arcade", arcade: { gravity: { x: 0, y: 0 } } },
           scale: { mode: Phaser.Scale?.NONE ?? 0 },
+          loader: {
+            imageLoadType: "HTMLImageElement",
+          },
           scene,
         });
         gameRef.current = game;
