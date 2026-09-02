@@ -1,0 +1,13 @@
+GIMP Palette
+Name: Ravenstack Keep Locked Palette
+Columns: 3
+#
+ 11  14  20	bg
+ 30  34  43	stoneDim
+ 58  63  75	stone
+ 74  85 104	stoneLive
+ 45 226 230	neon
+255  42 109	magenta
+255 200  87	amber
+ 57 255  20	green
+255  59  59	red

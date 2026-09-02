@@ -1,2 +1,4 @@
 fastmcp>=2.0.0
 jsonschema>=4.20.0
+# Optional vector accel (falls back to JSON cosine if missing):
+# sqlite-vec>=0.1.0

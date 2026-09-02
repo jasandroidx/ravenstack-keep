@@ -1,20 +1,12 @@
 #!/usr/bin/env python3
-"""
-Ravenstack Keep — post-process Imagine (or any) drops into palette-locked assets.
+"""Ingest Imagine / Gemini drops from ui/public/art/input/.
 
-Usage:
-  1. Drop raw PNGs/JPGs into ui/public/art/input/ with manifest names
-     (e.g. room_live_48.png, facade_oracle_live.png, chip_idle.png)
-  2. python3 scripts/process_ravenstack_art.py
-  3. Outputs under ui/public/art/{tiles,chips,hud}/
-
-Quantizes to locked palette, nearest-neighbor resize, optional Aseprite if installed.
+Tiles/chips/glows: nearest-neighbor + 9-color fortress snap.
+agent_*: resize only (no 9-color crush).
+Integer sizes only (16/32/48/64/128).
 """
 from __future__ import annotations
 
-import os
-import shutil
-import subprocess
 from pathlib import Path
 
 from PIL import Image
@@ -35,13 +27,6 @@ PALETTE_COLORS = [
     ("red", (255, 59, 59)),
 ]
 
-TARGET_DIRS = {
-    "base": ART / "tiles" / "base",
-    "facades": ART / "tiles" / "facades",
-    "chips": ART / "chips",
-    "hud": ART / "hud",
-}
-
 
 def create_gpl_palette(filename: Path) -> Path:
     lines = ["GIMP Palette", "Name: Ravenstack Keep Locked Palette", "Columns: 3", "#"]
@@ -55,8 +40,8 @@ def find_nearest_palette_color(rgb: tuple) -> tuple:
     r, g, b = rgb[:3]
     if len(rgb) > 3 and rgb[3] < 128:
         return (0, 0, 0, 0)
-    min_dist = float("inf")
     closest = PALETTE_COLORS[0][1]
+    min_dist = float("inf")
     for _, (pr, pg, pb) in PALETTE_COLORS:
         dist = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2
         if dist < min_dist:
@@ -67,96 +52,78 @@ def find_nearest_palette_color(rgb: tuple) -> tuple:
     return closest
 
 
-def quantize_and_resize(image_path: Path, output_path: Path, target_size: tuple[int, int]) -> None:
-    img = Image.open(image_path).convert("RGBA")
-    img_resized = img.resize(target_size, Image.Resampling.NEAREST)
-    pixels = img_resized.load()
-    w, h = img_resized.size
-    for y in range(h):
-        for x in range(w):
-            pixels[x, y] = find_nearest_palette_color(pixels[x, y])
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    img_resized.save(output_path)
-    print(f"  {image_path.name} → {output_path.relative_to(ROOT)} {target_size}")
+def resize_nn(src: Path, dest: Path, target: tuple[int, int], quantize: bool) -> None:
+    img = Image.open(src).convert("RGBA")
+    img = img.resize(target, Image.Resampling.NEAREST)
+    if quantize:
+        px = img.load()
+        w, h = img.size
+        for y in range(h):
+            for x in range(w):
+                px[x, y] = find_nearest_palette_color(px[x, y])
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    img.save(dest)
+    q = "quantized" if quantize else "resize-only"
+    print(f"  {src.name} → {dest.relative_to(ROOT)} {target} ({q})")
 
 
-def route_size(filename: str) -> tuple[Path, tuple[int, int]]:
-    if filename.startswith("chip_") or filename.startswith("prop_ether"):
-        return TARGET_DIRS["chips"] / filename, (16, 16)
-    if filename.startswith("hud_"):
-        return TARGET_DIRS["hud"] / filename, (192, 64)
-    if filename.startswith("gate_"):
-        return TARGET_DIRS["hud"] / filename, (24, 24)
-    if filename.startswith("selection_"):
-        return TARGET_DIRS["hud"] / filename, (48, 48)
-    if filename.startswith("prop_terminal"):
-        return TARGET_DIRS["hud"] / filename, (32, 32)
-    if filename.startswith("facade_"):
-        return TARGET_DIRS["facades"] / filename, (48, 48)
-    if filename.startswith("prop_"):
-        return TARGET_DIRS["base"] / filename, (48, 48)
-    return TARGET_DIRS["base"] / filename, (48, 48)
-
-
-def build_phaser3_spritesheet() -> None:
-    aseprite = shutil.which("aseprite")
-    if not aseprite:
-        print("  (aseprite not installed — skip spritesheet pack)")
-        return
-    tile_files = [str(f) for f in ART.glob("**/*.png") if f.name != "ravenstack_sheet.png"]
-    if not tile_files:
-        return
-    sheet_png = ART / "ravenstack_sheet.png"
-    sheet_json = ART / "ravenstack_sheet.json"
-    cmd = [
-        aseprite,
-        "-b",
-        *tile_files,
-        "--sheet-type",
-        "packed",
-        "--sheet",
-        str(sheet_png),
-        "--data",
-        str(sheet_json),
-        "--format",
-        "json-hash",
-    ]
-    try:
-        subprocess.run(cmd, check=True, capture_output=True)
-        print(f"  sheet → {sheet_png}")
-    except subprocess.CalledProcessError as e:
-        print(f"  sheet failed: {e}")
+def route(filename: str) -> tuple[Path, tuple[int, int], bool]:
+    """Return dest, size, quantize?"""
+    n = filename.lower()
+    if n.startswith("agent_"):
+        return ART / "agents" / filename, (32, 32), False
+    if n.startswith("chip_"):
+        return ART / "chips" / filename, (16, 16), True
+    if n.startswith("glow_") or n.startswith("light_"):
+        return ART / "lights" / filename, (32, 32), False
+    if n.startswith("prop_"):
+        return ART / "furniture" / filename, (32, 32), True
+    if n.startswith("tile_") or n.startswith("room_unforged") or n.startswith("room_live") or n.startswith("room_locked"):
+        return ART / "tiles" / "base" / filename, (48, 48), True
+    if n.startswith("facade_"):
+        return ART / "tiles" / "facades" / filename, (48, 48), True
+    if n.startswith("room_"):
+        return ART / "rooms" / filename, (128, 128), True
+    if n.startswith("hud_") or n.startswith("gate_") or n.startswith("selection_"):
+        size = (24, 24) if n.startswith("gate_") else (48, 48) if n.startswith("selection_") else (192, 64)
+        return ART / "hud" / filename, size, True
+    return ART / "tiles" / "base" / filename, (48, 48), True
 
 
 def main() -> None:
-    for p in TARGET_DIRS.values():
-        p.mkdir(parents=True, exist_ok=True)
     INPUT.mkdir(parents=True, exist_ok=True)
+    (ART / "lights").mkdir(parents=True, exist_ok=True)
     gpl = create_gpl_palette(ART / "ravenstack_palette.gpl")
     print(f"Palette: {gpl}")
 
     raw = list(INPUT.glob("*.png")) + list(INPUT.glob("*.jpg"))
     if not raw:
-        print(f"No images in {INPUT} — drop Imagine PNGs there, then re-run.")
-        print("Or run: python3 scripts/generate_keep_art.py")
+        print(f"No images in {INPUT} — drop Imagine/Gemini PNGs there.")
+        print("Or: python3 scripts/generate_keep_art.py")
         return
 
+    known = (
+        "agent_",
+        "chip_",
+        "glow_",
+        "light_",
+        "prop_",
+        "tile_",
+        "facade_",
+        "room_",
+        "hud_",
+        "gate_",
+        "selection_",
+    )
     for img_path in raw:
-        out, size = route_size(img_path.name)
-        quantize_and_resize(img_path, out, size)
-        aseprite = shutil.which("aseprite")
-        if aseprite:
-            try:
-                subprocess.run(
-                    [aseprite, "-b", str(out), "--palette", str(gpl), "--save-as", str(out)],
-                    check=True,
-                    capture_output=True,
-                )
-            except subprocess.CalledProcessError:
-                pass
+        dest = img_path.stem + ".png"
+        if not dest.lower().startswith(known):
+            print(f"  skip {img_path.name} (name must start with agent_/prop_/tile_/glow_/…)")
+            continue
+        out, size, quant = route(dest)
+        resize_nn(img_path, out, size, quantize=quant)
 
-    build_phaser3_spritesheet()
-    print("Done.")
+    print("Done. Rebuild UI dist if you ship to :8120.")
 
 
 if __name__ == "__main__":

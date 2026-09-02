@@ -342,6 +342,8 @@ def _resolve_spatial_room(
     """Map Spec room ids (oracle, clawforge) onto spatial rooms when needed."""
     aliases = {
         "oracle": "library",
+        "scribe": "library",
+        "scribe-warden": "library",
         "clawforge": "alchemy-lab",
         "clawforge-anvil": "alchemy-lab",
         "orchestrator": "great-hall",

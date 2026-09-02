@@ -186,6 +186,42 @@ If `format=markdown`, `spec` may be a string body of `agents/<id>.md` instead of
 
 ---
 
+## 6. `report_presence` (visual command layer)
+
+**Purpose:** Spatial presence for Phaser sprites — room + state + short task + sprite_hint.
+
+### Input
+| Field | Type | Required |
+|-------|------|----------|
+| room_id | string | yes |
+| state | agent state enum | yes |
+| task_summary | string | no |
+| sprite_hint | string | no (e.g. `oracle`, `raziel`) |
+| agent_id | string | no (defaults to room occupant) |
+
+### Notes
+- Writes `agent_status` (incl. room_id, sprite_hint) and room status_summary.
+- **Never invent work.** Human gates still require separate approve_spec / unlock_room with confirm=true.
+- HTTP: `POST /api/report-presence`
+
+## 7. `list_agent_specs`
+
+Lists on-disk specs: id, status, room_id, path. Filter optional `status`.
+
+## 8. `get_room`
+
+Alias of `get_room_status` for UI/agent clients.
+
+## Arcane Library Spatial Compactor
+
+| Tool | Purpose |
+|------|---------|
+| `trigger_spatial_compaction` | 85% token threshold → archive low spatial-relevance context, vault note, vectors |
+| `get_compaction_history` | Recent compaction events |
+| `query_spatial_memory` | Spatially biased search over archived summaries |
+
+See [docs/ARCANE-LIBRARY-COMPACTOR.md](docs/ARCANE-LIBRARY-COMPACTOR.md).
+
 ## Explicitly deferred (not Phase 1)
 
 | Tool | Phase |

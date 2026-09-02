@@ -167,12 +167,31 @@ def sync_openclaw_status(
         else:
             state, task = _map_session_to_state(entry, now)
 
-        # Avoid write storms: only write if changed
+        # Avoid write storms: only write if changed.
+        # Do not touch room_id — presence walks are owned by report_presence.
         with keep._connect() as conn:
             cur = conn.execute(
-                "SELECT state, task FROM agent_status WHERE agent_id = ?",
+                "SELECT state, task, detail, room_id FROM agent_status WHERE agent_id = ?",
                 (keep_id,),
             ).fetchone()
+            # Skip overwrite if a recent presence report holds a non-home room
+            # (agent is mid-walk / away) unless OpenClaw says working/failed.
+            if cur and cur["detail"] and str(cur["detail"]).startswith("presence:"):
+                if state in ("idle",) and cur["room_id"] and cur["room_id"] != "great-hall":
+                    # Keep visual presence task until tour/presence clears
+                    if cur["state"] in ("working", "answering", "idle"):
+                        age_ok = True  # presence detail is sticky for map walks
+                        if age_ok and cur["state"] != "failed":
+                            results.append(
+                                {
+                                    "openclaw": oc_id,
+                                    "keep": keep_id,
+                                    "state": cur["state"],
+                                    "skipped": "presence_override",
+                                    "room_id": cur["room_id"],
+                                }
+                            )
+                            continue
             if cur and cur["state"] == state and (cur["task"] or "") == task:
                 results.append(
                     {
@@ -190,6 +209,7 @@ def sync_openclaw_status(
             task=task[:200],
             session_id=str((entry or {}).get("sessionId") or "") or None,
             detail="sync:openclaw_session",
+            # room_id intentionally omitted — preserves walk destination
         )
         payload = json.loads(raw)
         results.append(

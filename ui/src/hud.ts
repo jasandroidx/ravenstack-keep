@@ -1,5 +1,6 @@
 import type { CastleMapResponse, Gate, RoomChip } from "./types";
 import { approveSpec, unlockRoom } from "./api";
+import { keepAudio } from "./audio";
 
 export interface HudCallbacks {
   onRefresh: () => void;
@@ -29,13 +30,24 @@ export class Hud {
     });
   }
 
-  setSource(source: "api" | "seed", sot?: string) {
-    this.sourceEl.textContent =
-      source === "api"
-        ? `LIVE · SOT ${sot || "CANONICAL"}`
-        : `SEED FALLBACK · API offline`;
-    this.sourceEl.className =
-      source === "api" ? "pill pill-live" : "pill pill-warn";
+  setSource(
+    source: "api" | "seed",
+    sot?: string,
+    opts?: { envelopeStale?: boolean; generatedAge?: string | null },
+  ) {
+    if (source !== "api") {
+      this.sourceEl.textContent = `SEED FALLBACK · API offline`;
+      this.sourceEl.className = "pill pill-warn";
+      return;
+    }
+    if (opts?.envelopeStale) {
+      const age = opts.generatedAge ? ` · ${opts.generatedAge}` : "";
+      this.sourceEl.textContent = `STALE${age}`;
+      this.sourceEl.className = "pill pill-stale";
+      return;
+    }
+    this.sourceEl.textContent = `LIVE · SOT ${sot || "CANONICAL"}`;
+    this.sourceEl.className = "pill pill-live";
   }
 
   /** Keep room list for gate → room selection. */
@@ -47,17 +59,91 @@ export class Hud {
     this.gates = gates;
     this.renderGates();
     this.setGateVignette(gates.length > 0);
+    this.renderForgeFlow();
   }
 
   setSelectedRoom(room: RoomChip | null) {
     this.selected = room;
     this.renderDetail();
     this.highlightGateForRoom(room);
+    this.renderForgeFlow();
+  }
+
+  /** Clawforge visual loop — always human-gated (item 4). */
+  renderForgeFlow() {
+    let el = document.getElementById("forge-flow");
+    if (!el) {
+      const host = document.getElementById("hud");
+      if (!host) return;
+      el = document.createElement("section");
+      el.id = "forge-flow-section";
+      el.innerHTML = `<h2>Clawforge loop</h2><div id="forge-flow" class="forge-flow"></div>`;
+      const gates = host.querySelector("section");
+      if (gates?.nextSibling) host.insertBefore(el, gates.nextSibling);
+      else host.appendChild(el);
+    }
+    const box = document.getElementById("forge-flow");
+    if (!box) return;
+
+    const forgeGate = this.gates.find(
+      (g) =>
+        g.gate_type === "approve_spec" &&
+        (g.subject_id === "clawforge" || g.subject_id.includes("claw")),
+    );
+    const room =
+      this.rooms.find((r) => r.room_id === "alchemy-lab") ||
+      this.rooms.find((r) => r.occupant_agent_id === "clawforge");
+    const spec = room?.spec_status;
+    const unlocked = room?.lock_state === "live";
+
+    const stages: Array<{ id: string; label: string; cls: string }> = [
+      { id: "idea", label: "Idea / need", cls: "done" },
+      {
+        id: "draft",
+        label: "Agent Spec draft",
+        cls:
+          spec === "draft" || spec === "approved" || spec === "live"
+            ? "done"
+            : "active",
+      },
+      {
+        id: "gate",
+        label: "Human Gate · APPROVE_SPEC",
+        cls: forgeGate
+          ? "active"
+          : spec === "approved" || spec === "live"
+            ? "done"
+            : "locked",
+      },
+      {
+        id: "provision",
+        label: "Provision (spec approved)",
+        cls: spec === "approved" || spec === "live" ? "done" : "locked",
+      },
+      {
+        id: "unlock",
+        label: "Room unlock (Alchemy Lab)",
+        cls: unlocked ? "done" : spec === "approved" ? "active" : "locked",
+      },
+    ];
+
+    box.innerHTML = `
+      <p class="muted" style="margin:0 0 0.35rem;font-size:0.68rem">
+        Never auto-executes. Hard gate stays human.
+      </p>
+      <ol>
+        ${stages
+          .map((s) => `<li class="${s.cls}">${escapeHtml(s.label)}</li>`)
+          .join("")}
+      </ol>
+    `;
   }
 
   toast(msg: string, kind: "ok" | "err" = "ok") {
     this.toastEl.textContent = msg;
     this.toastEl.className = `toast toast-${kind} show`;
+    if (kind === "ok") keepAudio.sfxSuccess();
+    else keepAudio.sfxError();
     window.setTimeout(() => {
       this.toastEl.classList.remove("show");
     }, 4000);

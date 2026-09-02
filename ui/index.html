@@ -8,14 +8,48 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
   </head>
   <body>
+    <div id="boot-banner" class="boot-banner" role="status">
+      Keep URL must be <strong>:8120</strong> (not :8443 Office).
+      Hard-refresh if blank after deploy (Ctrl+Shift+R).
+      <span id="boot-error"></span>
+    </div>
     <div id="app">
       <header class="app-bar">
         <h1>Ravenstack Keep</h1>
         <span id="data-source" class="pill">…</span>
         <button type="button" id="btn-refresh">Refresh</button>
+        <button type="button" id="btn-wake-castle" class="btn-wake" title="Wake agents with live presence + pipe-walk — proof the Keep is alive">⚡ Wake</button>
+        <button type="button" id="btn-agent-tour" title="Send Raziel walking the cyan pipes">🚶 Tour</button>
+        <button type="button" id="btn-arcane-compact" title="Arcane Library spatial compaction (manual)">✧ Compact</button>
         <span id="map-meta"></span>
+        <div class="audio-controls" role="group" aria-label="Audio">
+          <button type="button" id="btn-audio-toggle" title="Mute / unmute music &amp; SFX">♪</button>
+          <label class="audio-slider" title="Music volume">
+            <span>Mus</span>
+            <input type="range" id="music-vol" min="0" max="100" value="35" />
+          </label>
+          <label class="audio-slider" title="SFX volume">
+            <span>Sfx</span>
+            <input type="range" id="sfx-vol" min="0" max="100" value="55" />
+          </label>
+        </div>
       </header>
-      <div id="game" aria-label="Castle map"></div>
+      <div id="game" aria-label="Castle map">
+        <!-- Always-visible room list (works even if Phaser/WebGL is black) -->
+        <div id="room-fallback" class="room-fallback" aria-label="Room list fallback">
+          <p class="room-fallback-title">Rooms (live API)</p>
+          <div id="room-fallback-list" class="room-fallback-list">Loading rooms…</div>
+        </div>
+        <div class="zoom-controls" role="group" aria-label="Map zoom">
+          <button type="button" id="btn-zoom-in" title="Zoom in (wheel / +)">+</button>
+          <button type="button" id="btn-zoom-out" title="Zoom out (wheel / −)">−</button>
+          <button type="button" id="btn-zoom-reset" title="Reset view (0)">⌂</button>
+          <span id="zoom-level" class="zoom-level" title="Current zoom">1.0×</span>
+        </div>
+        <div id="map-status-bar" class="map-status-bar" role="status" aria-live="polite">
+          <span id="map-status-text" class="map-status-text">Select a room · arrows/WASD pan · wheel zoom</span>
+        </div>
+      </div>
       <aside id="hud">
         <section>
           <h2>Human gates</h2>
@@ -26,11 +60,15 @@
           <div id="room-detail"><p class="muted">Click a room on the map (or a gate card).</p></div>
         </section>
         <section>
-          <h2>Notes</h2>
-          <p class="muted">
-            Approvals also work from Grok chat via Keep MCP
-            (<code>approve_spec</code> / <code>unlock_room</code> with
-            <code>confirm=true</code>). Map never invents agent work.
+          <h2>How to command</h2>
+          <p class="muted controls-help">
+            <strong>Wake</strong> ⚡ — live presence + Raziel pipe-walk (start here)<br />
+            <strong>Roster</strong> bottom strip — click agent → enter chamber<br />
+            <strong>Chamber</strong> room click → “Enter chamber” — dispatch / gates / orders<br />
+            <strong>Esc</strong> exit chamber · <strong>Tour</strong> pipe-walk only<br />
+            <strong>Move</strong> arrows/WASD · <strong>Zoom</strong> wheel<br />
+            Wrong URL trap: <code>:8443</code> is Office dashboard, not Phaser Keep.<br />
+            Orders are local pins. Live tasks only from agents/MCP.
           </p>
         </section>
       </aside>
