@@ -7,7 +7,8 @@ import { getKeepSnapshot } from "@/lib/keep/server";
 import type { KeepPulse } from "@/lib/keep/pulse";
 import { hallAudio } from "@/lib/hall/audio";
 import { WarTablePanel } from "@/components/keep/war-table-panel";
-import { listQuarantine } from "@/lib/keep/server";
+import { getHallState, listQuarantine } from "@/lib/keep/server";
+import { pickBark, type HallState } from "@/lib/hall/barks";
 import { FastMCPStatusBadge } from "@/components/keep/fastmcp-status-badge";
 import { toast } from "sonner";
 
@@ -20,12 +21,17 @@ export function KeepHall() {
     scale: { resize: (w: number, h: number) => void; stopListeners?: () => void };
   } | null>(null);
   const sceneRef = useRef<HallScene | null>(null);
+  const hallStateRef = useRef<HallState | null>(null);
   const [zone, setZone] = useState("Great Hall");
   const [lock, setLock] = useState("live");
   const [near, setNear] = useState<HallNpc | null>(null);
   const [atTable, setAtTable] = useState(false);
   const [talk, setTalk] = useState<HallNpc | null>(null);
   const [tableOpen, setTableOpen] = useState(false);
+  const [hallState, setHallState] = useState<HallState | null>(null);
+  // Chosen once per conversation. pickBark spends a line from the pool, so it
+  // must not run on every render or the greeting would reroll mid-sentence.
+  const [bark, setBark] = useState<string | null>(null);
   const [wardrobeOpen, setWardrobeOpen] = useState(false);
   const [activeSkin, setActiveSkin] = useState("ravenlord");
   const [pulse, setPulse] = useState<KeepPulse | null>(null);
@@ -76,6 +82,7 @@ export function KeepHall() {
             setAtTable(table);
           },
           onTalk: (npc) => {
+            setBark(pickBark(npc.id, hallStateRef.current));
             setTalk(npc);
             setTableOpen(false);
           },
@@ -152,6 +159,30 @@ export function KeepHall() {
   }, []);
 
   useEffect(() => {
+  // One read of what the Keep can actually see, refreshed as you play. NPC
+  // greetings are templated over these fields — never over anything guessed.
+  useEffect(() => {
+    let alive = true;
+    const load = () =>
+      getHallState()
+        .then((s) => {
+          if (!alive) return;
+          const next = { ...s, hour: new Date().getHours() };
+          hallStateRef.current = next;
+          setHallState(next);
+        })
+        .catch(() => {
+          /* Unreadable. hallState stays null and every NPC falls back to its
+             written greeting rather than narrating a night it cannot see. */
+        });
+    load();
+    const t = setInterval(load, 90000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, []);
+
   // The Inquisitor watches the cell. Open quarantine records colour the eye
   // the moment you walk in — you learn a model lied before you ask it anything.
   //
@@ -380,7 +411,10 @@ export function KeepHall() {
               className="pointer-events-auto rounded-sm bg-[#2de2e6] px-3.5 py-2 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-[#0b0e14] shadow-[0_0_15px_rgba(45,226,230,0.4)] transition hover:bg-[#2de2e6]/90"
               onClick={() => {
                 hallAudio.playInteract();
-                if (near) setTalk(near);
+                if (near) {
+                  setBark(pickBark(near.id, hallStateRef.current));
+                  setTalk(near);
+                }
                 else setTableOpen(true);
               }}
             >
@@ -393,6 +427,7 @@ export function KeepHall() {
       {talk ? (
         <TalkSheet
           npc={talk}
+          greetingOverride={bark ?? undefined}
           currentSkinId={activeSkin}
           onSelectSkin={(skinId) => {
             setActiveSkin(skinId);

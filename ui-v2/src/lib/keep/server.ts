@@ -6,7 +6,7 @@ import { ARCHITECTURE, KNOWLEDGE, ROOMS, SKILL_SURFACE, SPECS, getRoom, getSpecF
 import { fetchKeepPulse } from "./pulse";
 import { executeFastMCPTool, type FastMCPToolCall } from "./fastmcp";
 import { noGates, parseGates } from "./gates";
-import { parseStackHealth, unreadTower } from "./health";
+import { failing, parseStackHealth, unreadTower } from "./health";
 import type { CommissionRequest, LoreRerollRequest, PortraitItem } from "@/lib/gallery/types";
 import type { DraftSpec, TableResult } from "./types";
 
@@ -509,6 +509,37 @@ export const rerollPortraitLoreServer = createServerFn({ method: "POST" })
     });
     return { ok: true as const, lore: loreRes.lore };
   });
+
+/**
+ * One read for everything the hall's greetings key off. Each field is
+ * independently nullable: a subsystem that could not be read stays null and
+ * the NPCs fall back to their written lines rather than narrating a night
+ * they cannot see.
+ */
+export const getHallState = createServerFn({ method: "POST" }).handler(async () => {
+  const [gates, health] = await Promise.all([getPendingGates(), getStackHealth()]);
+
+  let quarantineOpen: number | null = null;
+  let quarantineClaim: string | null = null;
+  try {
+    const sql = await getSql();
+    const rows = await sql<{ claim: string }>`
+      select claim from quarantine_claims where status = 'open' order by id desc limit 50
+    `;
+    quarantineOpen = rows.length;
+    quarantineClaim = rows[0]?.claim ?? null;
+  } catch {
+    /* Not signed in, or the table is unreadable. Stays null. */
+  }
+
+  return {
+    gatesPending: gates.ok ? gates.gates.length : null,
+    quarantineOpen,
+    quarantineClaim,
+    stackVerdict: health.ok ? health.verdict : null,
+    failingServices: health.ok ? failing(health).map((f) => f.name) : [],
+  };
+});
 
 export const callFastMCP = createServerFn({ method: "POST" })
   .validator((input: { tool: FastMCPToolCall["tool"]; params?: Record<string, unknown> }) => input)

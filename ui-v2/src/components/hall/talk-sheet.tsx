@@ -32,12 +32,16 @@ type ReactionEmote = {
 };
 
 export function TalkSheet({
+  greetingOverride,
   npc,
   onClose,
   onTable,
   currentSkinId = "ravenlord",
   onSelectSkin,
 }: {
+  /** Reactive line for this visit, keyed to real Keep state. Falls back to
+   *  the character's written greeting when nothing matched. */
+  greetingOverride?: string;
   npc: HallNpc;
   onClose: () => void;
   onTable?: () => void;
@@ -47,7 +51,8 @@ export function TalkSheet({
   const { user } = useCurrentUserState();
   const [tab, setTab] = useState<"chat" | "armor">("chat");
   const [activeSkin, setActiveSkin] = useState<string>(currentSkinId);
-  const [fullLine, setFullLine] = useState(npc.greeting);
+  const greeting = greetingOverride ?? npc.greeting;
+  const [fullLine, setFullLine] = useState(greeting);
   const [displayedLine, setDisplayedLine] = useState("");
   const [isTyping, setIsTyping] = useState(true);
   const [input, setInput] = useState("");
@@ -60,7 +65,7 @@ export function TalkSheet({
       id: "greeting",
       sender: "npc",
       senderName: npc.name,
-      text: npc.greeting,
+      text: greeting,
       time: "INIT",
       emotion: "neutral",
     },
