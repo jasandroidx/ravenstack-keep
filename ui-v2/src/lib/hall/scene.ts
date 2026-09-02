@@ -25,6 +25,8 @@ export type HallEvents = {
   onTalk: (npc: HallNpc) => void;
   onTable: () => void;
   onSkinChange?: (skinId: string) => void;
+  /** Player stepped into the Quarantine Cell. */
+  onEnterCell?: () => void;
 };
 
 /** Slicing dimensions in PNG source (128x160 -> 4x4 grid of 32x40) */
@@ -356,8 +358,15 @@ export class HallScene extends Phaser.Scene {
     if (this.input.keyboard) {
       this.cursors = this.input.keyboard.createCursorKeys();
       this.wasd = this.input.keyboard.addKeys("W,A,S,D") as typeof this.wasd;
-      this.input.keyboard.on("keydown-E", () => this.interact());
-      this.input.keyboard.on("keydown-SPACE", () => this.interact());
+      this.input.keyboard.on("keydown-E", () => {
+        if (this.tableauOpen) this.closeTableau();
+        else this.interact();
+      });
+      this.input.keyboard.on("keydown-SPACE", () => {
+        if (this.tableauOpen) this.closeTableau();
+        else this.interact();
+      });
+      this.input.keyboard.on("keydown-ESC", () => this.closeTableau());
     }
 
     this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
@@ -533,6 +542,10 @@ export class HallScene extends Phaser.Scene {
   private seals: Phaser.GameObjects.Arc[] = [];
   /** Dust that accumulates in rooms you stop visiting. */
   private dust = new Map<string, Phaser.GameObjects.Particles.ParticleEmitter>();
+  /** Objects staged for the quarantine tableau. Cleared when it closes. */
+  private tableau: Array<Phaser.GameObjects.Rectangle | Phaser.GameObjects.Text> = [];
+  private tableauFx: Phaser.FX.ColorMatrix | null = null;
+  public tableauOpen = false;
   private freezeMs = 0;
   private wasMoving = false;
 
@@ -698,6 +711,109 @@ export class HallScene extends Phaser.Scene {
       emitter.setDepth(19);
       this.dust.set(zone.id, emitter);
     }
+  }
+
+  /**
+   * The quarantine tableau.
+   *
+   * Walking into the cell freezes the keep into a monochrome staging of the
+   * moment a model lied — the question asked, the claim made, and the evidence
+   * it was checked against, arranged around you as objects. Nothing is
+   * captioned or explained; you reconstruct it, the way Obra Dinn makes you
+   * reconstruct a death from a frozen room.
+   *
+   * The evidence panel says "nothing was retrieved" out loud when the set was
+   * empty, because an empty frame reads as missing data rather than as the
+   * finding it actually is.
+   */
+  public openTableau(claim: string, prompt: string | null, evidence: string, when: string) {
+    if (this.tableauOpen) return;
+    this.tableauOpen = true;
+    this.paused = true;
+
+    const cam = this.cameras.main;
+    this.tableauFx = cam.postFX.addColorMatrix();
+    this.tableauFx.blackWhite();
+
+    // scrollFactor(0) puts this in screen space, so it is positioned by camera
+    // size — not by scroll offset. Oversized so a mid-tableau resize cannot
+    // uncover a corner.
+    const shroud = this.add
+      .rectangle(cam.width / 2, cam.height / 2, cam.width * 1.5, cam.height * 1.5, 0x05020d, 0.88)
+      .setDepth(40)
+      .setScrollFactor(0);
+
+    const mono = (y: number, text: string, size: number, color: string, alpha = 1) =>
+      this.add
+        .text(cam.width / 2, y, text, {
+          fontFamily: "monospace",
+          fontSize: `${size}px`,
+          color,
+          align: "center",
+          wordWrap: { width: Math.min(760, cam.width - 120) },
+        })
+        .setOrigin(0.5, 0)
+        .setDepth(41)
+        .setScrollFactor(0)
+        .setAlpha(alpha);
+
+    // Rectangle and Text both carry setAlpha, so the fade below is type-safe.
+    const items: Array<Phaser.GameObjects.Rectangle | Phaser.GameObjects.Text> = [shroud];
+    // Clear of the HUD strip along the top.
+    let y = 132;
+
+    items.push(mono(y, "THE MOMENT IT LIED", 14, "#ffffff"));
+    y += 34;
+    items.push(mono(y, new Date(when).toLocaleString(), 11, "#9aa3b2"));
+    y += 44;
+
+    if (prompt) {
+      items.push(mono(y, "ASKED", 10, "#9aa3b2"));
+      y += 20;
+      items.push(mono(y, prompt, 13, "#e8ecf1"));
+      y += 56;
+    }
+
+    items.push(mono(y, "CLAIMED", 10, "#9aa3b2"));
+    y += 20;
+    items.push(mono(y, claim.slice(0, 420), 14, "#e8ecf1"));
+    y += 90;
+
+    items.push(mono(y, "CHECKED AGAINST", 10, "#9aa3b2"));
+    y += 20;
+    items.push(
+      mono(
+        y,
+        evidence.trim() ? evidence.slice(0, 300) : "nothing — the answer was given against an empty retrieval set",
+        12,
+        // The camera is desaturated, so the "no evidence" case is distinguished
+        // by being the brightest thing on screen rather than by being red.
+        evidence.trim() ? "#9aa3b2" : "#ffffff",
+      ),
+    );
+
+    items.push(mono(cam.height - 104, "[E] or [ESC] to step back", 11, "#9aa3b2", 0.7));
+
+    for (const item of items) {
+      item.setAlpha(0);
+      this.tweens.add({ targets: item, alpha: item === shroud ? 0.88 : 1, duration: 700, ease: "Sine.easeInOut" });
+    }
+    this.tableau = items;
+    this.cameras.main.shake(220, 0.003);
+  }
+
+  public closeTableau() {
+    if (!this.tableauOpen) return;
+    this.tableauOpen = false;
+    this.paused = false;
+    if (this.tableauFx) {
+      // Remove only the tableau's own effect — postFX.clear() would take the
+      // camera vignette with it.
+      this.cameras.main.postFX.remove(this.tableauFx as unknown as Phaser.FX.Controller);
+      this.tableauFx = null;
+    }
+    for (const item of this.tableau) item.destroy();
+    this.tableau = [];
   }
 
   public hitPause(ms = 100) {
@@ -1015,6 +1131,8 @@ export class HallScene extends Phaser.Scene {
       // Walking in clears the dust. Decay is measured from the last time you
       // actually stood in the room, not from when you last opened the app.
       if (zone) this.markVisited(zone.id);
+      // Entering the cell with something unresolved on file stages it.
+      if (zone?.id === "quarantine") this.eventsOut.onEnterCell?.();
     }
 
     // NPC Interaction Prompt
