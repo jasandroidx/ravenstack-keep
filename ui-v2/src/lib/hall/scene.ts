@@ -7,6 +7,8 @@ import {
   MAP_W,
   PALETTE,
   PLAYER_SPAWN,
+  SOLID,
+  ZONES,
   RAVENLORD_SKINS,
   npcAtPoint,
   npcNear,
@@ -36,6 +38,8 @@ const NPC_W = 54;
 const NPC_H = 68;
 
 type Facing = "down" | "up" | "left" | "right";
+
+const VISITS_KEY = "ravenstack.keep.visits";
 
 const TRUTH_PROVERBS = [
   "TRUTH OVER COMFORT.",
@@ -256,6 +260,13 @@ export class HallScene extends Phaser.Scene {
     this.oracleEye = this.add.image(oracle.x, oracle.y - 14, "oracle-eye").setOrigin(0.5, 0.5).setDepth(9);
     this.oracleEye.setDisplaySize(68, 68);
 
+    // Iris and pupil as their own objects so the gaze can lag behind the eye.
+    // A pupil that snaps to the player reads mechanical; one that drags reads
+    // like something deciding whether to look at you.
+    this.oracleIris = this.add.circle(oracle.x, oracle.y - 14, 11, 0x39ff14, 0.9).setDepth(10);
+    this.oraclePupil = this.add.circle(oracle.x, oracle.y - 14, 5, 0x05020d, 0.95).setDepth(11);
+    this.irisPos = { x: oracle.x, y: oracle.y - 14 };
+
     // Dark Iron Arcane Chains Anchoring the Eye
     const chainAnchors = [
       { x: oracle.x - 140, y: oracle.y - 160 },
@@ -336,6 +347,7 @@ export class HallScene extends Phaser.Scene {
     this.applyTimeOfDay();
 
     this.cameras.main.postFX.addVignette(0.5, 0.5, 0.75, 0.4);
+    this.applyDecay(this.neglectByZone());
 
     this.cameras.main.startFollow(this.player, true, 0.09, 0.09);
     this.cameras.main.setDeadzone(200, 130);
@@ -511,6 +523,16 @@ export class HallScene extends Phaser.Scene {
   private lightBase: number[] = [];
   /** Full-screen tint that carries time of day. */
   private daylight!: Phaser.GameObjects.Rectangle;
+  /** Iris drawn over the eye sprite, tracking the player with deliberate lag. */
+  private oracleIris!: Phaser.GameObjects.Arc;
+  private oraclePupil!: Phaser.GameObjects.Arc;
+  private irisPos = { x: 0, y: 0 };
+  /** True while the Oracle is working. A watcher that stops blinking unsettles. */
+  private oracleThinking = false;
+  /** Wax seals left on the war table, one per gate sealed. Never cleared. */
+  private seals: Phaser.GameObjects.Arc[] = [];
+  /** Dust that accumulates in rooms you stop visiting. */
+  private dust = new Map<string, Phaser.GameObjects.Particles.ParticleEmitter>();
   private freezeMs = 0;
   private wasMoving = false;
 
@@ -541,6 +563,141 @@ export class HallScene extends Phaser.Scene {
               ? 0xffd9a8 // dusk, warm
               : 0x8f97bd; // evening
     this.daylight.setFillStyle(wash, 1);
+  }
+
+  /** Tell the eye it is working, so it stops blinking until told otherwise. */
+  public setOracleThinking(thinking: boolean) {
+    this.oracleThinking = thinking;
+    if (!thinking) this.blinkTimer = 900;
+  }
+
+  /**
+   * A gate was sealed. The world keeps the trace — permanence, per Nijman #12:
+   * a wax seal is pressed onto the war table and stays there. Sealing an
+   * approval should leave the room different than it was.
+   *
+   * `total` is the running count, so seals restored on load land in the same
+   * positions they were pressed.
+   */
+  public pressSeal(total: number) {
+    const table = SOLID[0];
+    const idx = Math.max(0, total - 1);
+    // Deterministic scatter across the table surface — same index, same spot.
+    const gx = idx % 6;
+    const gy = Math.floor(idx / 6) % 4;
+    const jitter = ((idx * 2654435761) % 100) / 100 - 0.5;
+    const x = table.x + 26 + gx * 30 + jitter * 9;
+    const y = table.y + 26 + gy * 34 + jitter * 7;
+
+    // Big enough and bright enough to read against painted stone at play zoom.
+    // A seal you cannot see is not a record of anything.
+    const seal = this.add.circle(x, y, 12, 0xff2a6d, 0.95).setDepth(15);
+    seal.setStrokeStyle(3, 0xffc857, 0.95);
+    this.seals.push(seal);
+
+    // The press itself: freeze, then the seal settles.
+    this.hitPause(120);
+    seal.setScale(2.6).setAlpha(0);
+    this.tweens.add({ targets: seal, scale: 1, alpha: 0.85, duration: 320, ease: "Back.easeOut" });
+    this.cameras.main.shake(90, 0.0025);
+  }
+
+  /** Restore seals pressed in earlier sessions, without the animation. */
+  public restoreSeals(count: number) {
+    for (let i = this.seals.length; i < count; i++) {
+      const before = this.freezeMs;
+      this.pressSeal(i + 1);
+      this.freezeMs = before;
+      const seal = this.seals[this.seals.length - 1];
+      this.tweens.killTweensOf(seal);
+      seal.setScale(1).setAlpha(0.8);
+    }
+  }
+
+  /**
+   * Decay. A room you have not walked into in days gathers dust, and the dust
+   * is visible from the doorway.
+   *
+   * This is the one signal in the Keep that a dashboard genuinely cannot
+   * produce: walking into a filthy Library because the vault has not been
+   * synced in three weeks lands in a way a "last sync: 21d" row never will.
+   *
+   * @param neglect zone id -> days since you were last in it
+   */
+  /** Stamp a room as visited now, and clear whatever dust it had gathered. */
+  public markVisited(zoneId: string) {
+    try {
+      const raw = localStorage.getItem(VISITS_KEY);
+      const visits: Record<string, number> = raw ? JSON.parse(raw) : {};
+      visits[zoneId] = Date.now();
+      localStorage.setItem(VISITS_KEY, JSON.stringify(visits));
+    } catch {
+      /* Storage blocked. Decay just never accrues, which is the safe default. */
+    }
+    const dust = this.dust.get(zoneId);
+    if (dust) {
+      this.tweens.add({
+        targets: dust,
+        alpha: 0,
+        duration: 900,
+        onComplete: () => dust.destroy(),
+      });
+      this.dust.delete(zoneId);
+    }
+  }
+
+  /** Days since each room was last entered, for applyDecay. */
+  public neglectByZone(): Record<string, number> {
+    let visits: Record<string, number> = {};
+    try {
+      visits = JSON.parse(localStorage.getItem(VISITS_KEY) ?? "{}");
+    } catch {
+      return {};
+    }
+    const out: Record<string, number> = {};
+    for (const zone of ZONES) {
+      const last = visits[zone.id];
+      // Never visited is not neglect — the room has simply never been opened.
+      if (!last) continue;
+      out[zone.id] = (Date.now() - last) / 86_400_000;
+    }
+    return out;
+  }
+
+  public applyDecay(neglect: Record<string, number>) {
+    for (const zone of ZONES) {
+      const days = neglect[zone.id] ?? 0;
+      const existing = this.dust.get(zone.id);
+      // Under two days is just a room you were in recently. No dust.
+      const density = Math.min(1, Math.max(0, (days - 2) / 12));
+
+      if (density <= 0) {
+        existing?.destroy();
+        this.dust.delete(zone.id);
+        continue;
+      }
+
+      if (existing) {
+        existing.setQuantity(Math.ceil(density * 3));
+        continue;
+      }
+
+      const emitter = this.add.particles(0, 0, "__WHITE", {
+        x: { min: zone.rect.x, max: zone.rect.x + zone.rect.w },
+        y: { min: zone.rect.y, max: zone.rect.y + zone.rect.h },
+        lifespan: 9000,
+        speedY: { min: -5, max: 5 },
+        speedX: { min: -4, max: 4 },
+        scale: { start: 0.9, end: 0 },
+        alpha: { start: 0.16 * density, end: 0 },
+        quantity: Math.ceil(density * 3),
+        frequency: 900,
+        blendMode: Phaser.BlendModes.ADD,
+        tint: 0xb9a88a,
+      });
+      emitter.setDepth(19);
+      this.dust.set(zone.id, emitter);
+    }
   }
 
   public hitPause(ms = 100) {
@@ -670,7 +827,10 @@ export class HallScene extends Phaser.Scene {
 
       // Blink. Idle blinks are quick; a refusal holds the lid shut.
       this.blinkTimer -= delta;
-      if (this.blinkTimer <= 0 && this.lidTarget === 0) {
+      // An eye that stops blinking while it thinks is deeply unsettling, and
+      // costs one boolean.
+      if (this.oracleThinking) this.blinkTimer = 1200;
+      if (!this.oracleThinking && this.blinkTimer <= 0 && this.lidTarget === 0) {
         this.lidTarget = 1;
         this.time.delayedCall(90, () => {
           this.lidTarget = 0;
@@ -686,6 +846,22 @@ export class HallScene extends Phaser.Scene {
       this.oracleHalo?.setPosition(eyeX, eyeY);
       this.oracleGlow?.setScale(dilate * (1 - this.lidClosed * 0.8));
       this.oracleProverbText?.setPosition(eyeX, eyeY - 54);
+
+      // Gaze: target the player, but ease toward it so the look drags.
+      const gazeMax = 13;
+      const tx = eyeX + (dx / dist) * gazeMax * Math.min(1, attention + 0.25);
+      const ty = eyeY + (dy / dist) * gazeMax * Math.min(1, attention + 0.25);
+      const lag = Math.min(1, delta * 0.004);
+      this.irisPos.x += (tx - this.irisPos.x) * lag;
+      this.irisPos.y += (ty - this.irisPos.y) * lag;
+
+      const lidScale = Math.max(0.04, 1 - this.lidClosed);
+      this.oracleIris?.setPosition(this.irisPos.x, this.irisPos.y).setScale(1, lidScale);
+      this.oraclePupil
+        ?.setPosition(this.irisPos.x, this.irisPos.y)
+        // Pupil contracts as you close on it, the way an eye adjusting to a
+        // light source would. Confidence rendered as anatomy.
+        .setScale(1 - attention * 0.35, lidScale * (1 - attention * 0.35));
 
       // Chains stay anchored to the room and follow wherever the eye drifts.
       const ax = this.oracleAnchor.x;
@@ -836,6 +1012,9 @@ export class HallScene extends Phaser.Scene {
       }
       this.lastZone = zkey;
       this.eventsOut.onZone(zone?.name ?? "Keep", zone?.lock ?? "live");
+      // Walking in clears the dust. Decay is measured from the last time you
+      // actually stood in the room, not from when you last opened the app.
+      if (zone) this.markVisited(zone.id);
     }
 
     // NPC Interaction Prompt
