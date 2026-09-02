@@ -307,7 +307,11 @@ export class HallScene extends Phaser.Scene {
     this.player.body.setOffset(6, 26);
     this.player.setPosition(PLAYER_SPAWN.x, PLAYER_SPAWN.y);
 
-    this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
+    // Camera per Scroll Back (Keren, GDC 2015): a low lerp so the keep feels
+    // heavy, a deadzone so idle shuffling does not slosh the world, and
+    // forward focus so entering a room reveals it slightly before you arrive.
+    this.cameras.main.startFollow(this.player, true, 0.09, 0.09);
+    this.cameras.main.setDeadzone(200, 130);
     this.cameras.main.setZoom(1.45);
 
     if (this.input.keyboard) {
@@ -468,6 +472,42 @@ export class HallScene extends Phaser.Scene {
     this.tweens.add({ targets: this.oracleProverbText, scale: 1, duration: 900, ease: "Back.easeOut" });
   }
 
+
+  // ==========================================
+  // GAME FEEL
+  // ==========================================
+
+  /** Frames of frozen time remaining. Drains in update(). */
+  private freezeMs = 0;
+  private wasMoving = false;
+
+  /**
+   * Hit pause (Nijman, The Art of Screenshake, #17). Freeze everything for a
+   * few frames so an action lands with weight. Reserved for events that
+   * actually happened on the box — sealing a gate, a fabrication being
+   * committed — never for navigation.
+   */
+  public hitPause(ms = 100) {
+    this.freezeMs = Math.max(this.freezeMs, ms);
+  }
+
+  /**
+   * Squash and stretch on the player. Called when motion starts and stops so
+   * the Ravenlord has anticipation and follow-through rather than sliding.
+   */
+  private squash(sx: number, sy: number) {
+    if (!this.player) return;
+    this.tweens.killTweensOf(this.player);
+    this.player.setDisplaySize(OP_W * sx, OP_H * sy);
+    this.tweens.add({
+      targets: this.player,
+      displayWidth: OP_W,
+      displayHeight: OP_H,
+      duration: 130,
+      ease: "Back.easeOut",
+    });
+  }
+
   public triggerOracleManifestation(customProverb?: string) {
     if (this.isManifesting) return;
     this.isManifesting = true;
@@ -542,6 +582,14 @@ export class HallScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number) {
+    // Hit pause. Everything stops — player, Oracle, tweens — for the few
+    // frames after a real event, so the event lands instead of scrolling past.
+    if (this.freezeMs > 0) {
+      this.freezeMs -= delta;
+      this.player?.setVelocity(0, 0);
+      return;
+    }
+
     // ==========================================
     // THE ORACLE — a watcher, not a decoration
     // ==========================================
@@ -670,8 +718,14 @@ export class HallScene extends Phaser.Scene {
 
     this.player.setVelocity(finalVx, finalVy);
 
-    // Audio Step Synthesizer Synced with Movement
+    // Anticipation and follow-through: a short stretch as the Ravenlord takes
+    // off, a squash as he plants. Without these he slides rather than walks.
     const isMoving = Math.hypot(finalVx, finalVy) > 10;
+    if (isMoving !== this.wasMoving) {
+      this.squash(isMoving ? 0.94 : 1.07, isMoving ? 1.07 : 0.93);
+      this.wasMoving = isMoving;
+    }
+
     if (isMoving) {
       this.stepTimer += delta;
       if (this.stepTimer > 310) {
