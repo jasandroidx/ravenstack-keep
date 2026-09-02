@@ -165,6 +165,15 @@ export async function executeFastMCPTool<T = unknown>(
       params: { name: tool, arguments: params },
     });
 
+  // A tool call is not a health ping. pending_gates walks the county queue and
+  // the session store; stack_health shells out to docker and systemd. The old
+  // 2s ceiling aborted real work mid-flight and reported it as unreachable,
+  // which is indistinguishable from a dead bridge at the badge.
+  //
+  // A human is waiting on a panel, not a hot path — seconds are affordable,
+  // a wrong "no data" is not. Override with FASTMCP_TIMEOUT_MS.
+  const timeoutMs = Math.max(1000, Number(process.env.FASTMCP_TIMEOUT_MS) || 20000);
+
   const stages: Array<{
     source: "live_funnel" | "live_internal";
     label: string;
@@ -175,13 +184,13 @@ export async function executeFastMCPTool<T = unknown>(
       source: "live_funnel",
       label: "FASTMCP_FUNNEL_URL",
       url: FASTMCP_CONFIG.primaryFunnel ? `${FASTMCP_CONFIG.primaryFunnel.replace(/\/+$/, "")}/mcp` : "",
-      timeoutMs: 3500,
+      timeoutMs,
     },
     {
       source: "live_internal",
       label: "FASTMCP_INTERNAL_URL",
       url: FASTMCP_CONFIG.fallbackInternal,
-      timeoutMs: 2000,
+      timeoutMs,
     },
   ];
 
@@ -225,7 +234,12 @@ export async function executeFastMCPTool<T = unknown>(
         attempts.push(`${stage.label}: HTTP ${res.status}`);
       }
     } catch (err) {
-      attempts.push(`${stage.label}: ${err instanceof Error ? err.message : "unreachable"}`);
+      const aborted = err instanceof Error && /abort/i.test(err.message);
+      attempts.push(
+        `${stage.label}: ${
+          aborted ? `no reply within ${timeoutMs}ms` : err instanceof Error ? err.message : "unreachable"
+        }`,
+      );
     } finally {
       clearTimeout(timeoutId);
     }
