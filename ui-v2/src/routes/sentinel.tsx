@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ARCHITECTURE, SPECS } from "@/lib/keep/catalog";
 import { runInspection } from "@/lib/keep/server";
 import { FastMCPSentinelWorkbench } from "@/components/sentinel/fastmcp-sentinel-workbench";
+import { WatchtowerBeacon } from "@/components/keep/watchtower-beacon";
 
 export const Route = createFileRoute("/sentinel")({ component: SentinelPage });
 
@@ -50,6 +51,17 @@ function SentinelPage() {
       <Link to="/rooms/$slug" params={{ slug: "watchtower" }} className="mt-4 inline-block text-sm text-muted hover:text-fg">
         Full Agent Spec
       </Link>
+
+      {/* The beacon. What the tower can see, and the handoff to the bench. */}
+      <section className="mt-8">
+        <h2 className="font-display text-2xl">Beacon</h2>
+        <p className="mt-1 text-sm text-subtle">
+          Live stack state. The tower watches and names; the workshop repairs.
+        </p>
+        <div className="mt-4">
+          <WatchtowerBeacon />
+        </div>
+      </section>
 
       {/* FastMCP Live Tool Execution Layer (Indiana Ledger & Oracle RAG) */}
       <section className="mt-10">

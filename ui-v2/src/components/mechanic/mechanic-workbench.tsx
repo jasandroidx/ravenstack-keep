@@ -84,9 +84,13 @@ VALERIE IS AT THE BENCH. Ready for Docker dumps, FastMCP telemetry, or engine sc
   },
 ];
 
-export function MechanicWorkbench() {
+/**
+ * @param initialConcern Symptom handed down from the Watchtower beacon.
+ *   Observed state only — Sentinel names what failed, Valerie determines why.
+ */
+export function MechanicWorkbench({ initialConcern }: { initialConcern?: string } = {}) {
   const [messages, setMessages] = useState<TerminalMessage[]>(INITIAL_SYSTEM_MESSAGES);
-  const [concern, setConcern] = useState("");
+  const [concern, setConcern] = useState(initialConcern ?? "");
   const [contextLogs, setContextLogs] = useState("");
   const [showLogDrawer, setShowLogDrawer] = useState(false);
   const [busy, setBusy] = useState(false);

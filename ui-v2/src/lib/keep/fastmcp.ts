@@ -22,6 +22,7 @@ export interface FastMCPToolCall {
     | "oracle_query"
     | "oracle_verify"
     | "pending_gates"
+    | "stack_health"
     // Human gates. These write, and only ever with confirm: true supplied by
     // a deliberate operator action at the war table.
     | "county_queue_approve"

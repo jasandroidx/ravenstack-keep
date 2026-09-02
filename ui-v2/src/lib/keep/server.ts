@@ -6,6 +6,7 @@ import { ARCHITECTURE, KNOWLEDGE, ROOMS, SKILL_SURFACE, SPECS, getRoom, getSpecF
 import { fetchKeepPulse } from "./pulse";
 import { executeFastMCPTool, type FastMCPToolCall } from "./fastmcp";
 import { noGates, parseGates } from "./gates";
+import { parseStackHealth, unreadTower } from "./health";
 import type { DraftSpec, TableResult } from "./types";
 
 export const getKeepSnapshot = createServerFn({ method: "GET" }).handler(async () => {
@@ -401,6 +402,28 @@ export const dismissQuarantine = createServerFn({ method: "POST" })
     `;
     return { ok: true as const };
   });
+
+/**
+ * Watchtower read. A bridge that does not answer leaves the beacon dark, not
+ * green — an unread tower is not a healthy one.
+ */
+export const getStackHealth = createServerFn({ method: "POST" }).handler(async () => {
+  const res = await executeFastMCPTool("stack_health", {});
+  if (!res.ok || res.data == null) {
+    return unreadTower(res.error ?? "FastMCP bridge unreachable. The tower was not read.");
+  }
+  const env = res.data as { result?: unknown; content?: Array<{ text?: string }> };
+  const text =
+    typeof env?.result === "string"
+      ? env.result
+      : typeof env?.content?.[0]?.text === "string"
+        ? (env.content[0].text as string)
+        : typeof res.data === "string"
+          ? (res.data as string)
+          : "";
+  if (!text) return unreadTower("stack_health returned a payload this build could not read.");
+  return parseStackHealth(text);
+});
 
 export const callFastMCP = createServerFn({ method: "POST" })
   .validator((input: { tool: FastMCPToolCall["tool"]; params?: Record<string, unknown> }) => input)

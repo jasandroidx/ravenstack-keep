@@ -5,10 +5,17 @@ import { PLANES, SKILL_SURFACE, SPECS } from "@/lib/keep/catalog";
 import { MechanicWorkbench } from "@/components/mechanic/mechanic-workbench";
 import { FastMCPGatewayStreamer } from "@/components/mechanic/fastmcp-gateway-streamer";
 
-export const Route = createFileRoute("/mechanic")({ component: MechanicPage });
+export const Route = createFileRoute("/mechanic")({
+  // The Watchtower hands a symptom down to the bench. Observed state only.
+  validateSearch: (search: Record<string, unknown>): { symptom?: string } => ({
+    symptom: typeof search.symptom === "string" ? search.symptom : undefined,
+  }),
+  component: MechanicPage,
+});
 
 function MechanicPage() {
   const spec = SPECS.mechanic;
+  const { symptom } = Route.useSearch();
 
   return (
     <KeepShell>
@@ -48,7 +55,7 @@ function MechanicPage() {
       {/* PRIMARY FULL-WIDTH DIAGNOSTIC WORKBENCH (RETRO 16-BIT CRT TERMINAL) */}
       {/* ========================================================================= */}
       <section className="mb-8">
-        <MechanicWorkbench />
+        <MechanicWorkbench initialConcern={symptom} />
       </section>
 
       {/* ========================================================================= */}
