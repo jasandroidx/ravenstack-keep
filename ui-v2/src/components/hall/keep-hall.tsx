@@ -87,6 +87,24 @@ export function KeepHall() {
             setTalk(npc);
             setTableOpen(false);
           },
+          onEnterCell: () => {
+            // Stage the newest unresolved fabrication. Nothing open, nothing
+            // to stage — the cell is not theatre for its own sake.
+            listQuarantine()
+              .then((rows) => {
+                const open = rows.filter((r) => r.status === "open")[0];
+                if (!open) return;
+                sceneRef.current?.openTableau(
+                  open.claim,
+                  open.prompt,
+                  open.evidence,
+                  open.created_at,
+                );
+              })
+              .catch(() => {
+                /* Cell unreadable. No tableau rather than an invented one. */
+              });
+          },
           onTable: () => {
             setTalk(null);
             setTableOpen(true);
