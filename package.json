@@ -1,0 +1,14 @@
+{
+  "name": "ravenstack-keep",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "ui-v2"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=ui-v2",
+    "build": "npm run build --workspace=ui-v2",
+    "preview": "npm run preview --workspace=ui-v2",
+    "lint": "npm run lint --workspace=ui-v2"
+  }
+}

@@ -1,12 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
-import { askOracle, conveneTable, diagnoseMechanicWorkbench, forgeSpec, generatePortraitImage, generatePortraitLore, inspectConcern, talkHall } from "./ai";
+import { askOracle, conveneTable, diagnoseMechanicWorkbench, forgeSpec, inspectConcern, talkHall } from "./ai";
 import { ARCHITECTURE, KNOWLEDGE, ROOMS, SKILL_SURFACE, SPECS, getRoom, getSpecForRoom, roomCounts } from "./catalog";
 import { fetchKeepPulse } from "./pulse";
 import { executeFastMCPTool, type FastMCPToolCall } from "./fastmcp";
 import type { DraftSpec, TableResult } from "./types";
-import type { CommissionRequest, LoreRerollRequest, PortraitItem } from "@/lib/gallery/types";
 
 export const getKeepSnapshot = createServerFn({ method: "GET" }).handler(async () => {
   const pulse = await fetchKeepPulse();
@@ -248,90 +247,6 @@ export function parseTableRow(row: { id: number; question: string; result_json: 
     created_at: row.created_at,
   };
 }
-
-export const commissionPortrait = createServerFn({ method: "POST" })
-  .validator((input: CommissionRequest) => input)
-  .handler(async ({ data }) => {
-    if (!data.subjectName?.trim() || !data.arcaneTitle?.trim()) {
-      return { ok: false as const, error: "Subject Name and Arcane Title are required." };
-    }
-
-    // 1. Lore generation pass via Keep Chronicler
-    const loreRes = await generatePortraitLore({
-      subjectName: data.subjectName.trim(),
-      arcaneTitle: data.arcaneTitle.trim(),
-      customModifier: data.customModifier?.trim(),
-      trivia: data.trivia?.trim(),
-    });
-    const lore = loreRes.lore;
-
-    // 2. Image generation pass via Google Imagen 3
-    let imageUrl = "";
-    if (data.uploadedPhotoDataUrl) {
-      const match = data.uploadedPhotoDataUrl.match(/^data:([^;]+);base64,(.+)$/);
-      const mime = match?.[1] || "image/png";
-      const base64 = match?.[2] || data.uploadedPhotoDataUrl;
-      const imgRes = await generatePortraitImage({
-        subjectName: data.subjectName.trim(),
-        arcaneTitle: data.arcaneTitle.trim(),
-        customModifier: data.customModifier?.trim(),
-        photoBase64: base64,
-        mimeType: mime,
-      });
-      if (!imgRes.ok) {
-        return { ok: false as const, error: imgRes.error || "Google Imagen 3 API failed to generate image." };
-      }
-      imageUrl = imgRes.imageUrl;
-    } else {
-      const imgRes = await generatePortraitImage({
-        subjectName: data.subjectName.trim(),
-        arcaneTitle: data.arcaneTitle.trim(),
-        customModifier: data.customModifier?.trim(),
-      });
-      if (!imgRes.ok) {
-        return { ok: false as const, error: imgRes.error || "Google Imagen 3 API failed to generate image." };
-      }
-      imageUrl = imgRes.imageUrl;
-    }
-
-    const item: PortraitItem = {
-      id: `portrait-${Date.now()}-${data.slotNumber}`,
-      slotNumber: data.slotNumber,
-      subjectName: data.subjectName.trim(),
-      arcaneTitle: data.arcaneTitle.trim(),
-      customModifier: data.customModifier?.trim(),
-      trivia: data.trivia?.trim(),
-      imageUrl: imageUrl,
-      thumbnailUrl: imageUrl,
-      lore: lore,
-      createdAt: new Date().toISOString(),
-    };
-
-    // Save to SQL database if available
-    try {
-      const sql = await getSql();
-      await sql`
-        insert into gallery_portraits (user_id, slot_number, subject_name, arcane_title, custom_modifier, trivia, image_url, lore)
-        values ('dev-user', ${item.slotNumber}, ${item.subjectName}, ${item.arcaneTitle}, ${item.customModifier ?? null}, ${item.trivia ?? null}, ${item.imageUrl || 'procedural'}, ${item.lore})
-      `;
-    } catch {
-      // Non-fatal if offline/local
-    }
-
-    return { ok: true as const, portrait: item };
-  });
-
-export const rerollPortraitLoreServer = createServerFn({ method: "POST" })
-  .validator((input: LoreRerollRequest) => input)
-  .handler(async ({ data }) => {
-    const loreRes = await generatePortraitLore({
-      subjectName: data.subjectName.trim(),
-      arcaneTitle: data.arcaneTitle.trim(),
-      customModifier: data.customModifier?.trim(),
-      trivia: data.trivia?.trim(),
-    });
-    return { ok: true as const, lore: loreRes.lore };
-  });
 
 export const callFastMCP = createServerFn({ method: "POST" })
   .validator((input: { tool: FastMCPToolCall["tool"]; params?: Record<string, unknown> }) => input)

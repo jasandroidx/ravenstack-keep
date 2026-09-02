@@ -130,7 +130,7 @@ function authPopupPlugin(): Plugin {
 export default defineConfig(({ command }) => ({
   server: {
     host: "0.0.0.0",
-    port: 8080,
+    port: 3000,
     strictPort: true,
   },
   resolve: { tsconfigPaths: true },
