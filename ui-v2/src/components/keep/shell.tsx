@@ -10,6 +10,7 @@ const NAV = [
   { to: "/forge", label: "Forge" },
   { to: "/table", label: "Table" },
   { to: "/oracle", label: "Oracle" },
+  { to: "/drive", label: "Drive" },
   { to: "/sentinel", label: "Sentinel" },
   { to: "/mechanic", label: "Mechanic" },
   { to: "/stack", label: "Stack" },
