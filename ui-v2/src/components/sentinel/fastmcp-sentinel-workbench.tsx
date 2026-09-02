@@ -54,10 +54,10 @@ export function FastMCPSentinelWorkbench() {
         },
       });
       setAuditResult(res as unknown as FastMCPToolResult<IndianaCountyAudit>);
-      if (res.source === "live_funnel" || res.source === "live_internal") {
+      if (res.ok) {
         toast.success(`FastMCP live audit complete for ${countyName} (${res.latencyMs}ms)`);
       } else {
-        toast.info(`Audit generated via ReClaw SBOA ledger specifications (${countyName})`);
+        toast.error(res.error ?? `FastMCP bridge unreachable — no audit data for ${countyName}.`);
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Audit call failed");
@@ -81,10 +81,10 @@ export function FastMCPSentinelWorkbench() {
         },
       });
       setOracleResult(res as unknown as FastMCPToolResult<OracleVerification>);
-      if (res.source === "live_funnel" || res.source === "live_internal") {
+      if (res.ok) {
         toast.success(`Oracle RAG verified against Obsidian vault (${res.latencyMs}ms)`);
       } else {
-        toast.info("Oracle validation confirmed against ReClaw truth rulebase");
+        toast.error(res.error ?? "FastMCP bridge unreachable — the claim was not verified.");
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Oracle verification failed");
@@ -162,8 +162,22 @@ export function FastMCPSentinelWorkbench() {
             </div>
           </form>
 
+          {auditResult && !auditResult.ok && (
+            <div className="mt-5 rounded-lg border border-[#ffc857]/50 bg-[#ffc857]/5 p-5">
+              <p className="font-mono text-xs font-bold uppercase tracking-wider text-[#ffc857]">
+                ⚠ FastMCP bridge unreachable — no data
+              </p>
+              <p className="mt-2 font-mono text-[11px] leading-relaxed text-[#9aa3b2]">
+                Nothing is shown because nothing was retrieved. This panel never displays estimated, modelled, or example figures for a real county.
+              </p>
+              <p className="mt-2 font-mono text-[11px] text-[#9aa3b2]">
+                {auditResult.error}
+              </p>
+            </div>
+          )}
+
           {/* Audit Output Card */}
-          {auditResult && (
+          {auditResult?.ok && auditResult.data && (
             <div className="mt-6 rounded-lg border border-[#3a3f4b] bg-[#0b0e14] p-5">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#1e222b] pb-3">
                 <div>
@@ -319,7 +333,21 @@ export function FastMCPSentinelWorkbench() {
             </div>
           </form>
 
-          {oracleResult && (
+          {oracleResult && !oracleResult.ok && (
+            <div className="mt-5 rounded-lg border border-[#ffc857]/50 bg-[#ffc857]/5 p-5">
+              <p className="font-mono text-xs font-bold uppercase tracking-wider text-[#ffc857]">
+                ⚠ FastMCP bridge unreachable — no data
+              </p>
+              <p className="mt-2 font-mono text-[11px] leading-relaxed text-[#9aa3b2]">
+                The claim was not checked against the vault. No verdict, citation, or confidence score is shown, because none was produced.
+              </p>
+              <p className="mt-2 font-mono text-[11px] text-[#9aa3b2]">
+                {oracleResult.error}
+              </p>
+            </div>
+          )}
+
+          {oracleResult?.ok && oracleResult.data && (
             <div className="mt-5 rounded-lg border border-[#39ff14]/40 bg-[#0b0e14] p-5 shadow-[0_0_30px_rgba(57,255,20,0.1)]">
               <div className="flex items-center justify-between border-b border-[#1e222b] pb-3">
                 <span className="font-mono text-xs font-bold uppercase text-[#39ff14]">

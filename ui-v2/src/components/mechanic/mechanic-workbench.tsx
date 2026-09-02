@@ -33,7 +33,7 @@ const QUICK_CHIPS: QuickChip[] = [
     id: "probe-8100",
     label: "Probe FastMCP :8100",
     icon: "🔌",
-    prompt: "Probe FastMCP bridge running on 127.0.0.1:8100 proxied via Tailscale Funnel (https://openclaw.tail20a090.ts.net). Diagnose tool schema sync failures and socket timeouts.",
+    prompt: "Probe the FastMCP bridge on 127.0.0.1:8100 and its Tailscale Funnel ingress. Diagnose tool schema sync failures and socket timeouts.",
   },
   {
     id: "paste-log",
@@ -54,7 +54,7 @@ const QUICK_CHIPS: QuickChip[] = [
     id: "tailscale-funnel",
     label: "Check Tailscale Funnel",
     icon: "🛡️",
-    prompt: "Diagnose Tailscale Funnel proxy status for openclaw.tail20a090.ts.net routing public FastMCP traffic to local port 8100.",
+    prompt: "Diagnose Tailscale Funnel proxy status for the configured OpenClaw hostname routing public FastMCP traffic to local port 8100.",
   },
   {
     id: "file-perms",
@@ -456,7 +456,7 @@ export function MechanicWorkbench() {
 
               {/* Quick Port Stats */}
               <div className="mt-2 text-center font-mono text-[10px] text-[#2de2e6] bg-[#0d0221] py-1 rounded border border-[#2de2e6]/20">
-                PORT 18789: MONITORED | FASTMCP :8100: LIVE
+                PORT 18789 · FASTMCP :8100 — see bridge badge for live status
               </div>
             </div>
 
@@ -464,7 +464,7 @@ export function MechanicWorkbench() {
             <div className="rounded-lg border border-[#3a3f4b] bg-[#14141c] p-3 text-xs font-mono">
               <div className="text-[11px] font-bold uppercase text-[#ffc857] border-b border-[#2a2438] pb-1.5 flex items-center justify-between">
                 <span>🛰️ RECLAW STACK TELEMETRY</span>
-                <span className="text-[10px] text-[#39ff14]">100% HEALTH</span>
+                <span className="text-[10px] text-[#9aa3b2]">REFERENCE — NOT PROBED</span>
               </div>
 
               <div className="mt-2.5 space-y-2 text-[11px]">
@@ -482,7 +482,7 @@ export function MechanicWorkbench() {
                 </div>
                 <div className="flex justify-between items-center text-[#9aa3b2]">
                   <span>FastMCP Bridge:</span>
-                  <span className="text-[#ff2a6d]">openclaw.tail20a090.ts.net (:8100)</span>
+                  <span className="text-[#9aa3b2]">configured via FASTMCP_* env (:8100)</span>
                 </div>
                 <div className="flex justify-between items-center text-[#9aa3b2]">
                   <span>Local LLM Core:</span>

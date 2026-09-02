@@ -20,6 +20,10 @@ export function FastMCPGatewayStreamer() {
       setLastSyncResult(res);
       if (res.ok && Array.isArray(res.data)) {
         setLogs(res.data as GatewayLogLine[]);
+      } else {
+        // Bridge is down: clear the viewport rather than leave stale lines that
+        // read as current gateway state.
+        setLogs([]);
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to fetch gateway logs");
@@ -54,11 +58,11 @@ export function FastMCPGatewayStreamer() {
           />
           <div>
             <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-[#e8ecf1]">
-              📡 Live OpenClaw Gateway Logs (ws://100.108.130.82:18789)
+              📡 Live OpenClaw Gateway Logs
             </h3>
             <p className="font-mono text-[10px] text-[#9aa3b2]">
               FastMCP: <code className="text-[#2de2e6]">tail_gateway_logs</code> · Mode:{" "}
-              <span className={lastSyncResult?.source === "fallback_mock" ? "text-[#ffc857]" : "text-[#39ff14]"}>
+              <span className={lastSyncResult?.ok ? "text-[#39ff14]" : "text-[#ffc857]"}>
                 {lastSyncResult?.source?.toUpperCase() ?? "DISCONNECTED"}
               </span>
             </p>
@@ -113,8 +117,15 @@ export function FastMCPGatewayStreamer() {
       {/* Terminal Viewport */}
       <div className="h-64 overflow-y-auto p-3 font-mono text-xs leading-relaxed space-y-1.5 bg-[#05020d]">
         {filteredLogs.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-[#9aa3b2]">
-            Waiting for gateway log emission…
+          <div className="flex h-full flex-col items-center justify-center gap-1 px-4 text-center text-[#9aa3b2]">
+            {lastSyncResult && !lastSyncResult.ok ? (
+              <>
+                <span className="text-[#ffc857]">⚠ Gateway bridge unreachable — no logs</span>
+                <span className="text-[10px]">{lastSyncResult.error}</span>
+              </>
+            ) : (
+              <span>Waiting for gateway log emission…</span>
+            )}
           </div>
         ) : (
           filteredLogs.map((l) => (

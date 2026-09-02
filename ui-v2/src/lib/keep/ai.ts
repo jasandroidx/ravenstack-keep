@@ -387,7 +387,7 @@ export async function diagnoseMechanicWorkbench(input: {
 STACK KNOWLEDGE BASE:
 - Host: Hetzner Dedicated VPS (Ubuntu 24.04, Stack Root: /root/ReClaw-2.0).
 - OpenClaw Gateway: Docker container 'openclaw:2026.7.1' binding to ws://127.0.0.1:18789.
-- FastMCP Bridge: Port :8100 proxied over Tailscale Funnel (https://openclaw.tail20a090.ts.net).
+- FastMCP Bridge: Port :8100 proxied over Tailscale Funnel (hostname supplied at runtime; never guess or state it).
 - ReClaw API: Port :8000. ReClaw Dashboard: Port :8081. Local Ollama: Port :11434 (gemma4).
 - File Ownership Rule: Configs modified as root MUST be restored to uid 1000 (chown -R 1000:1000).
 

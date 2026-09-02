@@ -40,24 +40,24 @@ export function FastMCPStatusBadge() {
 
   const isLive = status?.source === "live_funnel" || status?.source === "live_internal";
   const sourceLabel = status?.source === "live_funnel"
-    ? "FASTMCP: CONNECTED (openclaw.tail20a090.ts.net)"
+    ? "FASTMCP: CONNECTED (FUNNEL)"
     : status?.source === "live_internal"
-    ? "FASTMCP: CONNECTED (100.108.130.82:8100)"
-    : "FASTMCP: TELEMETRY (openclaw.tail20a090.ts.net)";
+    ? "FASTMCP: CONNECTED (TAILNET)"
+    : "FASTMCP: UNREACHABLE";
 
   return (
     <div
       className={`group relative flex cursor-pointer items-center gap-2 rounded-sm border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider backdrop-blur-md transition ${
         isLive
           ? "border-[#39ff14]/60 bg-[#39ff14]/10 text-[#39ff14] shadow-[0_0_12px_rgba(57,255,20,0.25)] hover:bg-[#39ff14]/20"
-          : "border-[#2de2e6]/50 bg-[#2de2e6]/10 text-[#2de2e6] hover:bg-[#2de2e6]/20"
+          : "border-[#ffc857]/60 bg-[#ffc857]/10 text-[#ffc857] hover:bg-[#ffc857]/20"
       }`}
       onClick={() => void checkBridge()}
       title="Click to probe FastMCP bridge"
     >
       <span
         className={`h-2 w-2 rounded-full ${
-          isLive ? "bg-[#39ff14] shadow-[0_0_8px_#39ff14]" : "bg-[#2de2e6] shadow-[0_0_8px_#2de2e6]"
+          isLive ? "bg-[#39ff14] shadow-[0_0_8px_#39ff14]" : "bg-[#ffc857] shadow-[0_0_8px_#ffc857]"
         } animate-pulse`}
       />
       <span className="font-semibold">{sourceLabel}</span>
@@ -72,20 +72,20 @@ export function FastMCPStatusBadge() {
         <p className="font-bold text-[#ffc857]">SOVEREIGN FAST-MCP BRIDGE</p>
         <div className="space-y-1 text-[#9aa3b2]">
           <p>
-            <span className="text-[#e8ecf1]">Endpoint:</span> {status?.endpoint}
+            <span className="text-[#e8ecf1]">Endpoint:</span>{" "}
+            {status?.endpoint || "not configured"}
           </p>
           <p>
             <span className="text-[#e8ecf1]">Mode:</span>{" "}
-            <span className={isLive ? "text-[#39ff14] font-bold" : "text-[#2de2e6]"}>
+            <span className={isLive ? "text-[#39ff14] font-bold" : "text-[#ffc857]"}>
               {status?.source?.toUpperCase()}
             </span>
           </p>
-          <p>
-            <span className="text-[#e8ecf1]">Local Tailscale:</span> http://100.108.130.82:8100/mcp
-          </p>
-          <p>
-            <span className="text-[#e8ecf1]">Gateway WebSocket:</span> ws://100.108.130.82:18789
-          </p>
+          {!isLive && (
+            <p className="text-[#ffc857]">
+              No data is being shown. Panels stay empty until the bridge answers.
+            </p>
+          )}
         </div>
         {status?.error && (
           <p className="mt-1 border-t border-[#3a3f4b] pt-1 text-[9px] text-[#ffc857]">
