@@ -164,12 +164,13 @@ export const HALL_NPCS: HallNpc[] = [
   {
     id: "raziel",
     name: "Raziel",
-    role: "Sovereign",
+    role: "Sovereign Arch-Orchestrator",
     x: 904,
     y: 575,
-    radius: 60,
+    radius: 64,
     state: "idle",
     actor: "/hall/sprites/raziel.png",
+    actorH: 68,
     greeting: "The hall is live. Walk it. Doors stay sealed until you approve a Spec.",
     actions: [
       {
@@ -195,7 +196,7 @@ export const HALL_NPCS: HallNpc[] = [
     radius: 64,
     state: "working",
     actor: "/hall/sprites/oracle-eye.png",
-    actorH: 48,
+    actorH: 68,
     portrait: "/hall/sprites/oracle-eye.png",
     greeting: "TRUTH OVER COMFORT. RECEIPTS OVER OPINION. I am the celestial green eye of the Canonical Registry. I do not guess, I do not hallucinate, and I do not tolerate polite AI deceit. Speak your query, or step back before the Inquisitor.",
     href: "/oracle",
@@ -224,7 +225,7 @@ export const HALL_NPCS: HallNpc[] = [
     radius: 64,
     state: "working",
     actor: "/hall/sprites/valerie-hd2d.png",
-    actorH: 48,
+    actorH: 68,
     greeting: "Workshop is cold until you forge it. I can still diagnose — numbered, reversible, no secret leaks.",
     href: "/mechanic",
     talkScene: VALERIE_TALK,
@@ -251,9 +252,10 @@ export const HALL_NPCS: HallNpc[] = [
     role: "Scout",
     x: 800,
     y: 905,
-    radius: 56,
+    radius: 60,
     state: "idle",
     actor: "/hall/sprites/corvid.png",
+    actorH: 68,
     greeting: "Roost first. Cited digest only. No rumor, no invented numbers.",
     actions: [
       {

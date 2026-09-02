@@ -26,7 +26,15 @@ ${Object.values(SPECS)
 let genAiClient: GoogleGenAI | null = null;
 function getGenAI(): GoogleGenAI {
   if (!genAiClient) {
-    genAiClient = new GoogleGenAI();
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
+    genAiClient = new GoogleGenAI({
+      apiKey: apiKey || undefined,
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        },
+      },
+    });
   }
   return genAiClient;
 }
