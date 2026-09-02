@@ -81,6 +81,12 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
     return { user: result.user, accessToken: cachedAccessToken };
   } catch (error) {
     console.error("Google Drive Sign-in error:", error);
+    if (error instanceof Error && error.message.includes("auth/unauthorized-domain")) {
+      throw new Error(
+        `Google Drive sign-in is blocked because "${window.location.hostname}" isn't an authorized domain for this Firebase project. ` +
+          `Add it in Firebase Console → Authentication → Settings → Authorized domains.`,
+      );
+    }
     throw error;
   } finally {
     isSigningIn = false;
