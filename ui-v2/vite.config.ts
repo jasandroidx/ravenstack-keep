@@ -1,5 +1,5 @@
 import type { Plugin } from "vite";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
@@ -127,30 +127,45 @@ function authPopupPlugin(): Plugin {
 // opens a second dev-server port, which breaks the single-port preview.
 // The dev server starts once `src/router.tsx` and `src/routes/` exist — see
 // AGENTS.md § "First scaffold".
-export default defineConfig(({ command }) => ({
-  server: {
-    host: "0.0.0.0",
-    port: 3000,
-    strictPort: true,
-  },
-  resolve: { tsconfigPaths: true },
-  plugins: [
-    pgliteBootstrapPlugin(),
-    // Before tanstackStart so /auth/popup never falls through to the SPA.
-    authPopupPlugin(),
-    tailwindcss(),
-    tanstackStart(),
-    ...(command === "build"
-      ? [
-          nitro({
-            preset: "vercel",
-            // Auto-registers server/middleware/* (the PWA install page +
-            // manifest + head-tag middleware). Nitro v3 defaults serverDir to
-            // false, so removing this silently unwires /?install=1 on deploys.
-            serverDir: false,
-          }),
-        ]
-      : []),
-    viteReact(),
-  ],
-}));
+export default defineConfig(({ command, mode }) => {
+  // Vite reads .env but only exposes VITE_-prefixed vars, and only through
+  // import.meta.env. Server code here reads process.env — and Nitro, which
+  // would otherwise load .env, is only wired for `command === "build"` below.
+  // So in dev every server-side var (FASTMCP_*, GEMINI_API_KEY, KEEP_PULSE_URL,
+  // DATABASE_URL) was silently undefined no matter what .env said.
+  //
+  // Real shell environment wins over the file, so an inline
+  // `FOO=bar npm run dev` still overrides .env as expected.
+  const fileEnv = loadEnv(mode, process.cwd(), "");
+  for (const [key, value] of Object.entries(fileEnv)) {
+    if (process.env[key] === undefined) process.env[key] = value;
+  }
+
+  return {
+    server: {
+      host: "0.0.0.0",
+      port: 3000,
+      strictPort: true,
+    },
+    resolve: { tsconfigPaths: true },
+    plugins: [
+      pgliteBootstrapPlugin(),
+      // Before tanstackStart so /auth/popup never falls through to the SPA.
+      authPopupPlugin(),
+      tailwindcss(),
+      tanstackStart(),
+      ...(command === "build"
+        ? [
+            nitro({
+              preset: "vercel",
+              // Auto-registers server/middleware/* (the PWA install page +
+              // manifest + head-tag middleware). Nitro v3 defaults serverDir to
+              // false, so removing this silently unwires /?install=1 on deploys.
+              serverDir: false,
+            }),
+          ]
+        : []),
+      viteReact(),
+    ],
+  };
+});
