@@ -28,7 +28,6 @@ export function KeepHall() {
   const [atTable, setAtTable] = useState(false);
   const [talk, setTalk] = useState<HallNpc | null>(null);
   const [tableOpen, setTableOpen] = useState(false);
-  const [hallState, setHallState] = useState<HallState | null>(null);
   // Chosen once per conversation. pickBark spends a line from the pool, so it
   // must not run on every render or the greeting would reroll mid-sentence.
   const [bark, setBark] = useState<string | null>(null);
@@ -161,7 +160,6 @@ export function KeepHall() {
     };
   }, []);
 
-  useEffect(() => {
   // One read of what the Keep can actually see, refreshed as you play. NPC
   // greetings are templated over these fields — never over anything guessed.
   useEffect(() => {
@@ -170,9 +168,10 @@ export function KeepHall() {
       getHallState()
         .then((s) => {
           if (!alive) return;
-          const next = { ...s, hour: new Date().getHours() };
-          hallStateRef.current = next;
-          setHallState(next);
+          // Held in a ref, not state: the greeting is read once when a
+          // conversation opens, so re-rendering the hall on every refresh
+          // would restart the Phaser canvas for nothing.
+          hallStateRef.current = { ...s, hour: new Date().getHours() };
         })
         .catch(() => {
           /* Unreadable. hallState stays null and every NPC falls back to its
@@ -228,6 +227,7 @@ export function KeepHall() {
     };
   }, []);
 
+  useEffect(() => {
     if (sceneRef.current) sceneRef.current.paused = Boolean(talk || tableOpen || wardrobeOpen);
   }, [talk, tableOpen, wardrobeOpen]);
 
