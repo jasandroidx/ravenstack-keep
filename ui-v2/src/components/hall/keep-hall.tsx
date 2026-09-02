@@ -31,6 +31,8 @@ export function KeepHall() {
   // Chosen once per conversation. pickBark spends a line from the pool, so it
   // must not run on every render or the greeting would reroll mid-sentence.
   const [bark, setBark] = useState<string | null>(null);
+  /** Gates sealed at this table, ever. Drives the wax seals left on it. */
+  const sealCount = useRef(0);
   const [wardrobeOpen, setWardrobeOpen] = useState(false);
   const [activeSkin, setActiveSkin] = useState("ravenlord");
   const [pulse, setPulse] = useState<KeepPulse | null>(null);
@@ -157,6 +159,30 @@ export function KeepHall() {
         /* ignore */
       }
       gameRef.current = null;
+    };
+  }, []);
+
+  // Restore the seals pressed in earlier sessions once the scene exists, so
+  // the table carries its own history rather than resetting every visit.
+  useEffect(() => {
+    let alive = true;
+    let tries = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    try {
+      sealCount.current = Number(localStorage.getItem("ravenstack.keep.seals") ?? 0) || 0;
+    } catch {
+      /* Storage blocked. The table simply starts clean. */
+    }
+    const attempt = () => {
+      if (!alive) return;
+      const scene = sceneRef.current;
+      if (scene) scene.restoreSeals(sealCount.current);
+      else if (tries++ < 40) timer = setTimeout(attempt, 150);
+    };
+    attempt();
+    return () => {
+      alive = false;
+      clearTimeout(timer);
     };
   }, []);
 
@@ -568,7 +594,17 @@ export function KeepHall() {
               seal are laid out here.
             </p>
 
-            <WarTablePanel />
+            <WarTablePanel
+              onSealed={() => {
+                sealCount.current += 1;
+                try {
+                  localStorage.setItem("ravenstack.keep.seals", String(sealCount.current));
+                } catch {
+                  /* Storage blocked; the seal still lands for this session. */
+                }
+                sceneRef.current?.pressSeal(sealCount.current);
+              }}
+            />
 
             <div className="mt-5 flex gap-3">
               <Link

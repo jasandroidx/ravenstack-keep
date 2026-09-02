@@ -34,7 +34,7 @@ function EffectPreview({ effect }: { effect: GateEffect }) {
   );
 }
 
-function GateCard({ gate, onDone }: { gate: Gate; onDone: () => void }) {
+function GateCard({ gate, onDone }: { gate: Gate; onDone: (sealed: boolean) => void }) {
   // Two-step. The first press arms; only the second sends confirm: true.
   const [armed, setArmed] = useState<"approve" | "reject" | null>(null);
   const [busy, setBusy] = useState(false);
@@ -47,7 +47,7 @@ function GateCard({ gate, onDone }: { gate: Gate; onDone: () => void }) {
       });
       if (out.ok) {
         toast.success("Sealed. The box has it.");
-        onDone();
+        onDone(true);
       } else {
         toast.error(out.error);
       }
@@ -123,7 +123,7 @@ function GateCard({ gate, onDone }: { gate: Gate; onDone: () => void }) {
   );
 }
 
-export function WarTablePanel() {
+export function WarTablePanel({ onSealed }: { onSealed?: () => void } = {}) {
   const [snap, setSnap] = useState<GatesSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -184,7 +184,14 @@ export function WarTablePanel() {
       ) : (
         <div className="mt-4 max-h-[42vh] space-y-3 overflow-y-auto pr-1">
           {snap.gates.map((g) => (
-            <GateCard key={g.id} gate={g} onDone={load} />
+            <GateCard
+              key={g.id}
+              gate={g}
+              onDone={(sealed) => {
+                if (sealed) onSealed?.();
+                load();
+              }}
+            />
           ))}
         </div>
       )}
