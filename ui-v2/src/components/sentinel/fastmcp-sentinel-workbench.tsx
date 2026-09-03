@@ -54,8 +54,8 @@ export function FastMCPSentinelWorkbench() {
         },
       });
       setAuditResult(res as unknown as FastMCPToolResult<IndianaCountyAudit>);
-      if (res.source === "live_funnel" || res.source === "live_internal") {
-        toast.success(`FastMCP live audit complete for ${countyName} (${res.latencyMs}ms)`);
+      if ((res as any).source === "live_funnel" || (res as any).source === "live_internal") {
+        toast.success(`FastMCP live audit complete for ${countyName} (${(res as any).latencyMs}ms)`);
       } else {
         toast.info(`Audit generated via ReClaw SBOA ledger specifications (${countyName})`);
       }
@@ -81,8 +81,8 @@ export function FastMCPSentinelWorkbench() {
         },
       });
       setOracleResult(res as unknown as FastMCPToolResult<OracleVerification>);
-      if (res.source === "live_funnel" || res.source === "live_internal") {
-        toast.success(`Oracle RAG verified against Obsidian vault (${res.latencyMs}ms)`);
+      if ((res as any).source === "live_funnel" || (res as any).source === "live_internal") {
+        toast.success(`Oracle RAG verified against Obsidian vault (${(res as any).latencyMs}ms)`);
       } else {
         toast.info("Oracle validation confirmed against ReClaw truth rulebase");
       }

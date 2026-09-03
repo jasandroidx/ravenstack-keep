@@ -337,7 +337,41 @@ export const callFastMCP = createServerFn({ method: "POST" })
   .validator((input: { tool: FastMCPToolCall["tool"]; params?: Record<string, unknown> }) => input)
   .handler(async ({ data }) => {
     const result = await executeFastMCPTool(data.tool, data.params ?? {});
-    return result;
+    return result as any;
   });
 
 
+
+export const fetchKeepGates = createServerFn({ method: "GET" }).handler(async () => {
+  try {
+    const res = await fetch("http://127.0.0.1:8120/api/gates", { headers: { Accept: "application/json" } });
+    if (!res.ok) return { ok: false as const, error: "HTTP " + res.status };
+    const json = await res.json();
+    return { ok: true as const, data: json as any };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "failed" };
+  }
+});
+
+export const approveKeepGate = createServerFn({ method: "POST" })
+  .validator((input: { agentId?: string, roomId?: string }) => input)
+  .handler(async ({ data }) => {
+    try {
+       let url = "http://127.0.0.1:8120/api/approve-spec";
+       let body = { agent_id: data.agentId, confirm: true };
+       if (data.roomId) {
+         url = "http://127.0.0.1:8120/api/unlock-room";
+         body = { room_id: data.roomId, confirm: true } as any;
+       }
+       const res = await fetch(url, {
+         method: "POST",
+         headers: { "Content-Type": "application/json" },
+         body: JSON.stringify(body)
+       });
+       if (!res.ok) return { ok: false as const, error: "HTTP " + res.status };
+       const json = await res.json();
+       return { ok: true as const, data: json };
+    } catch (err) {
+       return { ok: false as const, error: err instanceof Error ? err.message : "failed" };
+    }
+  });

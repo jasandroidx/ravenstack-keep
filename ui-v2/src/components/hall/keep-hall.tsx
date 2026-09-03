@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { TalkSheet } from "@/components/hall/talk-sheet";
 import type { HallScene } from "@/lib/hall/scene";
 import { RAVENLORD_SKINS, type HallNpc, type RavenlordSkin } from "@/lib/hall/world";
-import { getKeepSnapshot } from "@/lib/keep/server";
+import { getKeepSnapshot, fetchKeepGates } from "@/lib/keep/server";
 import type { KeepPulse } from "@/lib/keep/pulse";
 import { hallAudio } from "@/lib/hall/audio";
 import { FastMCPStatusBadge } from "@/components/keep/fastmcp-status-badge";
@@ -27,6 +27,7 @@ export function KeepHall() {
   const [wardrobeOpen, setWardrobeOpen] = useState(false);
   const [activeSkin, setActiveSkin] = useState("ravenlord");
   const [pulse, setPulse] = useState<KeepPulse | null>(null);
+  const [gatesCount, setGatesCount] = useState(0);
   const [audioMuted, setAudioMuted] = useState(false);
 
   useEffect(() => {
@@ -34,6 +35,11 @@ export function KeepHall() {
     getKeepSnapshot()
       .then((snap) => {
         if (alive) setPulse(snap.pulse);
+      fetchKeepGates().then(g => {
+        if (alive && g.ok && g.data && typeof g.data.count === "number") {
+          setGatesCount(g.data.count);
+        }
+      }).catch(() => undefined);
       })
       .catch(() => undefined);
     return () => {
@@ -290,7 +296,7 @@ export function KeepHall() {
               Registry
             </Link>
             <Link
-              to="/gallery"
+              to={"/gallery" as any}
               onClick={() => hallAudio.playZoneTransition()}
               className="rounded-sm border border-[#2de2e6]/60 bg-[#2de2e6]/10 px-3 py-2 font-mono text-xs uppercase tracking-[0.14em] text-[#2de2e6] backdrop-blur-md transition hover:bg-[#2de2e6]/25"
             >
@@ -467,7 +473,7 @@ export function KeepHall() {
           <div className="mx-auto max-w-xl">
             <div className="flex items-baseline justify-between border-b border-[#1e222b] pb-3">
               <div className="flex items-center gap-3">
-                <span className="h-3 w-3 rounded-full bg-[#2de2e6] animate-pulse" />
+                <span className={`h-3 w-3 rounded-full animate-pulse ${gatesCount > 0 ? "bg-[#ffc857] shadow-[0_0_15px_#ffc857]" : "bg-[#2de2e6]"}`} />
                 <h2 className="font-mono text-xl font-bold tracking-wider text-[#e8ecf1]">The War Table</h2>
               </div>
               <button

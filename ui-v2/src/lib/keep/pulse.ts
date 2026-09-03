@@ -32,28 +32,59 @@ export type KeepPulse = {
   };
 };
 
-function asPulse(raw: unknown, source: PulseSource): KeepPulse | null {
+function asPulse(raw: unknown, baseSource: PulseSource): KeepPulse | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
-  const rooms = Array.isArray(o.rooms) ? o.rooms : [];
+
+  // If we fetched the fallback seed from api.ts or it explicitly says SOT is offline, it's paper.
+  let source = baseSource;
+  if (baseSource === "live" && o.sot_status === "offline") {
+    source = "paper";
+  }
+
+  const roomsRaw = Array.isArray(o.rooms) ? o.rooms : [];
+  let agentsActiveCount = Number(o.agentsActive ?? o.agents_active ?? 0);
+
+  const rooms = roomsRaw.map((r) => {
+    const row = (r ?? {}) as Record<string, unknown>;
+
+    // Honor agent_real from seed fallback vs live api
+    const isReal = row.agent_real !== false;
+
+    // Calculate empty
+    let empty = Boolean(row.empty);
+    if ('occupant_agent_id' in row) {
+       empty = !row.occupant_agent_id;
+    }
+
+    const status = String(row.status ?? row.agent_state ?? (isReal ? "" : "UNFORGED"));
+    if (source === "paper" && isReal === false) {
+       // Do not invent idle chips when data is paper
+       empty = true;
+    }
+
+    return {
+      id: String(row.id ?? row.room_id ?? ""),
+      keepSlug: typeof row.keepSlug === "string" ? row.keepSlug : (typeof row.room_id === "string" ? row.room_id : null),
+      name: String(row.name ?? ""),
+      empty,
+      agent: String(row.agent ?? row.occupant_agent_id ?? ""),
+      status: status,
+    };
+  });
+
+  if (!o.agentsActive && !o.agents_active && rooms.length > 0) {
+    agentsActiveCount = rooms.filter(r => !r.empty && r.status !== "UNFORGED" && r.agent).length;
+  }
+
   return {
     source,
     asOf: String(o.asOf ?? o.generated_at ?? new Date().toISOString()),
     note: typeof o.note === "string" ? o.note : undefined,
     network: String(o.network ?? "UNKNOWN"),
     networkDetail: String(o.networkDetail ?? o.network_detail ?? ""),
-    agentsActive: Number(o.agentsActive ?? o.agents_active ?? 0),
-    rooms: rooms.map((r) => {
-      const row = (r ?? {}) as Record<string, unknown>;
-      return {
-        id: String(row.id ?? ""),
-        keepSlug: typeof row.keepSlug === "string" ? row.keepSlug : null,
-        name: String(row.name ?? ""),
-        empty: Boolean(row.empty),
-        agent: String(row.agent ?? ""),
-        status: String(row.status ?? ""),
-      };
-    }),
+    agentsActive: agentsActiveCount,
+    rooms,
     services: {
       reclaw: String((o.services as Record<string, unknown> | undefined)?.reclaw ?? "unknown"),
       openclaw: String((o.services as Record<string, unknown> | undefined)?.openclaw ?? "unknown"),
@@ -86,8 +117,7 @@ export function paperPulse(): KeepPulse {
  * Never point this at a public Funnel URL from source control.
  */
 export async function fetchKeepPulse(): Promise<KeepPulse> {
-  const url = process.env.KEEP_PULSE_URL?.trim();
-  if (!url) return paperPulse();
+  const url = process.env.KEEP_PULSE_URL?.trim() || "http://127.0.0.1:8120/api/castle-map";
   try {
     const res = await fetch(url, { headers: { Accept: "application/json" } });
     if (!res.ok) return { ...paperPulse(), note: `pulse HTTP ${res.status}` };

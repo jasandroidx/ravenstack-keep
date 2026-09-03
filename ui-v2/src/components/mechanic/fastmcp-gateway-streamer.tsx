@@ -18,8 +18,8 @@ export function FastMCPGatewayStreamer() {
         },
       });
       setLastSyncResult(res);
-      if (res.ok && Array.isArray(res.data)) {
-        setLogs(res.data as GatewayLogLine[]);
+      if ((res as any).ok && Array.isArray((res as any).data)) {
+        setLogs((res as any).data as GatewayLogLine[]);
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to fetch gateway logs");
