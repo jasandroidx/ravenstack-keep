@@ -90,8 +90,9 @@ SEED_ROOMS: list[dict[str, Any]] = [
         "y": 0,
         "status": "Active",
         "lock_state": "UNFORGED",
-        "notes": "Knowledge / Oracle — sealed until unlock_room",
+        "notes": "Knowledge stacks: Oracle (read/RAG) + Scribe (write/distill)",
         "occupant_agent_id": "oracle",
+        "co_occupants": ["scribe"],
     },
     {
         "room_id": "armory",
@@ -176,6 +177,7 @@ def init_db() -> None:
               status TEXT NOT NULL DEFAULT 'Active',
               lock_state TEXT NOT NULL DEFAULT 'live',
               occupant_agent_id TEXT,
+              co_occupants TEXT,
               notes TEXT,
               status_summary TEXT,
               updated_at TEXT NOT NULL
@@ -200,16 +202,25 @@ def init_db() -> None:
             );
             """
         )
+        # Migrate older rooms tables
+        room_cols = {
+            r[1] for r in conn.execute("PRAGMA table_info(rooms)").fetchall()
+        }
+        if "co_occupants" not in room_cols:
+            conn.execute("ALTER TABLE rooms ADD COLUMN co_occupants TEXT")
+
         n = conn.execute("SELECT COUNT(*) AS c FROM rooms").fetchone()["c"]
         if n == 0:
             now = _utc_now()
             for r in SEED_ROOMS:
+                co = r.get("co_occupants")
+                co_json = json.dumps(co) if co else None
                 conn.execute(
                     """
                     INSERT INTO rooms (
                       room_id, name, x, y, status, lock_state,
-                      occupant_agent_id, notes, status_summary, updated_at
-                    ) VALUES (?,?,?,?,?,?,?,?,?,?)
+                      occupant_agent_id, co_occupants, notes, status_summary, updated_at
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
                     """,
                     (
                         r["room_id"],
@@ -219,6 +230,7 @@ def init_db() -> None:
                         r["status"],
                         r["lock_state"],
                         r["occupant_agent_id"],
+                        co_json,
                         r["notes"],
                         r["notes"],
                         now,
@@ -236,9 +248,63 @@ def init_db() -> None:
                        OR occupant_agent_id = 'raziel')
                 """
             )
+            # Library: Oracle primary + Scribe co-resident
+            conn.execute(
+                """
+                UPDATE rooms
+                SET occupant_agent_id = COALESCE(NULLIF(occupant_agent_id, ''), 'oracle'),
+                    co_occupants = ?,
+                    notes = 'Knowledge stacks: Oracle (read/RAG) + Scribe (write/distill)'
+                WHERE room_id = 'library'
+                """,
+                (json.dumps(["scribe"]),),
+            )
+        # Presence columns for visual command layer (idempotent)
+        cols = {
+            r[1]
+            for r in conn.execute("PRAGMA table_info(agent_status)").fetchall()
+        }
+        if "room_id" not in cols:
+            conn.execute("ALTER TABLE agent_status ADD COLUMN room_id TEXT")
+        if "sprite_hint" not in cols:
+            conn.execute("ALTER TABLE agent_status ADD COLUMN sprite_hint TEXT")
+
+
+def _parse_co_occupants(raw: Any) -> list[str]:
+    if not raw:
+        return []
+    if isinstance(raw, list):
+        return [str(x) for x in raw if x]
+    try:
+        data = json.loads(raw) if isinstance(raw, str) else raw
+        if isinstance(data, list):
+            return [str(x) for x in data if x]
+    except (json.JSONDecodeError, TypeError):
+        pass
+    return []
+
+
+def _room_agent_ids(row: sqlite3.Row) -> list[str]:
+    """Primary occupant + co_occupants (Library: oracle + scribe)."""
+    keys = row.keys()
+    ids: list[str] = []
+    primary = row["occupant_agent_id"]
+    if primary:
+        ids.append(str(primary))
+    if "co_occupants" in keys:
+        for a in _parse_co_occupants(row["co_occupants"]):
+            if a not in ids:
+                ids.append(a)
+    return ids
 
 
 def _row_room(row: sqlite3.Row) -> dict[str, Any]:
+    keys = row.keys()
+    co = (
+        _parse_co_occupants(row["co_occupants"])
+        if "co_occupants" in keys
+        else []
+    )
     return {
         "room_id": row["room_id"],
         "name": row["name"],
@@ -248,6 +314,8 @@ def _row_room(row: sqlite3.Row) -> dict[str, Any]:
         "status": row["status"],
         "lock_state": row["lock_state"],
         "occupant_agent_id": row["occupant_agent_id"],
+        "co_occupants": co,
+        "agent_ids": _room_agent_ids(row),
         "notes": row["notes"],
         "status_summary": row["status_summary"] or row["notes"] or "",
         "updated_at": row["updated_at"],
@@ -378,6 +446,7 @@ def _rooms_on_cells(
 def _live_agents(conn: sqlite3.Connection) -> dict[str, dict[str, Any]]:
     out: dict[str, dict[str, Any]] = {}
     for row in conn.execute("SELECT * FROM agent_status"):
+        keys = row.keys()
         out[row["agent_id"]] = {
             "agent_id": row["agent_id"],
             "state": row["state"],
@@ -386,8 +455,18 @@ def _live_agents(conn: sqlite3.Connection) -> dict[str, dict[str, Any]]:
             "session_id": row["session_id"],
             "detail": row["detail"],
             "updated_at": row["updated_at"],
+            "room_id": row["room_id"] if "room_id" in keys else None,
+            "sprite_hint": row["sprite_hint"] if "sprite_hint" in keys else None,
         }
     return out
+
+
+def _agent_home_room(conn: sqlite3.Connection, agent_id: str) -> Optional[str]:
+    row = conn.execute(
+        "SELECT room_id FROM rooms WHERE occupant_agent_id = ? LIMIT 1",
+        (agent_id,),
+    ).fetchone()
+    return row["room_id"] if row else None
 
 
 def _resolve_vault() -> Optional[Path]:
@@ -471,8 +550,13 @@ def report_agent_status(
     confidence: Optional[float] = None,
     session_id: Optional[str] = None,
     detail: Optional[str] = None,
+    room_id: Optional[str] = None,
+    sprite_hint: Optional[str] = None,
 ) -> str:
-    """Publish live agent status for the Keep UI (Phase-1 write)."""
+    """Publish live agent status for the Keep UI (Phase-1 write).
+
+    Optional room_id / sprite_hint feed visual presence (item 1).
+    """
     try:
         init_db()
         agent_id = agent_id.strip()
@@ -484,7 +568,6 @@ def report_agent_status(
                 code="invalid_input",
             )
         if not _agent_known(agent_id):
-            # Allow first report only if a Spec exists
             return _err(
                 f"Unknown agent_id '{agent_id}' — must match agents/*.agent-spec.json",
                 code="unknown_agent",
@@ -492,19 +575,41 @@ def report_agent_status(
         if confidence is not None and not (0.0 <= float(confidence) <= 1.0):
             return _err("confidence must be between 0.0 and 1.0", code="invalid_input")
         now = _utc_now()
+        # Only set room_id when caller passes it — OpenClaw sync must not
+        # stomp presence walks back to home.
+        explicit_room = (room_id or "").strip() or None
+        explicit_sprite = (sprite_hint or "").strip() or None
         with _connect() as conn:
+            home = _agent_home_room(conn, agent_id)
+            if explicit_room and not _find_room(conn, explicit_room):
+                return _err(
+                    f"Unknown room_id '{explicit_room}'",
+                    code="unknown_room",
+                )
+            # Preserve existing presence when not explicitly updated
+            prev = conn.execute(
+                "SELECT room_id, sprite_hint FROM agent_status WHERE agent_id = ?",
+                (agent_id,),
+            ).fetchone()
+            prev_room = prev["room_id"] if prev else None
+            prev_sprite = prev["sprite_hint"] if prev else None
+            rid = explicit_room or prev_room or home
+            spr = explicit_sprite or prev_sprite
             conn.execute(
                 """
                 INSERT INTO agent_status (
-                  agent_id, state, task, confidence, session_id, detail, updated_at
-                ) VALUES (?,?,?,?,?,?,?)
+                  agent_id, state, task, confidence, session_id, detail,
+                  updated_at, room_id, sprite_hint
+                ) VALUES (?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(agent_id) DO UPDATE SET
                   state=excluded.state,
                   task=excluded.task,
                   confidence=excluded.confidence,
                   session_id=excluded.session_id,
                   detail=excluded.detail,
-                  updated_at=excluded.updated_at
+                  updated_at=excluded.updated_at,
+                  room_id=excluded.room_id,
+                  sprite_hint=excluded.sprite_hint
                 """,
                 (
                     agent_id,
@@ -514,37 +619,155 @@ def report_agent_status(
                     session_id,
                     (detail or "")[:500] or None,
                     now,
+                    rid,
+                    spr,
                 ),
             )
-            # Light write: mirror occupant onto spatial room when we can map it
-            # (Clawforge → Alchemy Lab, Oracle → Library are seeded occupants.)
             with_occ = conn.execute(
                 "SELECT room_id FROM rooms WHERE occupant_agent_id = ?",
                 (agent_id,),
             ).fetchone()
-            if with_occ:
+            # Prefer presence room for summary; fall back to home occupant row
+            target_room = rid or (with_occ["room_id"] if with_occ else None)
+            if target_room:
                 conn.execute(
                     """
                     UPDATE rooms SET status_summary = ?, updated_at = ?
                     WHERE room_id = ?
                     """,
-                    ((task or state)[:200], now, with_occ["room_id"]),
+                    ((task or state)[:200], now, target_room),
                 )
+                if explicit_room:
+                    conn.execute(
+                        """
+                        UPDATE rooms SET occupant_agent_id = ?
+                        WHERE room_id = ?
+                          AND (occupant_agent_id IS NULL OR occupant_agent_id = '')
+                        """,
+                        (agent_id, explicit_room),
+                    )
                 if state == "retired":
                     conn.execute(
                         "UPDATE rooms SET occupant_agent_id = NULL WHERE room_id = ?",
-                        (with_occ["room_id"],),
+                        (target_room,),
                     )
         return _ok(
             {
                 "ok": True,
                 "agent_id": agent_id,
                 "state": state,
+                "room_id": rid,
                 "updated_at": now,
             }
         )
     except Exception as e:  # noqa: BLE001
         return _err(str(e), code="internal_error")
+
+
+@mcp.tool()
+def report_presence(
+    room_id: str,
+    state: str,
+    task_summary: Optional[str] = None,
+    sprite_hint: Optional[str] = None,
+    agent_id: Optional[str] = None,
+    confidence: Optional[float] = None,
+    session_id: Optional[str] = None,
+) -> str:
+    """Publish spatial presence for the visual Keep (feeds agent sprites).
+
+    Maps to agent_status + room status_summary. Does not invent work —
+    caller must only report real activity. If agent_id omitted, uses
+    current occupant of the room.
+    """
+    try:
+        init_db()
+        room_id = room_id.strip()
+        if not room_id:
+            return _err("room_id is required", code="invalid_input")
+        if state not in AGENT_STATES:
+            return _err(
+                f"state must be one of {sorted(AGENT_STATES)}",
+                code="invalid_input",
+            )
+        with _connect() as conn:
+            room = _find_room(conn, room_id)
+            if not room:
+                return _err(f"Unknown room '{room_id}'", code="unknown_room")
+            rid = room["room_id"]
+            aid = (agent_id or room["occupant_agent_id"] or "").strip()
+            if not aid:
+                return _err(
+                    "No agent_id and room has no occupant",
+                    code="no_agent",
+                )
+            if not _agent_known(aid):
+                return _err(
+                    f"Unknown agent_id '{aid}'",
+                    code="unknown_agent",
+                )
+        # Delegate to report_agent_status for single write path
+        return report_agent_status(
+            agent_id=aid,
+            state=state,
+            task=task_summary,
+            confidence=confidence,
+            session_id=session_id,
+            detail=f"presence:{rid}",
+            room_id=rid,
+            sprite_hint=sprite_hint,
+        )
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+@mcp.tool()
+def list_agent_specs(status: Optional[str] = None) -> str:
+    """List Agent Specs on disk (id, status, room, path)."""
+    try:
+        specs = _list_agent_specs()
+        out = []
+        for aid, path in sorted(specs.items()):
+            data, _, err = _load_spec(aid)
+            if err or not data:
+                out.append(
+                    {
+                        "agent_id": aid,
+                        "status": "invalid",
+                        "error": err,
+                        "source_path": str(path),
+                    }
+                )
+                continue
+            st = data.get("status")
+            if status and st != status:
+                continue
+            room = None
+            if isinstance(data.get("room"), dict):
+                room = data["room"].get("room_id")
+            room = room or data.get("room_id")
+            try:
+                rel = str(path.relative_to(REPO_ROOT))
+            except ValueError:
+                rel = str(path)
+            out.append(
+                {
+                    "agent_id": data.get("id", aid),
+                    "status": st,
+                    "name": data.get("name") or data.get("display_name"),
+                    "room_id": room,
+                    "source_path": rel,
+                }
+            )
+        return _ok({"specs": out, "count": len(out)})
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+@mcp.tool()
+def get_room(room_id: str) -> str:
+    """Alias for get_room_status — single room detail for UI / agents."""
+    return get_room_status(room_id)
 
 
 @mcp.tool()
@@ -1020,6 +1243,80 @@ def get_occupancy_summary() -> str:
                 "restricted_rooms": restricted,
                 "generated_at": _utc_now(),
             }
+        )
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+# ---------------------------------------------------------------------------
+# Arcane Library Spatial Context Compactor
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+def trigger_spatial_compaction(
+    room_name: str,
+    current_token_count: int,
+    max_tokens: int,
+    context_snippet: Optional[str] = None,
+    force: bool = False,
+) -> str:
+    """Compact context when near capacity, biased to Keep room coordinates.
+
+    Archives low spatial-relevance material, writes Obsidian note + vector row.
+    Default threshold 85% of max_tokens unless force=true.
+    """
+    try:
+        from context_compactor import default_compactor
+
+        ctx = context_snippet or ""
+        if not ctx.strip() and not force:
+            return _err(
+                "context_snippet required unless testing with empty+force",
+                code="invalid_input",
+            )
+        result = default_compactor().compact(
+            room_name=room_name,
+            current_token_count=int(current_token_count),
+            max_tokens=int(max_tokens),
+            context=ctx,
+            force=bool(force),
+            source="mcp:trigger_spatial_compaction",
+        )
+        # Don't dump full context_after to MCP clients by default (huge)
+        if "context_after" in result and len(result.get("context_after") or "") > 2000:
+            result = dict(result)
+            result["context_after_preview"] = (result.pop("context_after") or "")[:1500]
+        return _ok(result)
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+@mcp.tool()
+def get_compaction_history(room_name: Optional[str] = None, limit: int = 20) -> str:
+    """List recent Arcane Library compaction events."""
+    try:
+        from context_compactor import default_compactor
+
+        return _ok(default_compactor().history(room_name=room_name, limit=limit))
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+@mcp.tool()
+def query_spatial_memory(
+    query: str,
+    room_name: Optional[str] = None,
+    top_k: int = 5,
+) -> str:
+    """Vector search over compacted memory, spatially biased to a Keep room."""
+    try:
+        from context_compactor import default_compactor
+
+        return _ok(
+            default_compactor().query_spatial_memory(
+                query=query, room_name=room_name, top_k=top_k
+            )
         )
     except Exception as e:  # noqa: BLE001
         return _err(str(e), code="internal_error")
