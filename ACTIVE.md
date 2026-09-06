@@ -1,5 +1,35 @@
 # ACTIVE — Ravenstack Keep
 
+**Last updated:** 2026-08-21 (Grok Build painted hall)  
+**Branch of truth:** `ravenstack`  
+**Working branch:** `painted-hall`  
+**Repo:** https://github.com/jasandroidx/ravenstack-keep
+
+---
+
+## Where we are right now
+
+**Done**
+- Painted Great Hall in `ui-v2/` (look Jason signed off on).
+- Keep MCP + HTTP API + specs still in `mcp/` / `agents/` (untouched this merge).
+- Pulse contract: occupancy labeled **paper** until `KEEP_PULSE_URL`.
+
+**Open (the real test)**
+- Bind `ui-v2` to `GET /api/castle-map` on the box.
+- War table → pending gates with human `confirm=true`.
+- Valerie → openclaw-mechanic / `stack_health`.
+
+**Frozen**
+- Old `ui/` 48×48 tile pipeline. Do not revive.
+
+See `reviews/findings/2026-08-21-grok-painted-hall.md` and `ui-v2/HANDOFF.md`.
+
+---
+
+## Previous ACTIVE (2026-07-29)
+
+# ACTIVE — Ravenstack Keep
+
 **Last updated:** 2026-07-29 (Grok)  
 **Branch of truth:** `ravenstack`  
 **Repo:** https://github.com/jasandroidx/ravenstack-keep

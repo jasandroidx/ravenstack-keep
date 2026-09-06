@@ -70,8 +70,8 @@ SEED_ROOMS: list[dict[str, Any]] = [
         "y": 0,
         "status": "Secure",
         "lock_state": "live",
-        "notes": "Orchestrator / command center",
-        "occupant_agent_id": None,
+        "notes": "Orchestrator / command center (Raziel)",
+        "occupant_agent_id": "raziel",
     },
     {
         "room_id": "alchemy-lab",
@@ -89,8 +89,8 @@ SEED_ROOMS: list[dict[str, Any]] = [
         "x": 1,
         "y": 0,
         "status": "Active",
-        "lock_state": "live",
-        "notes": "Knowledge / Oracle",
+        "lock_state": "UNFORGED",
+        "notes": "Knowledge / Oracle — sealed until unlock_room",
         "occupant_agent_id": "oracle",
     },
     {
@@ -224,6 +224,18 @@ def init_db() -> None:
                         now,
                     ),
                 )
+        else:
+            # Phase A: ensure Raziel home room occupant without wiping live status
+            conn.execute(
+                """
+                UPDATE rooms
+                SET occupant_agent_id = COALESCE(occupant_agent_id, 'raziel'),
+                    notes = COALESCE(notes, 'Orchestrator / command center (Raziel)')
+                WHERE room_id = 'great-hall'
+                  AND (occupant_agent_id IS NULL OR occupant_agent_id = ''
+                       OR occupant_agent_id = 'raziel')
+                """
+            )
 
 
 def _row_room(row: sqlite3.Row) -> dict[str, Any]:
@@ -1009,6 +1021,58 @@ def get_occupancy_summary() -> str:
                 "generated_at": _utc_now(),
             }
         )
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+# ---------------------------------------------------------------------------
+# Phase B — human gates (confirm=true required for writes)
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+def list_pending_gates(include_resolved: bool = False) -> str:
+    """Keep-wide human gates (approve_spec, unlock_room, …)."""
+    try:
+        import gates as g
+
+        g.refresh_gates_from_sot()
+        gates = g.list_pending_gates(include_resolved=include_resolved)
+        with _connect() as conn:
+            waiting = [
+                a
+                for a in _live_agents(conn).values()
+                if a.get("state") == "waiting_human"
+            ]
+        return _ok(
+            {
+                "gates": gates,
+                "waiting_human_agents": waiting,
+                "count": len(gates),
+            }
+        )
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+@mcp.tool()
+def approve_spec(agent_id: str, confirm: bool = False) -> str:
+    """GATED: promote Agent Spec to approved on disk. Does not unlock room."""
+    try:
+        import gates as g
+
+        return _ok(g.approve_spec(agent_id, confirm=confirm))
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+@mcp.tool()
+def unlock_room(room_id: str, confirm: bool = False) -> str:
+    """GATED: set room lock_state → live (requires approved occupant if any)."""
+    try:
+        import gates as g
+
+        return _ok(g.unlock_room(room_id, confirm=confirm))
     except Exception as e:  # noqa: BLE001
         return _err(str(e), code="internal_error")
 

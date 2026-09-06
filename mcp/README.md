@@ -93,7 +93,7 @@ One-liners:
 # stdio
 python mcp/src/server.py
 
-# HTTP on :8110
+# HTTP on :8111
 KEEP_MCP_TRANSPORT=http KEEP_MCP_PORT=8110 python mcp/src/server.py
 ```
 
@@ -110,17 +110,24 @@ Optional env:
 
 ## Live fortress (Hetzner)
 
+| MCP process | `http://127.0.0.1:8111/mcp` (binds 0.0.0.0 for Docker) |
+| Tailnet MCP | `https://openclaw.tail20a090.ts.net:8110/mcp` (Serve → 8111) |
+| Visual Keep UI | `https://openclaw.tail20a090.ts.net:8120/` |
+| HTTP API | `http://127.0.0.1:8120/api/*` |
+
+
+
 | Item | Value |
 |------|--------|
 | Service | `ravenstack-keep-mcp.service` |
-| Local | `http://127.0.0.1:8110/mcp` |
-| Health | `http://127.0.0.1:8110/health` |
-| Tailnet | `https://openclaw.tail20a090.ts.net:8110/mcp` |
-| Health (tailnet) | `https://openclaw.tail20a090.ts.net:8110/health` |
+| Local | `http://127.0.0.1:8111/mcp` |
+| Health | `http://127.0.0.1:8111/health` |
+| Tailnet | `https://openclaw.tail20a090.ts.net:8111/mcp` |
+| Health (tailnet) | `https://openclaw.tail20a090.ts.net:8111/health` |
 
 ```bash
 sudo systemctl status ravenstack-keep-mcp
-curl -sS http://127.0.0.1:8110/health
+curl -sS http://127.0.0.1:8111/health
 ```
 
 ## Auth (Tailscale-first)

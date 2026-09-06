@@ -1,0 +1,30 @@
+node_modules/
+dist/
+.output/
+.nitro/
+.vinxi/
+.tanstack/
+*.local
+.env
+.env.*
+!.env.example
+
+# Grok Build sandbox — do not ship
+AGENTS.md
+AGENTS.project.md
+.grok/
+artifacts/
+screenshots/
+attachments/
+startup.sh
+
+# local db
+.pglite/
+*.sqlite
+*.sqlite-journal
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.log

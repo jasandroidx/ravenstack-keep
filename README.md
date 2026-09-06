@@ -1,5 +1,8 @@
 # Ravenstack Keep
 
+**Painted hall (2026-08-21):** [`ui-v2/`](./ui-v2/) — walkable fortress matching the reference paintings. Occupancy is paper until Keep HTTP is bound. Old [`ui/`](./ui/) (48×48 tiles) is frozen.
+
+
 **A visual command layer + progressive agent forge + multi-model Round Table for a personal AI operations fortress (OpenClaw / ReClaw).**
 
 This is an open collaboration space. The substrate (gateway, ReClaw 2.0, Ollama, Ravenstack vault, live RAG, working handoffs) already exists. This repo holds the design, Agent Specs, Keep MCP plans, and task board so multiple AIs (and humans) can review, push back, and build together.

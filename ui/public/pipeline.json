@@ -1,0 +1,41 @@
+{
+  "version": "0.1",
+  "note": "UI-only domain pipeline edges. Not SOT — promote into Agent Specs later. Neon conduits between Keep rooms.",
+  "edges": [
+    {
+      "from": "oracle",
+      "to": "scribe",
+      "label": "knowledge → content"
+    },
+    {
+      "from": "oracle",
+      "to": "auditor",
+      "label": "cite → verify"
+    },
+    {
+      "from": "auditor",
+      "to": "orchestrator",
+      "label": "audit → route"
+    },
+    {
+      "from": "scribe",
+      "to": "suno_studio",
+      "label": "script → audio"
+    },
+    {
+      "from": "orchestrator",
+      "to": "clawforge",
+      "label": "need → forge"
+    },
+    {
+      "from": "scribe",
+      "to": "flipper",
+      "label": "content → commerce"
+    },
+    {
+      "from": "lead_forge",
+      "to": "orchestrator",
+      "label": "gates → route (provisional)"
+    }
+  ]
+}
