@@ -153,18 +153,24 @@ async def castle_map(_: Request) -> JSONResponse:
         ).fetchall()
         live = keep._live_agents(conn)
     specs = keep._list_agent_specs()
+
+    _spec_cache: dict[str, tuple[Any, Any, bool]] = {}
     def _spec_meta(agent_id: Optional[str]) -> tuple[Any, Any, bool]:
         if not agent_id:
             return None, None, False
+        if agent_id in _spec_cache:
+            return _spec_cache[agent_id]
         sp = specs.get(agent_id)
         if not sp:
             return None, None, False
         try:
             data = json.loads(sp.read_text(encoding="utf-8"))
             stt = data.get("status")
-            return stt, True, bool(stt in ("approved", "live"))
+            res = (stt, True, bool(stt in ("approved", "live")))
         except Exception:
-            return None, False, False
+            res = (None, False, False)
+        _spec_cache[agent_id] = res
+        return res
 
     rooms_out = []
     for row in rows:
