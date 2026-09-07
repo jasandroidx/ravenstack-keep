@@ -1414,17 +1414,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-# ---------------------------------------------------------------------------
-# Manual smoke examples (python -c / REPL after init_db):
-#
-#   init_db()
-#   print(get_castle_map())
-#   print(get_path("Great Hall", "Vault"))
-#   print(rooms_within_distance("Great Hall", 2))
-#   print(list_rooms())
-#   print(get_agent_spec("oracle"))
-#   print(report_agent_status("oracle", "answering", task="smoke"))
-#   print(get_cost_summary(agent_id="oracle"))
-# ---------------------------------------------------------------------------
