@@ -1,0 +1,119 @@
+# AGENTS.md — Ravenstack Keep
+
+> **MANDATORY FIRST STEP FOR ANY AGENT/LLM/TOOL** touching this repo: load and obey
+> `/root/obsidian_vault/Ravenstack/RAVENSTACK-ORACLE.md` +
+> `/root/obsidian_vault/Ravenstack/RAVENSTACK-ARCHITECTURE.md`. These rules supersede
+> everything below. This repo is part of the same fortress as `ReClaw-2.0` — see that
+> repo's own `AGENTS.md` for fortress-wide rules (honesty, outbox delivery, confirm=true
+> gating). This file only covers what's specific to Ravenstack Keep.
+
+**Architecture SOT — read before changing anything non-trivial:**
+`Ravenstack/architecture/ravenstack-keep/` in the vault (`Architecture - Overview.md`,
+`Architecture - mcp.md`, `Architecture - Key decisions.md`). This file stays short on
+purpose and points there instead of duplicating it — if what's below and what's in the
+vault disagree, the vault is more likely to have drifted; check both against the live
+system before trusting either.
+
+**Known-fragile fact, worth internalizing before you touch the UI:** the URL everyone
+calls "the live Keep" (`https://openclaw.tail20a090.ts.net:8120/`) is served by a
+`vite dev` process running out of a **separate git worktree**
+(`/root/worktrees/ravenstack-keep-painted`, branch `painted-hall-box`), not out of this
+checkout. Pushing to `origin/ravenstack` from here does **not** update what the operator
+sees at `:8120` — see `Architecture - Overview.md` for the full picture. If you're asked
+to fix something visible in the browser, find and check that worktree, not just this repo.
+
+---
+
+## What this is
+
+The fortress's visual command layer: a spatial map of six rooms (`great-hall`,
+`alchemy-lab`, `library`, `armory`, `observatory`, `vault`), each with an occupant
+agent, rendered as an interactive scene. It is a narrow, purpose-built visualization —
+not a second copy of general fortress state. General ops (docker, git, sitrep, vault
+read/write, county queue) live in `reclaw-platform-mcp` (ReClaw-2.0, `:8100`); Keep
+owns exactly the spatial/presence layer, in its own SQLite DB.
+
+## How to actually run it (real commands, not guessed)
+
+Three independent processes, normally managed by systemd — see unit files at
+`/etc/systemd/system/ravenstack-keep-{mcp,http,ui}.service` for the exact env vars each
+one runs with.
+
+**MCP tool server** (room/agent/gate state, `mcp/data/keep.db`):
+```bash
+cd /root/ravenstack-keep/mcp
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # first time only
+KEEP_MCP_TRANSPORT=http KEEP_MCP_HOST=127.0.0.1 KEEP_MCP_PORT=8111 \
+  OBSIDIAN_VAULT=/root/obsidian_vault .venv/bin/python src/server.py
+```
+(Note: `server.py`'s own default is `KEEP_MCP_PORT=8110` — the live systemd override
+sets `8111`. Don't trust the in-code default over `systemctl cat ravenstack-keep-mcp`.)
+
+**HTTP/REST API** (same `keep.db`, plain REST for a browser — *not* a second control
+plane, see its own docstring):
+```bash
+cd /root/ravenstack-keep/mcp
+KEEP_HTTP_HOST=127.0.0.1 KEEP_HTTP_PORT=8112 KEEP_MCP_DATA=/root/ravenstack-keep/mcp/data \
+  OBSIDIAN_VAULT=/root/obsidian_vault .venv/bin/python src/http_api.py
+```
+(Same in-code-default-vs-live-override gap: source defaults to `8120`, systemd runs it
+on `8112`.)
+
+**UI** (`ui-v2/`, the current painted-hall skin — the old `ui/` is frozen, see below):
+```bash
+cd /root/ravenstack-keep      # or the live worktree, see the warning above
+npm install                    # workspaces: root package.json → ui-v2
+npm run dev                    # vite dev, default port 3000 (ui-v2/vite.config.ts)
+                                # — the live :8130 process overrides this with an
+                                # explicit `--port 8130` CLI flag, see systemd unit
+npm run build                  # production bundle — NOT what :8120 currently serves
+```
+
+Restart the live services after a change: `systemctl restart ravenstack-keep-mcp
+ravenstack-keep-http` (and separately handle the UI worktree — restarting
+`ravenstack-keep-ui.service` only picks up changes already present in that worktree's
+checkout).
+
+## The two backend services and how they relate
+
+- **`ravenstack-keep-mcp`** (`mcp/src/server.py`, `127.0.0.1:8111`) — the actual MCP
+  tool surface (`list_rooms`, `get_castle_map`, `report_agent_status`, gated
+  `approve_spec`/`unlock_room`, spatial context compaction, etc.). This is what
+  Grok Build / Claude / OpenClaw call as an MCP server.
+- **`ravenstack-keep-http`** (`mcp/src/http_api.py`, `127.0.0.1:8112`) — a thin REST
+  wrapper reading/writing the *same* SQLite file directly (not by calling the MCP
+  server) so a browser can poll plain HTTP instead of speaking MCP/JSON-RPC.
+- Both are separate from **`reclaw-platform-mcp`** (ReClaw-2.0, `:8100`) — that's the
+  general fortress operator surface (sitrep, docker, git, vault, county queue). Keep's
+  MCP is scoped to the six-room spatial/presence model only.
+
+Full request/response flow and the tool inventory: `Architecture - mcp.md` in the vault.
+
+## `castle_map.json` — read carefully, there are three different files with this name
+
+- **This repo's live spatial state is NOT a JSON file** — it's the SQLite DB at
+  `mcp/data/keep.db`, owned by `mcp/src/server.py`. Change it through the MCP tools
+  (`report_agent_status`, `unlock_room`, etc.), not by hand-editing anything.
+- `ui/public/castle_map.json` and `ui/dist/castle_map.json` are static fallback files
+  belonging to the **frozen** old `ui/` pipeline (see `ACTIVE.md`: "do not revive").
+  They are not read by anything live.
+- `/root/ReClaw-2.0/data/castle_map.json` is a **different, unrelated file** in the
+  other repo, used by ReClaw-2.0's own dashboard tools (`get_keep_state` /
+  `update_room_state` in `reclaw_platform_mcp_server.py`). Do not confuse the two —
+  the fortress-wide rule "never alter castle_map.json coordinates blindly" applies to
+  *that* file, and separately, by extension of the same caution, to any hand-edit of
+  this repo's `keep.db` room coordinates outside the MCP tools.
+
+## Boundaries
+
+- Do not touch `ui/` (the old 48×48 tile pipeline) — frozen, per `ACTIVE.md`. Current
+  work happens in `ui-v2/`.
+- Gated tools (`approve_spec`, `unlock_room`) require `confirm=true` from an explicit
+  human ask — never wire an auto-approve path.
+- No Dockerfile — this runs bare-metal by design, alongside `reclaw-platform-mcp` and
+  `reclaw-outbox` on the same host. See the ADR in `Architecture - Key decisions.md`
+  before proposing containerization.
+- Known, tracked bugs (player doesn't walk, chat boxes don't work, the dual-UI /
+  `:8080` vs `:8120` room-model mismatch, staleness/polling issues) are catalogued in
+  `Ravenstack/ideas/keep-remediation-work-order-2026-08-15.md` — check there before
+  re-diagnosing from scratch.
