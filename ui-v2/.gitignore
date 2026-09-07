@@ -28,3 +28,4 @@ startup.sh
 .idea/
 .vscode/
 *.log
+.vercel/

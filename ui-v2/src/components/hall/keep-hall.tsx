@@ -166,7 +166,22 @@ export function KeepHall() {
     }
     function onKey(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement | null)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      // If we are in an input field (like the chat input in TalkSheet), only handle Escape.
+      // Other keys should be passed through so typing works without shift.
+      if (tag === "INPUT" || tag === "TEXTAREA") {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          (e.target as HTMLElement)?.blur();
+          if (talk || tableOpen || wardrobeOpen) {
+            hallAudio.playInteract();
+            setTalk(null);
+            setTableOpen(false);
+            setWardrobeOpen(false);
+          }
+        }
+        return;
+      }
+
       if (talk || tableOpen || wardrobeOpen) {
         if (e.key === "Escape") {
           hallAudio.playInteract();
@@ -290,7 +305,7 @@ export function KeepHall() {
               Registry
             </Link>
             <Link
-              to="/gallery"
+              to="/"
               onClick={() => hallAudio.playZoneTransition()}
               className="rounded-sm border border-[#2de2e6]/60 bg-[#2de2e6]/10 px-3 py-2 font-mono text-xs uppercase tracking-[0.14em] text-[#2de2e6] backdrop-blur-md transition hover:bg-[#2de2e6]/25"
             >

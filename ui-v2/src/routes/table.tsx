@@ -5,6 +5,7 @@ import { KeepShell } from "@/components/keep/shell";
 import { SignInGate } from "@/components/keep/sign-in-gate";
 import { Button } from "@/components/ui/button";
 import { listTableSessions, parseTableRow, runTable } from "@/lib/keep/server";
+import { fetchGates, approveSpecServer, unlockRoomServer, type Gate } from "@/lib/keep/gates";
 import type { TableResult } from "@/lib/keep/types";
 
 export const Route = createFileRoute("/table")({ component: TablePage });
@@ -20,12 +21,46 @@ function TablePage() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<TableResult | null>(null);
   const [history, setHistory] = useState<{ id: number; question: string; table: TableResult }[]>([]);
+  const [gates, setGates] = useState<Gate[]>([]);
+  const [gatesBusy, setGatesBusy] = useState(false);
 
   useEffect(() => {
     listTableSessions()
       .then((rows) => setHistory(rows.map(parseTableRow)))
       .catch(() => setHistory([]));
+
+    refreshGates();
   }, []);
+
+  async function refreshGates() {
+    try {
+      const res = await fetchGates();
+      setGates(res.gates || []);
+    } catch {
+      setGates([]);
+    }
+  }
+
+  async function handleApprove(gate: Gate) {
+    if (!window.confirm(`Are you sure you want to approve: ${gate.summary}?`)) return;
+    setGatesBusy(true);
+    try {
+      if (gate.gate_type === "approve_spec") {
+        const out = await approveSpecServer({ data: gate.subject_id });
+        if (!out.ok) toast.error(out.error);
+        else toast.success("Spec approved.");
+      } else if (gate.gate_type === "unlock_room") {
+        const out = await unlockRoomServer({ data: gate.subject_id });
+        if (!out.ok) toast.error(out.error);
+        else toast.success("Room unlocked.");
+      }
+      await refreshGates();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to approve gate");
+    } finally {
+      setGatesBusy(false);
+    }
+  }
 
   async function onConvene(e: React.FormEvent) {
     e.preventDefault();
@@ -48,12 +83,50 @@ function TablePage() {
   return (
     <KeepShell>
       <p className="text-[11px] uppercase tracking-[0.2em] text-subtle">Great Hall</p>
-      <h1 className="mt-2 font-display text-4xl md:text-5xl">Round Table</h1>
+      <h1 className="mt-2 font-display text-4xl md:text-5xl">War Table</h1>
       <p className="mt-3 max-w-2xl text-muted">
-        Hard questions only. Subscription seats. Grok chairs. Daily build stays with you and the repo.
+        Review pending operations and convene the seats for strategic auditing.
       </p>
 
-      <form onSubmit={onConvene} className="mt-8">
+      {/* War Table / Gates Section */}
+      <section className="mt-10">
+        <h2 className="font-display text-2xl">Pending Approvals</h2>
+        <p className="mt-1 text-sm text-muted">Human gates require explicit `confirm=true`.</p>
+
+        {gates.length === 0 ? (
+          <div className="mt-4 rounded-xl border border-line bg-surface p-6 text-center">
+            <p className="text-muted text-sm">No pending gates or approvals.</p>
+          </div>
+        ) : (
+          <ul className="mt-4 space-y-3">
+            {gates.map((gate) => (
+              <li key={gate.id} className="flex flex-col md:flex-row md:items-center justify-between rounded-md border border-[#39ff14]/30 bg-surface px-5 py-4 gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] uppercase tracking-wider text-[#39ff14] font-bold">[{gate.gate_type}]</span>
+                    <span className="text-sm font-semibold">{gate.subject_id}</span>
+                  </div>
+                  <p className="mt-1 text-sm text-muted">{gate.summary}</p>
+                </div>
+                <SignInGate prompt="Sign in to approve this gate.">
+                  <Button
+                    type="button"
+                    onClick={() => handleApprove(gate)}
+                    disabled={gatesBusy}
+                    className="shrink-0 bg-[#39ff14]/10 text-[#39ff14] border border-[#39ff14]/50 hover:bg-[#39ff14]/20"
+                  >
+                    {gatesBusy ? "Processing..." : "Approve (confirm=true)"}
+                  </Button>
+                </SignInGate>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="mt-14">
+        <h2 className="font-display text-2xl">Convene the Seats</h2>
+        <form onSubmit={onConvene} className="mt-4">
         <SignInGate prompt="Sign in to convene the table. Findings stay with your account.">
           <div className="rounded-xl border border-line bg-surface p-5">
             <label htmlFor="q" className="text-sm text-muted">
@@ -107,6 +180,7 @@ function TablePage() {
           </ul>
         </section>
       ) : null}
+      </section>
     </KeepShell>
   );
 }
