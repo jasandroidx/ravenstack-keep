@@ -134,6 +134,9 @@ export class HallScene extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor(PALETTE.bg);
+    // Painted Great Hall background (keep-map.jpg, 1792x1008).
+    // Depth 0: renders behind all sprites. The imageLoadType: "HTMLImageElement"
+    // config in keep-hall.tsx is required for this texture to load successfully.
     this.add.image(0, 0, "keep-map").setOrigin(0, 0).setDisplaySize(MAP_W, MAP_H).setDepth(0);
     this.physics.world.setBounds(0, 0, MAP_W, MAP_H);
     this.cameras.main.setBounds(0, 0, MAP_W, MAP_H);

@@ -123,6 +123,11 @@ export function KeepHall() {
           roundPixels: true,
           physics: { default: "arcade", arcade: { gravity: { x: 0, y: 0 } } },
           scale: { mode: Phaser.Scale?.NONE ?? 0 },
+          // CRITICAL: use HTMLImageElement loader, not Phaser's default XHR loader.
+          // Without this, keep-map.jpg and sprite sheets silently fail to load in
+          // this environment, leaving create() with no texture data and a black canvas.
+          // Removing this line will reproduce the painted-hall black-screen regression.
+          // Root cause of the black screen introduced between f7341d8d and 0cfc00b.
           loader: {
             imageLoadType: "HTMLImageElement",
           },
