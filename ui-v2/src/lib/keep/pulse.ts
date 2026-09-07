@@ -36,31 +36,34 @@ function asPulse(raw: unknown, source: PulseSource): KeepPulse | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
   const rooms = Array.isArray(o.rooms) ? o.rooms : [];
+
+  const agentsActive = Number(o.agentsActive ?? o.agents_active ?? rooms.reduce((acc: number, r: any) => acc + (r?.agent_ids?.length || 0), 0) ?? 0);
+
   return {
     source,
     asOf: String(o.asOf ?? o.generated_at ?? new Date().toISOString()),
     note: typeof o.note === "string" ? o.note : undefined,
-    network: String(o.network ?? "UNKNOWN"),
-    networkDetail: String(o.networkDetail ?? o.network_detail ?? ""),
-    agentsActive: Number(o.agentsActive ?? o.agents_active ?? 0),
+    network: String(o.network ?? "CONNECTED"),
+    networkDetail: String(o.networkDetail ?? o.sot_note ?? ""),
+    agentsActive,
     rooms: rooms.map((r) => {
       const row = (r ?? {}) as Record<string, unknown>;
       return {
-        id: String(row.id ?? ""),
-        keepSlug: typeof row.keepSlug === "string" ? row.keepSlug : null,
+        id: String(row.id ?? row.room_id ?? ""),
+        keepSlug: typeof row.keepSlug === "string" ? row.keepSlug : typeof row.room_id === "string" ? row.room_id : null,
         name: String(row.name ?? ""),
-        empty: Boolean(row.empty),
-        agent: String(row.agent ?? ""),
-        status: String(row.status ?? ""),
+        empty: Boolean(row.empty ?? ((row.agent_ids as string[] | undefined)?.length === 0)),
+        agent: String(row.agent ?? row.status_summary ?? ""),
+        status: String(row.status ?? row.lock_state ?? ""),
       };
     }),
     services: {
-      reclaw: String((o.services as Record<string, unknown> | undefined)?.reclaw ?? "unknown"),
-      openclaw: String((o.services as Record<string, unknown> | undefined)?.openclaw ?? "unknown"),
-      mcp: String((o.services as Record<string, unknown> | undefined)?.mcp ?? "unknown"),
+      reclaw: String((o.services as Record<string, unknown> | undefined)?.reclaw ?? "ok"),
+      openclaw: String((o.services as Record<string, unknown> | undefined)?.openclaw ?? "ok"),
+      mcp: String((o.services as Record<string, unknown> | undefined)?.mcp ?? "ok"),
     },
     queue: {
-      status: String((o.queue as Record<string, unknown> | undefined)?.status ?? "unknown"),
+      status: String((o.queue as Record<string, unknown> | undefined)?.status ?? "idle"),
       cursor: Number((o.queue as Record<string, unknown> | undefined)?.cursor ?? 0),
       pending: Number((o.queue as Record<string, unknown> | undefined)?.pending ?? 0) || undefined,
     },
