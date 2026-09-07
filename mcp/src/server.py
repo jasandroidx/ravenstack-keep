@@ -351,6 +351,8 @@ def _list_agent_specs() -> dict[str, Path]:
     return out
 
 
+_cached_validator: Any = None
+
 def _load_spec(agent_id: str) -> tuple[Optional[dict[str, Any]], Optional[Path], Optional[str]]:
     """Return (spec_dict, path, error_message)."""
     specs = _list_agent_specs()
@@ -367,9 +369,13 @@ def _load_spec(agent_id: str) -> tuple[Optional[dict[str, Any]], Optional[Path],
     except (OSError, json.JSONDecodeError) as e:
         return None, path, f"Failed to read spec: {e}"
     if jsonschema is not None and SCHEMA_PATH.is_file():
+        global _cached_validator
         try:
-            schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
-            jsonschema.validate(data, schema)
+            if _cached_validator is None:
+                schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+                Validator = jsonschema.validators.validator_for(schema)
+                _cached_validator = Validator(schema)
+            _cached_validator.validate(data)
         except Exception as e:  # noqa: BLE001 — surface as tool error
             return None, path, f"Spec failed schema validation: {e}"
     return data, path, None
