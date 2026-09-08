@@ -635,6 +635,7 @@ export function GoogleDriveExplorer() {
                 <button
                   onClick={() => setSelectedFile(null)}
                   className="text-subtle hover:text-fg text-xs"
+                  aria-label="Close file details"
                 >
                   ✕
                 </button>
