@@ -1,0 +1,3 @@
+## 2025-02-23 - Interactive Badges Accessibility
+**Learning:** This application heavily utilizes custom styled `div` elements for interactive status badges to match its 16-bit cyber aesthetic, often missing native button accessibility.
+**Action:** When working on interactive UI elements (like status badges) that use `div` or `span` with `onClick` handlers, always ensure they are upgraded with `role="button"`, `tabIndex={0}`, keyboard event handlers for Enter/Space, and appropriate `focus-visible` ring styling to maintain accessibility without disrupting the custom aesthetic.
