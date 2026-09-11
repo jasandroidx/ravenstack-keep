@@ -51,7 +51,15 @@ export function GoogleDriveExplorer() {
   const [about, setAbout] = useState<DriveAbout | null>(null);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>("all");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
   const [breadcrumbs, setBreadcrumbs] = useState<FolderBreadcrumb[]>([{ id: "root", name: "My Drive" }]);
   const currentFolderId = breadcrumbs[breadcrumbs.length - 1]?.id || "root";
 
@@ -103,7 +111,7 @@ export function GoogleDriveExplorer() {
       const [filesRes, aboutRes] = await Promise.all([
         listDriveFiles(token, {
           folderId: currentFolderId,
-          searchQuery: searchQuery.trim() || undefined,
+          searchQuery: debouncedSearchQuery.trim() || undefined,
           mimeCategory: activeCategory,
           includeTrashed: activeCategory === "trash",
         }),
@@ -121,7 +129,7 @@ export function GoogleDriveExplorer() {
     } finally {
       setLoading(false);
     }
-  }, [token, currentFolderId, searchQuery, activeCategory]);
+  }, [token, currentFolderId, debouncedSearchQuery, activeCategory]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -134,6 +142,7 @@ export function GoogleDriveExplorer() {
     if (file.mimeType === "application/vnd.google-apps.folder") {
       setBreadcrumbs((prev) => [...prev, { id: file.id, name: file.name }]);
       setSearchQuery("");
+      setDebouncedSearchQuery("");
     } else {
       handleOpenFilePreview(file);
     }
@@ -165,6 +174,7 @@ export function GoogleDriveExplorer() {
   const navigateToBreadcrumb = (index: number) => {
     setBreadcrumbs((prev) => prev.slice(0, index + 1));
     setSearchQuery("");
+    setDebouncedSearchQuery("");
   };
 
   // Create folder
