@@ -591,8 +591,16 @@ export function GoogleDriveExplorer() {
                   return (
                     <div
                       key={file.id}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => handleItemClick(file)}
-                      className={`group grid grid-cols-12 items-center px-4 py-3 text-sm transition-colors cursor-pointer hover:bg-elevated/60 ${
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleItemClick(file);
+                        }
+                      }}
+                      className={`group grid grid-cols-12 items-center px-4 py-3 text-sm transition-colors cursor-pointer hover:bg-elevated/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
                         isSelected ? "bg-elevated" : ""
                       }`}
                     >
