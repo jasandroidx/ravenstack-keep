@@ -14,6 +14,7 @@ State: SQLite under mcp/data/keep.db. Specs: repo agents/*.agent-spec.json.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -156,12 +157,24 @@ def _err(message: str, code: str = "error", **extra: Any) -> str:
     return json.dumps(body, indent=2)
 
 
-def _connect() -> sqlite3.Connection:
+@contextlib.contextmanager
+def _connect():
+    """`sqlite3.Connection.__exit__` only commits/rolls back — it never
+    closes the fd. Every `with _connect() as conn:` call site (server.py,
+    gates.py, openclaw_sync.py, http_api.py) was leaking one fd per call,
+    which is what exhausted the process's file-descriptor limit."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def init_db() -> None:

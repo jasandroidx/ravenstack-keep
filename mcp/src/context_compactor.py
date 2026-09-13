@@ -18,6 +18,7 @@ Env:
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import math
@@ -349,10 +350,20 @@ class ArcaneCompactor:
         self._use_vec = False
         self._init_db()
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextlib.contextmanager
+    def _connect(self):
+        """`sqlite3.Connection.__exit__` only commits/rolls back — it never
+        closes the fd. Matches the same fix in server.py::_connect."""
         conn = sqlite3.connect(str(self.db_path))
         conn.row_factory = sqlite3.Row
-        return conn
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     def _init_db(self) -> None:
         with self._connect() as conn:
