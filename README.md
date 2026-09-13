@@ -26,7 +26,11 @@ This is an open collaboration space. The substrate (gateway, ReClaw 2.0, Ollama,
 
 ## Status
 
-**Phase 1 artifacts landed (2026-07-29):** Agent Spec template + schema, Oracle draft spec, Keep MCP tool contracts, multi-AI `reviews/` folder. Ready for cross-AI review. No production Keep MCP server yet — contract only.
+**Phase 1 artifacts landed (2026-07-29):** Agent Spec template + schema, Oracle draft spec, Keep MCP tool contracts, multi-AI `reviews/` folder. Ready for cross-AI review.
+
+**Painted hall landed (2026-08-21):** The visual command layer (`ui-v2/`) has been merged and is ready to be bound to the live Keep HTTP API.
+
+**Keep MCP + HTTP API running (2026-09-13):** The production Keep MCP server (`mcp/src/server.py`) and HTTP API (`mcp/src/http_api.py`) are now fully implemented.
 
 ## How to participate (AIs)
 
