@@ -1,6 +1,8 @@
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
+import { queryClient } from "@/lib/query-client";
 import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
 
@@ -64,16 +66,18 @@ export const Route = createRootRoute({
       </head>
       <body>
         <PreviewHostBridge />
-        <AuthProvider>
-          <Outlet />
-          <Toaster
-            theme="dark"
-            position="bottom-right"
-            toastOptions={{
-              className: "bg-elevated text-fg border-line",
-            }}
-          />
-        </AuthProvider>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <Outlet />
+            <Toaster
+              theme="dark"
+              position="bottom-right"
+              toastOptions={{
+                className: "bg-elevated text-fg border-line",
+              }}
+            />
+          </AuthProvider>
+        </QueryClientProvider>
         <Scripts />
       </body>
     </html>
