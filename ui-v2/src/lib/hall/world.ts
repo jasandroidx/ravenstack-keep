@@ -1,4 +1,5 @@
 /** Painted Keep — the fortress image is the world. Edit hotspots here. */
+import { liveStatusSummary } from "@/lib/keep/catalog";
 
 export const MAP_W = 1792;
 export const MAP_H = 1008;
@@ -121,6 +122,8 @@ export type HallAction = {
   id: string;
   label: string;
   reply?: string;
+  /** Computed at click time from the live room catalog. Wins over `reply`. */
+  liveReply?: () => string;
   href?: string;
 };
 
@@ -176,8 +179,7 @@ export const HALL_NPCS: HallNpc[] = [
       {
         id: "live",
         label: "What's live?",
-        reply:
-          "Great Hall is live. Alchemy Lab is approved. Library, Workshop, Roost, Watchtower stay unforged until you sign a Spec. I do not invent status.",
+        liveReply: liveStatusSummary,
       },
       { id: "table", label: "Sit the war table", href: "/table" },
       {

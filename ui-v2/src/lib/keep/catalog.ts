@@ -629,3 +629,19 @@ export function roomCounts() {
     specs: Object.keys(SPECS).length,
   };
 }
+
+/**
+ * Raziel's "what's live" line, generated from ROOMS every time it's asked —
+ * never seeded prose. This is the one sentence that must never drift from
+ * the Ledger, so it is not allowed to be written by hand.
+ */
+export function liveStatusSummary(): string {
+  const live = ROOMS.filter((r) => r.lock === "live").map((r) => r.name);
+  const unforged = ROOMS.filter((r) => r.lock === "unforged").map((r) => r.name);
+  const list = (names: string[]) =>
+    names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+
+  const liveLine = live.length ? `${list(live)} ${live.length === 1 ? "is" : "are"} live.` : "Nothing is live yet.";
+  const unforgedLine = unforged.length ? ` ${list(unforged)} stay unforged until you sign a Spec.` : "";
+  return `${liveLine}${unforgedLine} I do not invent status.`;
+}

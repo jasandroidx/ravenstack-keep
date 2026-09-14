@@ -185,7 +185,7 @@ export function TalkSheet({
       time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     };
 
-    const replyText = action.reply ?? "Acknowledged.";
+    const replyText = action.liveReply?.() ?? action.reply ?? "Acknowledged.";
     const npcMsg: Message = {
       id: `npc-${Date.now()}`,
       sender: "npc",
