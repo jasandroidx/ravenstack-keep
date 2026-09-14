@@ -438,11 +438,11 @@ export function KeepHall() {
       {talk || tableOpen || wardrobeOpen ? null : (
         <div className="pointer-events-auto absolute bottom-4 left-4 z-10 grid grid-cols-3 gap-1 md:hidden">
           <span />
-          <Pad {...hold({ x: 0, y: -1 })}>▲</Pad>
+          <Pad aria-label="Move Up" {...hold({ x: 0, y: -1 })}>▲</Pad>
           <span />
-          <Pad {...hold({ x: -1, y: 0 })}>◀</Pad>
-          <Pad {...hold({ x: 0, y: 1 })}>▼</Pad>
-          <Pad {...hold({ x: 1, y: 0 })}>▶</Pad>
+          <Pad aria-label="Move Left" {...hold({ x: -1, y: 0 })}>◀</Pad>
+          <Pad aria-label="Move Down" {...hold({ x: 0, y: 1 })}>▼</Pad>
+          <Pad aria-label="Move Right" {...hold({ x: 1, y: 0 })}>▶</Pad>
         </div>
       )}
 

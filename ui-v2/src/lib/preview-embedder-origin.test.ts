@@ -1,25 +1,42 @@
-import { describe, it } from "node:test";
-import assert from "node:assert";
-import { isSandboxPreviewGuestHost } from "./preview-embedder-origin.ts";
+import { describe, it } from 'node:test';
+import assert from 'node:assert';
+import { isGrokEmbedderOrigin } from './preview-embedder-origin.ts';
 
-describe("isSandboxPreviewGuestHost", () => {
-  it("should return true for exact match", () => {
-    assert.strictEqual(isSandboxPreviewGuestHost("grok-sandbox.com"), true);
+describe('isGrokEmbedderOrigin', () => {
+  it('returns true for exact domain', () => {
+    assert.strictEqual(isGrokEmbedderOrigin('https://grok.com'), true);
+    assert.strictEqual(isGrokEmbedderOrigin('http://grok.com'), true);
   });
 
-  it("should return true for case-insensitive match", () => {
-    assert.strictEqual(isSandboxPreviewGuestHost("GROK-SANDBOX.COM"), true);
+  it('returns true for subdomains', () => {
+    assert.strictEqual(isGrokEmbedderOrigin('https://sub.grok.com'), true);
+    assert.strictEqual(isGrokEmbedderOrigin('https://a.b.grok.com'), true);
   });
 
-  it("should return true for subdomains", () => {
-    assert.strictEqual(isSandboxPreviewGuestHost("sub.grok-sandbox.com"), true);
-    assert.strictEqual(isSandboxPreviewGuestHost("a.b.grok-sandbox.com"), true);
+  it('returns true for localhost', () => {
+    assert.strictEqual(isGrokEmbedderOrigin('http://localhost'), true);
+    assert.strictEqual(isGrokEmbedderOrigin('http://localhost:3000'), true);
+    assert.strictEqual(isGrokEmbedderOrigin('http://127.0.0.1'), true);
+    assert.strictEqual(isGrokEmbedderOrigin('http://127.0.0.1:8080'), true);
+    assert.strictEqual(isGrokEmbedderOrigin('http://[::1]'), true);
+    assert.strictEqual(isGrokEmbedderOrigin('http://[::1]:3000'), true);
   });
 
-  it("should return false for invalid domains", () => {
-    assert.strictEqual(isSandboxPreviewGuestHost("grok.com"), false);
-    assert.strictEqual(isSandboxPreviewGuestHost("mygrok-sandbox.com"), false);
-    assert.strictEqual(isSandboxPreviewGuestHost("grok-sandbox.com.org"), false);
-    assert.strictEqual(isSandboxPreviewGuestHost("example.com"), false);
+  it('returns false for invalid domains', () => {
+    assert.strictEqual(isGrokEmbedderOrigin('https://notgrok.com'), false);
+    assert.strictEqual(isGrokEmbedderOrigin('https://grok.com.evil.com'), false);
+    assert.strictEqual(isGrokEmbedderOrigin('https://evilgrok.com'), false);
+  });
+
+  it('returns false for invalid protocols', () => {
+    assert.strictEqual(isGrokEmbedderOrigin('ftp://grok.com'), false);
+    assert.strictEqual(isGrokEmbedderOrigin('wss://grok.com'), false);
+    assert.strictEqual(isGrokEmbedderOrigin('file://grok.com'), false);
+  });
+
+  it('returns false for non-URL strings', () => {
+    assert.strictEqual(isGrokEmbedderOrigin('invalid-string'), false);
+    assert.strictEqual(isGrokEmbedderOrigin('grok.com'), false); // no protocol
+    assert.strictEqual(isGrokEmbedderOrigin(''), false);
   });
 });

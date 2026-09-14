@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
+import { useDebounce } from "@/hooks/use-debounce";
 import { toast } from "sonner";
 import {
   Folder,
@@ -51,6 +52,7 @@ export function GoogleDriveExplorer() {
   const [about, setAbout] = useState<DriveAbout | null>(null);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [breadcrumbs, setBreadcrumbs] = useState<FolderBreadcrumb[]>([{ id: "root", name: "My Drive" }]);
   const currentFolderId = breadcrumbs[breadcrumbs.length - 1]?.id || "root";
@@ -103,7 +105,7 @@ export function GoogleDriveExplorer() {
       const [filesRes, aboutRes] = await Promise.all([
         listDriveFiles(token, {
           folderId: currentFolderId,
-          searchQuery: searchQuery.trim() || undefined,
+          searchQuery: debouncedSearchQuery.trim() || undefined,
           mimeCategory: activeCategory,
           includeTrashed: activeCategory === "trash",
         }),
@@ -121,7 +123,7 @@ export function GoogleDriveExplorer() {
     } finally {
       setLoading(false);
     }
-  }, [token, currentFolderId, searchQuery, activeCategory]);
+  }, [token, currentFolderId, debouncedSearchQuery, activeCategory]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -591,8 +593,16 @@ export function GoogleDriveExplorer() {
                   return (
                     <div
                       key={file.id}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => handleItemClick(file)}
-                      className={`group grid grid-cols-12 items-center px-4 py-3 text-sm transition-colors cursor-pointer hover:bg-elevated/60 ${
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleItemClick(file);
+                        }
+                      }}
+                      className={`group grid grid-cols-12 items-center px-4 py-3 text-sm transition-colors cursor-pointer hover:bg-elevated/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
                         isSelected ? "bg-elevated" : ""
                       }`}
                     >
@@ -635,6 +645,7 @@ export function GoogleDriveExplorer() {
                 <button
                   onClick={() => setSelectedFile(null)}
                   className="text-subtle hover:text-fg text-xs"
+                  aria-label="Close file details"
                 >
                   ✕
                 </button>

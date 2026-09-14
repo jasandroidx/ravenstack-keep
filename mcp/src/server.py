@@ -364,6 +364,8 @@ def _list_agent_specs() -> dict[str, Path]:
     return out
 
 
+_cached_validator: Any = None
+
 def _load_spec(agent_id: str) -> tuple[Optional[dict[str, Any]], Optional[Path], Optional[str]]:
     """Return (spec_dict, path, error_message)."""
     specs = _list_agent_specs()
@@ -381,8 +383,12 @@ def _load_spec(agent_id: str) -> tuple[Optional[dict[str, Any]], Optional[Path],
         return None, path, f"Failed to read spec: {e}"
     if jsonschema is not None and SCHEMA_PATH.is_file():
         try:
-            schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
-            jsonschema.validate(data, schema)
+            global _cached_validator
+            if _cached_validator is None:
+                schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+                Validator = jsonschema.validators.validator_for(schema)
+                _cached_validator = Validator(schema)
+            _cached_validator.validate(data)
         except Exception as e:  # noqa: BLE001 — surface as tool error
             return None, path, f"Spec failed schema validation: {e}"
     return data, path, None
@@ -1229,19 +1235,29 @@ def get_occupancy_summary() -> str:
     try:
         init_db()
         with _connect() as conn:
-            rooms = [
-                _row_room(r)
-                for r in conn.execute("SELECT * FROM rooms").fetchall()
+            # Performance Optimization:
+            # Instead of pulling all room rows into memory, constructing dictionaries via _row_room,
+            # and iterating over them in Python to count statuses, lock_states, and restricted rooms,
+            # we execute direct SQL aggregate queries to push computation to SQLite.
+            # Expected Performance Impact: Reduces CPU and memory allocation overhead from O(N) row hydration to O(1) SQL aggregates.
+            room_count = conn.execute("SELECT COUNT(*) FROM rooms").fetchone()[0]
+            by_status = dict(
+                conn.execute(
+                    "SELECT status, COUNT(*) FROM rooms GROUP BY status"
+                ).fetchall()
+            )
+            by_lock = dict(
+                conn.execute(
+                    "SELECT lock_state, COUNT(*) FROM rooms GROUP BY lock_state"
+                ).fetchall()
+            )
+            restricted = [
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM rooms WHERE status = 'Restricted' OR lock_state = 'locked'"
+                ).fetchall()
             ]
             agents = list(_live_agents(conn).values())
-        by_status: dict[str, int] = {}
-        by_lock: dict[str, int] = {}
-        restricted = []
-        for r in rooms:
-            by_status[r["status"]] = by_status.get(r["status"], 0) + 1
-            by_lock[r["lock_state"]] = by_lock.get(r["lock_state"], 0) + 1
-            if r["status"] == "Restricted" or r["lock_state"] == "locked":
-                restricted.append(r["name"])
         active_agents = [
             a for a in agents if a["state"] not in ("retired", "idle")
         ]
@@ -1250,7 +1266,7 @@ def get_occupancy_summary() -> str:
                 "agent_count": len(agents),
                 "active_agent_count": len(active_agents),
                 "agents": agents,
-                "room_count": len(rooms),
+                "room_count": room_count,
                 "rooms_by_status": by_status,
                 "rooms_by_lock_state": by_lock,
                 "restricted_rooms": restricted,
@@ -1429,15 +1445,3 @@ if __name__ == "__main__":
     main()
 
 
-# ---------------------------------------------------------------------------
-# Manual smoke examples (python -c / REPL after init_db):
-#
-#   init_db()
-#   print(get_castle_map())
-#   print(get_path("Great Hall", "Vault"))
-#   print(rooms_within_distance("Great Hall", 2))
-#   print(list_rooms())
-#   print(get_agent_spec("oracle"))
-#   print(report_agent_status("oracle", "answering", task="smoke"))
-#   print(get_cost_summary(agent_id="oracle"))
-# ---------------------------------------------------------------------------
