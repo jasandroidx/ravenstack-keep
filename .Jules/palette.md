@@ -1,0 +1,3 @@
+## 2024-10-24 - Interactive List Items Accessibility
+**Learning:** File list items in `DriveExplorer` (and similar interactive components) were built using generic `div` elements with `onClick` handlers. Because they did not have semantic roles or keyboard support, screen readers could not identify them as interactive, and keyboard users could not activate them via Tab or Enter/Space.
+**Action:** When converting generic `div` or `span` elements to interactive buttons (to maintain 16-bit styling), always explicitly add `role="button"`, `tabIndex={0}`, an `onKeyDown` handler that triggers on "Enter" and "Space", and `focus-visible` outline styling.
