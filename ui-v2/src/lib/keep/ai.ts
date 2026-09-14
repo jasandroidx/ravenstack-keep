@@ -13,9 +13,8 @@ Hard rules:
 - Prefer MCP over shell. Distill before save.
 - Human remains the final gate.
 
-Live rooms: Raziel (Great Hall, live), Clawforge (Alchemy Lab, approved/live room).
-Unforged with specs: Oracle (Library), Corvid (Roost), Sentinel (Watchtower), Valerie / Mechanic (Workshop).
-Unforged without full specs: Ops Warden (Armory), Flipper (Yard).
+Room status (generated from the Ledger, never write this by hand):
+${ROOMS.map((r) => `- ${r.name} (${r.occupant}): ${r.lock}`).join("\n")}
 
 Existing specs (do not duplicate their purpose):
 ${Object.values(SPECS)
@@ -39,7 +38,40 @@ function getGenAI(): GoogleGenAI {
   return genAiClient;
 }
 
-async function complete(system: string, user: string, maxTokens = 1800) {
+/** Local-first per the Keep's own cost model: Ollama on the box before any paid call. */
+async function completeOllama(system: string, user: string, maxTokens: number) {
+  const base = (process.env.OLLAMA_URL?.trim() || "http://127.0.0.1:11434").replace(/\/$/, "");
+  const model = process.env.KEEP_TALK_MODEL?.trim() || "qwen3:1.7b";
+  try {
+    const res = await fetch(`${base}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      // CPU-bound local inference: normal case is 10-30s, generous headroom
+      // for a cold model load or a second request queued behind one already running.
+      signal: AbortSignal.timeout(90000),
+      body: JSON.stringify({
+        model,
+        think: false,
+        stream: false,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        options: { num_predict: maxTokens },
+      }),
+    });
+    if (!res.ok) return { ok: false as const, error: `Ollama HTTP ${res.status}` };
+    const data = (await res.json()) as { message?: { content?: string } };
+    const text = data.message?.content?.trim() ?? "";
+    if (!text) return { ok: false as const, error: "Empty model response from Ollama" };
+    return { ok: true as const, text };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false as const, error: `Ollama unreachable: ${message}` };
+  }
+}
+
+async function completeGemini(system: string, user: string, maxTokens: number) {
   try {
     const ai = getGenAI();
     const response = await ai.models.generateContent({
@@ -62,6 +94,16 @@ async function complete(system: string, user: string, maxTokens = 1800) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false as const, error: `Gemini API error: ${message}` };
   }
+}
+
+/** Local (Ollama) first; escalate to Gemini only if local fails and a key is configured. */
+async function complete(system: string, user: string, maxTokens = 1800) {
+  const local = await completeOllama(system, user, maxTokens);
+  if (local.ok) return local;
+
+  const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY);
+  if (!hasGeminiKey) return local;
+  return completeGemini(system, user, maxTokens);
 }
 
 function extractJson<T>(text: string): T | null {
