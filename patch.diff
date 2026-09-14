@@ -1,0 +1,61 @@
+<<<<<<< SEARCH
+import React, { useEffect, useState, useCallback, useRef } from "react";
+=======
+import React, { useEffect, useState, useCallback, useRef } from "react";
+import { useDebounce } from "@/hooks/use-debounce";
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeCategory, setActiveCategory] = useState<string>("all");
+=======
+  const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+  const [activeCategory, setActiveCategory] = useState<string>("all");
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+  const loadDriveData = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const [filesRes, aboutRes] = await Promise.all([
+        listDriveFiles(token, {
+          folderId: currentFolderId,
+          searchQuery: searchQuery.trim() || undefined,
+          mimeCategory: activeCategory,
+          includeTrashed: activeCategory === "trash",
+        }),
+        getDriveAbout(token),
+      ]);
+      setFiles(filesRes.files || []);
+      if (aboutRes) setAbout(aboutRes);
+    } catch (err) {
+      console.error("Failed to load Google Drive files:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to load Google Drive files");
+    } finally {
+      setLoading(false);
+    }
+  }, [token, currentFolderId, searchQuery, activeCategory]);
+=======
+  const loadDriveData = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const [filesRes, aboutRes] = await Promise.all([
+        listDriveFiles(token, {
+          folderId: currentFolderId,
+          searchQuery: debouncedSearchQuery.trim() || undefined,
+          mimeCategory: activeCategory,
+          includeTrashed: activeCategory === "trash",
+        }),
+        getDriveAbout(token),
+      ]);
+      setFiles(filesRes.files || []);
+      if (aboutRes) setAbout(aboutRes);
+    } catch (err) {
+      console.error("Failed to load Google Drive files:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to load Google Drive files");
+    } finally {
+      setLoading(false);
+    }
+  }, [token, currentFolderId, debouncedSearchQuery, activeCategory]);
+>>>>>>> REPLACE
