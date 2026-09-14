@@ -5,22 +5,36 @@
 > `/root/obsidian_vault/Ravenstack/RAVENSTACK-ARCHITECTURE.md`. These rules supersede
 > everything below. This repo is part of the same fortress as `ReClaw-2.0` — see that
 > repo's own `AGENTS.md` for fortress-wide rules (honesty, outbox delivery, confirm=true
-> gating). This file only covers what's specific to Ravenstack Keep.
+> gating), and its **Universal to-do / open threads** section for what's currently
+> deferred across the whole fortress, not just this repo.
+>
+> **⚠ BROKEN POINTER, verified 2026-09-14:** neither `RAVENSTACK-ORACLE.md` nor
+> `RAVENSTACK-ARCHITECTURE.md` exists at that path anymore, in either vault directory
+> (`/root/obsidian_vault` or `/root/obsidian-vault` — both exist, unreconciled, likely
+> from a reorg). The `Ravenstack/architecture/ravenstack-keep/` doc set referenced below
+> is also gone. Don't act as if you've read them — you can't. Say so, and use the live
+> system (this repo, `systemctl`, `docker ps`) as ground truth instead of vault prose
+> until this is repaired. This is on the fortress-wide to-do list.
 
-**Architecture SOT — read before changing anything non-trivial:**
+**Architecture SOT — currently broken, see warning above.** Was meant to be
 `Ravenstack/architecture/ravenstack-keep/` in the vault (`Architecture - Overview.md`,
-`Architecture - mcp.md`, `Architecture - Key decisions.md`). This file stays short on
-purpose and points there instead of duplicating it — if what's below and what's in the
-vault disagree, the vault is more likely to have drifted; check both against the live
-system before trusting either.
+`Architecture - mcp.md`, `Architecture - Key decisions.md`).
 
-**Known-fragile fact, worth internalizing before you touch the UI:** the URL everyone
-calls "the live Keep" (`https://openclaw.tail20a090.ts.net:8120/`) is served by a
-`vite dev` process running out of a **separate git worktree**
-(`/root/worktrees/ravenstack-keep-painted`, branch `painted-hall-box`), not out of this
-checkout. Pushing to `origin/ravenstack` from here does **not** update what the operator
-sees at `:8120` — see `Architecture - Overview.md` for the full picture. If you're asked
-to fix something visible in the browser, find and check that worktree, not just this repo.
+**Corrected 2026-09-14, verified firsthand — do not revert to the old claim below:**
+the live Keep (`https://openclaw.tail20a090.ts.net:8120/` → `:8130`) is served by
+`ravenstack-keep-ui.service`, which now points at **this checkout**
+(`/root/ravenstack-keep/ui-v2`, branch `ravenstack`), started via
+`/root/ravenstack-keep/node_modules/.bin/vite`. Pushing to `origin/ravenstack` and
+restarting that systemd unit is what updates `:8120`.
+
+<details>
+<summary>Stale claim this replaced (kept for history, do not follow)</summary>
+
+The URL everyone calls "the live Keep" was served by a `vite dev` process running out of
+a separate git worktree (`/root/worktrees/ravenstack-keep-painted`, branch
+`painted-hall-box`). That worktree was retired 2026-09-14 — it no longer exists.
+
+</details>
 
 ---
 
