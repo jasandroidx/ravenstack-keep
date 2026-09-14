@@ -67,6 +67,14 @@ export function UserButton() {
         </span>
       )}
       <span className="text-sm font-medium">{label}</span>
+      {user.isDevFallback && (
+        <span
+          className="rounded-sm border border-[#ff2a6d]/60 bg-[#ff2a6d]/10 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-[#ff2a6d]"
+          title="VITE_AUTH_ENABLED=false — no session, shared identity for every visitor"
+        >
+          Dev build · no auth
+        </span>
+      )}
       {authEnabled && (
         <button
           type="button"
