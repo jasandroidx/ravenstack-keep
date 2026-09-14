@@ -14,6 +14,7 @@ State: SQLite under mcp/data/keep.db. Specs: repo agents/*.agent-spec.json.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -156,12 +157,24 @@ def _err(message: str, code: str = "error", **extra: Any) -> str:
     return json.dumps(body, indent=2)
 
 
-def _connect() -> sqlite3.Connection:
+@contextlib.contextmanager
+def _connect():
+    """`sqlite3.Connection.__exit__` only commits/rolls back — it never
+    closes the fd. Every `with _connect() as conn:` call site (server.py,
+    gates.py, openclaw_sync.py, http_api.py) was leaking one fd per call,
+    which is what exhausted the process's file-descriptor limit."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def init_db() -> None:
@@ -1216,19 +1229,29 @@ def get_occupancy_summary() -> str:
     try:
         init_db()
         with _connect() as conn:
-            rooms = [
-                _row_room(r)
-                for r in conn.execute("SELECT * FROM rooms").fetchall()
+            # Performance Optimization:
+            # Instead of pulling all room rows into memory, constructing dictionaries via _row_room,
+            # and iterating over them in Python to count statuses, lock_states, and restricted rooms,
+            # we execute direct SQL aggregate queries to push computation to SQLite.
+            # Expected Performance Impact: Reduces CPU and memory allocation overhead from O(N) row hydration to O(1) SQL aggregates.
+            room_count = conn.execute("SELECT COUNT(*) FROM rooms").fetchone()[0]
+            by_status = dict(
+                conn.execute(
+                    "SELECT status, COUNT(*) FROM rooms GROUP BY status"
+                ).fetchall()
+            )
+            by_lock = dict(
+                conn.execute(
+                    "SELECT lock_state, COUNT(*) FROM rooms GROUP BY lock_state"
+                ).fetchall()
+            )
+            restricted = [
+                row["name"]
+                for row in conn.execute(
+                    "SELECT name FROM rooms WHERE status = 'Restricted' OR lock_state = 'locked'"
+                ).fetchall()
             ]
             agents = list(_live_agents(conn).values())
-        by_status: dict[str, int] = {}
-        by_lock: dict[str, int] = {}
-        restricted = []
-        for r in rooms:
-            by_status[r["status"]] = by_status.get(r["status"], 0) + 1
-            by_lock[r["lock_state"]] = by_lock.get(r["lock_state"], 0) + 1
-            if r["status"] == "Restricted" or r["lock_state"] == "locked":
-                restricted.append(r["name"])
         active_agents = [
             a for a in agents if a["state"] not in ("retired", "idle")
         ]
@@ -1237,7 +1260,7 @@ def get_occupancy_summary() -> str:
                 "agent_count": len(agents),
                 "active_agent_count": len(active_agents),
                 "agents": agents,
-                "room_count": len(rooms),
+                "room_count": room_count,
                 "rooms_by_status": by_status,
                 "rooms_by_lock_state": by_lock,
                 "restricted_rooms": restricted,
