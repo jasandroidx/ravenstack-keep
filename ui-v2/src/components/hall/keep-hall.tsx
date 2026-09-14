@@ -6,6 +6,7 @@ import { RAVENLORD_SKINS, type HallNpc, type RavenlordSkin } from "@/lib/hall/wo
 import { getKeepSnapshot } from "@/lib/keep/server";
 import type { KeepPulse } from "@/lib/keep/pulse";
 import { hallAudio } from "@/lib/hall/audio";
+import { pickHeraldLine } from "@/lib/hall/herald";
 import { WarTablePanel } from "@/components/keep/war-table-panel";
 import { getHallState, listQuarantine } from "@/lib/keep/server";
 import { pickBark, type HallState } from "@/lib/hall/barks";
@@ -37,6 +38,7 @@ export function KeepHall() {
   const [activeSkin, setActiveSkin] = useState("ravenlord");
   const [pulse, setPulse] = useState<KeepPulse | null>(null);
   const [audioMuted, setAudioMuted] = useState(false);
+  const [heraldLine, setHeraldLine] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -49,6 +51,30 @@ export function KeepHall() {
       alive = false;
     };
   }, []);
+
+  // Herald: ambient flavor, not status. Fires on a randomized cadence so it
+  // reads as something noticing the hall rather than a metronome. Paused
+  // during any modal — a thought line under a dialogue box is just noise.
+  useEffect(() => {
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      if (!alive) return;
+      if (!(talk || tableOpen || wardrobeOpen)) {
+        const line = pickHeraldLine(new Date().getHours());
+        if (line) {
+          setHeraldLine(line.text);
+          if (line.category === "torchlight") sceneRef.current?.pulseTorch();
+        }
+      }
+      timer = setTimeout(tick, 45000 + Math.random() * 45000);
+    };
+    timer = setTimeout(tick, 8000 + Math.random() * 10000);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [talk, tableOpen, wardrobeOpen]);
 
   function handleEquipSkin(skin: RavenlordSkin) {
     setActiveSkin(skin.id);
@@ -351,9 +377,15 @@ export function KeepHall() {
     <div className="absolute inset-0 overflow-hidden bg-[#0b0e14] overscroll-none select-none">
       <div
         ref={host}
+        role="application"
+        aria-label="Ravenstack Keep — walkable 2D hall. Use WASD or arrow keys to move, E or Space to interact."
         className="absolute inset-0 z-0"
         onPointerDown={() => host.current?.querySelector("canvas")?.focus()}
       />
+      <div className="sr-only" role="status" aria-live="polite">
+        {zone}
+        {near ? `. Standing near ${near.name}.` : atTable ? ". Standing at the war table." : ""}
+      </div>
 
       {talk || tableOpen || wardrobeOpen ? null : (
         <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between p-3 md:p-4">
@@ -367,6 +399,11 @@ export function KeepHall() {
               occupancy {pulse?.source ?? "…"}
               {pulse ? ` · ${pulse.agentsActive} active` : ""}
             </p>
+            {heraldLine ? (
+              <p className="mt-1.5 max-w-xs font-mono text-[10px] italic leading-snug text-[#6b7280]">
+                {heraldLine}
+              </p>
+            ) : null}
           </div>
           <div className="pointer-events-auto flex items-center gap-2">
             <FastMCPStatusBadge />
@@ -438,11 +475,11 @@ export function KeepHall() {
       {talk || tableOpen || wardrobeOpen ? null : (
         <div className="pointer-events-auto absolute bottom-4 left-4 z-10 grid grid-cols-3 gap-1 md:hidden">
           <span />
-          <Pad {...hold({ x: 0, y: -1 })}>▲</Pad>
+          <Pad aria-label="Move north" {...hold({ x: 0, y: -1 })}>▲</Pad>
           <span />
-          <Pad {...hold({ x: -1, y: 0 })}>◀</Pad>
-          <Pad {...hold({ x: 0, y: 1 })}>▼</Pad>
-          <Pad {...hold({ x: 1, y: 0 })}>▶</Pad>
+          <Pad aria-label="Move west" {...hold({ x: -1, y: 0 })}>◀</Pad>
+          <Pad aria-label="Move south" {...hold({ x: 0, y: 1 })}>▼</Pad>
+          <Pad aria-label="Move east" {...hold({ x: 1, y: 0 })}>▶</Pad>
         </div>
       )}
 

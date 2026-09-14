@@ -628,6 +628,29 @@ export class HallScene extends Phaser.Scene {
   }
 
   /**
+   * A torch gutters and catches itself — the visual half of a Herald
+   * "torchlight" line. Picks one light, dips it hard, then lets it recover
+   * back into its normal flicker so the moment reads as a single event
+   * rather than a permanent change.
+   */
+  public pulseTorch() {
+    if (!this.hallLights.length) return;
+    const i = Math.floor(Math.random() * this.hallLights.length);
+    const light = this.hallLights[i];
+    const base = this.lightBase[i] ?? light.intensity;
+    this.tweens.add({
+      targets: light,
+      intensity: base * 0.15,
+      duration: 220,
+      yoyo: true,
+      ease: "Sine.easeInOut",
+      onComplete: () => {
+        light.intensity = base;
+      },
+    });
+  }
+
+  /**
    * Decay. A room you have not walked into in days gathers dust, and the dust
    * is visible from the doorway.
    *
