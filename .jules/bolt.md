@@ -1,4 +1,3 @@
-## 2026-09-13 - SQL Aggregations for Keep Telemetry Occupancy Summary
-
-**Learning:** Hydrating entire database rows into Python objects (`_row_room`) and manually iterating over them in Python to compute simple aggregations (like counting rooms by status or lock state) introduces severe CPU and memory allocation overhead. SQLite native `GROUP BY` and `COUNT(*)` aggregations compute statistics directly in engine space.
-**Action:** When computing summary metrics or table statistics in Keep MCP tools or FastAPI endpoints, always push count, status breakdown, and filtering queries into SQL aggregations (`SELECT status, COUNT(*) FROM rooms GROUP BY status`) instead of fetching all records into memory.
+## 2025-02-14 - Search Query Debouncing
+**Learning:** In React implementations, immediately triggering network requests on every keystroke in a search field leads to rapid API exhaustion, especially in components like GoogleDriveExplorer which can hit strict Google API rate limits quickly.
+**Action:** Use a setTimeout-based debouncing strategy with a useEffect hook linked to the searchQuery state. Store a debouncedSearchQuery that only updates after typing pauses (e.g., 300ms delay) and execute API calls bound to the debounced state instead of the raw input.
