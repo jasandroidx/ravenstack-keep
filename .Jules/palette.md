@@ -1,3 +1,6 @@
 ## 2024-09-10 - Custom Interactive Badges Accessibility
 **Learning:** This codebase frequently uses custom styled `div` elements instead of standard `<button>` tags for interactive UI badges, which breaks native keyboard navigation and focus management.
 **Action:** When adding or modifying interactive custom elements (like `div` or `span` with `onClick` handlers), ensure they are made keyboard accessible by adding `role="button"`, `tabIndex={0}`, an `onKeyDown` handler to trigger the click action with 'Enter' or 'Space' keys, and `focus-visible` utility classes for visible focus states.
+## 2024-10-24 - Interactive List Items Accessibility
+**Learning:** File list items in `DriveExplorer` (and similar interactive components) were built using generic `div` elements with `onClick` handlers. Because they did not have semantic roles or keyboard support, screen readers could not identify them as interactive, and keyboard users could not activate them via Tab or Enter/Space.
+**Action:** When converting generic `div` or `span` elements to interactive buttons (to maintain 16-bit styling), always explicitly add `role="button"`, `tabIndex={0}`, an `onKeyDown` handler that triggers on "Enter" and "Space", and `focus-visible` outline styling.
