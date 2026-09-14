@@ -157,7 +157,12 @@ export default defineConfig(({ command, mode }) => {
       ...(command === "build"
         ? [
             nitro({
-              preset: "vercel",
+              preset: "node-server",
+              copy: [
+                { from: "node_modules/@electric-sql/pglite/dist/pglite.data", to: ".output/server/_libs/pglite.data" },
+                { from: "node_modules/@electric-sql/pglite/dist/pglite.wasm", to: ".output/server/_libs/pglite.wasm" },
+                { from: "node_modules/@electric-sql/pglite/dist/initdb.wasm", to: ".output/server/_libs/initdb.wasm" },
+              ],
               // Auto-registers server/middleware/* (the PWA install page +
               // manifest + head-tag middleware). Nitro v3 defaults serverDir to
               // false, so removing this silently unwires /?install=1 on deploys.
