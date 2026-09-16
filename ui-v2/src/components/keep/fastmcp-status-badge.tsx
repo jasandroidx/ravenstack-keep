@@ -47,12 +47,21 @@ export function FastMCPStatusBadge() {
 
   return (
     <div
-      className={`group relative flex cursor-pointer items-center gap-2 rounded-sm border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider backdrop-blur-md transition ${
+      role="button"
+      tabIndex={0}
+      aria-label={`Check FastMCP bridge status. Current status: ${sourceLabel}`}
+      className={`group relative flex cursor-pointer items-center gap-2 rounded-sm border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider backdrop-blur-md transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#39ff14]/50 focus-visible:ring-offset-[#0b0e14] ${
         isLive
           ? "border-[#39ff14]/60 bg-[#39ff14]/10 text-[#39ff14] shadow-[0_0_12px_rgba(57,255,20,0.25)] hover:bg-[#39ff14]/20"
           : "border-[#ffc857]/60 bg-[#ffc857]/10 text-[#ffc857] hover:bg-[#ffc857]/20"
       }`}
       onClick={() => void checkBridge()}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          void checkBridge();
+        }
+      }}
       title="Click to probe FastMCP bridge"
     >
       <span
