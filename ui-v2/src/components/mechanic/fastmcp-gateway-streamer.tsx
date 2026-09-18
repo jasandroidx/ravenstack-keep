@@ -37,6 +37,8 @@ export function FastMCPGatewayStreamer() {
   useEffect(() => {
     if (!isStreaming) return;
     const timer = setInterval(() => {
+      // ⚡ Bolt: Pause polling when tab is hidden to save battery and network requests
+      if (document.hidden) return;
       void fetchGatewayLogs();
     }, 4000);
     return () => clearInterval(timer);

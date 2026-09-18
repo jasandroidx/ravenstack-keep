@@ -24,6 +24,8 @@ export function FastMCPStatusBadge() {
   useEffect(() => {
     void checkBridge();
     const interval = setInterval(() => {
+      // ⚡ Bolt: Pause polling when tab is hidden to save battery and network requests
+      if (document.hidden) return;
       void checkBridge();
     }, 20000);
     return () => clearInterval(interval);

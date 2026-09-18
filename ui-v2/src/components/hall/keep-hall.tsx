@@ -248,7 +248,11 @@ export function KeepHall() {
              written greeting rather than narrating a night it cannot see. */
         });
     load();
-    const t = setInterval(load, 90000);
+    const t = setInterval(() => {
+      // ⚡ Bolt: Pause polling when tab is hidden to save battery and network requests
+      if (document.hidden) return;
+      load();
+    }, 90000);
     return () => {
       alive = false;
       clearInterval(t);
