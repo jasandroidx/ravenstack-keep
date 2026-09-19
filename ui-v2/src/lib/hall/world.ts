@@ -367,12 +367,18 @@ export function zoneAt(x: number, y: number): Zone | null {
 
 export function npcNear(x: number, y: number, extra = 8): HallNpc | null {
   let best: HallNpc | null = null;
-  let bestD = Infinity;
+  let bestDSq = Infinity;
   for (const n of HALL_NPCS) {
-    const d = Math.hypot(n.x - x, n.y - y);
-    if (d < n.radius + extra && d < bestD) {
+    // Bolt: Replaced Math.hypot with squared distance check for performance in Phaser update loop
+    const dx = n.x - x;
+    const dy = n.y - y;
+    const dSq = dx * dx + dy * dy;
+    const limit = n.radius + extra;
+    const limitSq = limit * limit;
+
+    if (dSq < limitSq && dSq < bestDSq) {
       best = n;
-      bestD = d;
+      bestDSq = dSq;
     }
   }
   return best;

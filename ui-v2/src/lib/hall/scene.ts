@@ -373,8 +373,9 @@ export class HallScene extends Phaser.Scene {
       if (this.paused) return;
       const w = this.cameras.main.getWorldPoint(p.x, p.y);
       const hit = npcAtPoint(w.x, w.y);
-      const distToPlayer = Math.hypot(w.x - this.player.x, w.y - this.player.y);
-      if (hit && distToPlayer < 90) {
+      // Bolt: Replaced Math.hypot with squared distance check for better performance in Phaser pointerdown event
+      const distToPlayerSq = (w.x - this.player.x) ** 2 + (w.y - this.player.y) ** 2;
+      if (hit && distToPlayerSq < 8100) { // 90^2 = 8100
         if (hit.id === "oracle") {
           hallAudio.playOracleGaze();
         } else {
@@ -389,7 +390,7 @@ export class HallScene extends Phaser.Scene {
         hallAudio.playStep();
         return;
       }
-      if (tableNear(w.x, w.y) && distToPlayer < 80) {
+      if (tableNear(w.x, w.y) && distToPlayerSq < 6400) { // 80^2 = 6400
         hallAudio.playInteract();
         this.eventsOut.onTable();
         return;
@@ -955,7 +956,8 @@ export class HallScene extends Phaser.Scene {
       // Look-at: lean toward the operator, harder the closer they get.
       const dx = this.player.x - (this.oracleAnchor.x + driftX);
       const dy = this.player.y - (this.oracleAnchor.y + driftY);
-      const dist = Math.hypot(dx, dy) || 1;
+      // Bolt: Replaced Math.hypot with Math.sqrt for performance in Phaser update loop
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
       const attention = Phaser.Math.Clamp(1 - (dist - 90) / 320, 0, 1);
       const leanX = (dx / dist) * 11 * attention;
       const leanY = (dy / dist) * 8 * attention;
@@ -1058,19 +1060,22 @@ export class HallScene extends Phaser.Scene {
     if (vx !== 0 || vy !== 0) {
       this.dest = null;
       this.reticle.setVisible(false);
-      const n = Math.hypot(vx, vy) || 1;
+      // Bolt: Replaced Math.hypot with Math.sqrt for performance in Phaser update loop
+      const n = Math.sqrt(vx * vx + vy * vy) || 1;
       vx = (vx / n) * speed;
       vy = (vy / n) * speed;
     } else if (this.dest) {
       const dx = this.dest.x - this.player.x;
       const dy = this.dest.y - this.player.y;
-      if (Math.hypot(dx, dy) < 8) {
+      // Bolt: Replaced Math.hypot with squared distance check and Math.sqrt for performance in Phaser update loop
+      const distSq = dx * dx + dy * dy;
+      if (distSq < 64) { // 8^2 = 64
         this.dest = null;
         this.reticle.setVisible(false);
         vx = 0;
         vy = 0;
       } else {
-        const n = Math.hypot(dx, dy);
+        const n = Math.sqrt(distSq);
         vx = (dx / n) * speed;
         vy = (dy / n) * speed;
       }
@@ -1100,7 +1105,8 @@ export class HallScene extends Phaser.Scene {
 
     // Anticipation and follow-through: a short stretch as the Ravenlord takes
     // off, a squash as he plants. Without these he slides rather than walks.
-    const isMoving = Math.hypot(finalVx, finalVy) > 10;
+    // Bolt: Replaced Math.hypot with squared distance check for performance in Phaser update loop
+    const isMoving = (finalVx * finalVx + finalVy * finalVy) > 100; // 10^2 = 100
     if (isMoving !== this.wasMoving) {
       this.squash(isMoving ? 0.94 : 1.07, isMoving ? 1.07 : 0.93);
       this.wasMoving = isMoving;
