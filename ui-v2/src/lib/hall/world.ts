@@ -387,3 +387,28 @@ export function tableNear(x: number, y: number): boolean {
   const pad = 22;
   return x > t.x - pad && x < t.x + t.w + pad && y > t.y - pad && y < t.y + t.h + pad;
 }
+
+import { isFacingTarget, type Facing } from "./locomotion.ts";
+
+export function npcFacing(x: number, y: number, facing: Facing, extra = 12): HallNpc | null {
+  let best: HallNpc | null = null;
+  let bestD = Infinity;
+  for (const n of HALL_NPCS) {
+    if (isFacingTarget(x, y, facing, n.x, n.y, n.radius + extra)) {
+      const d = Math.hypot(n.x - x, n.y - y);
+      if (d < bestD) {
+        best = n;
+        bestD = d;
+      }
+    }
+  }
+  return best;
+}
+
+export function tableFacing(x: number, y: number, facing: Facing): boolean {
+  const t = SOLID[0];
+  const tableCenterX = t.x + t.w / 2;
+  const tableCenterY = t.y + t.h / 2;
+  const maxDist = Math.max(t.w, t.h) / 2 + 36;
+  return isFacingTarget(x, y, facing, tableCenterX, tableCenterY, maxDist);
+}
