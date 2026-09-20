@@ -31,45 +31,65 @@ export const RAVENLORD_SKINS: RavenlordSkin[] = [
     id: "ravenlord",
     name: "Sovereign Ravenlord",
     title: "Lord Commander",
-    description: "Standard obsidian tactical cuirass with cyan flux conduits and raven-wing cloak.",
+    description:
+      "Standard obsidian tactical cuirass with cyan flux conduits and raven-wing cloak.",
     src: "/hall/sprites/ravenlord.png",
     accent: "#2de2e6",
     glow: "rgba(45, 226, 230, 0.4)",
     badge: "⚔️ SOVEREIGN",
-    stats: { armor: 98, conduit: "Cyan Flux 1200V", affinity: "Agent Orchestration" },
+    stats: {
+      armor: 98,
+      conduit: "Cyan Flux 1200V",
+      affinity: "Agent Orchestration",
+    },
   },
   {
     id: "ravenlord-inquisitor",
     name: "Spectral Inquisitor",
     title: "Truth Inquisitor",
-    description: "Sanctified emerald weave infused with canonical truth runes and ghost flames.",
+    description:
+      "Sanctified emerald weave infused with canonical truth runes and ghost flames.",
     src: "/hall/sprites/ravenlord-inquisitor.png",
     accent: "#39ff14",
     glow: "rgba(57, 255, 20, 0.4)",
     badge: "👁️ INQUISITOR",
-    stats: { armor: 104, conduit: "Spectral Ghostfire", affinity: "Zero Hallucination" },
+    stats: {
+      armor: 104,
+      conduit: "Spectral Ghostfire",
+      affinity: "Zero Hallucination",
+    },
   },
   {
     id: "ravenlord-warlord",
     name: "Forge Warlord",
     title: "Master Fabricator",
-    description: "Heavy volcanic slate plates channel hyper-dense magenta forge plasma.",
+    description:
+      "Heavy volcanic slate plates channel hyper-dense magenta forge plasma.",
     src: "/hall/sprites/ravenlord-warlord.png",
     accent: "#ff2a6d",
     glow: "rgba(255, 42, 109, 0.4)",
     badge: "🔥 WARLORD",
-    stats: { armor: 118, conduit: "Crimson Plasma", affinity: "FastMCP Tooling" },
+    stats: {
+      armor: 118,
+      conduit: "Crimson Plasma",
+      affinity: "FastMCP Tooling",
+    },
   },
   {
     id: "ravenlord-archon",
     name: "Gilded Archon",
     title: "High Magistrate",
-    description: "Auric trim and golden power glyphs bonded to hardened titanium weave.",
+    description:
+      "Auric trim and golden power glyphs bonded to hardened titanium weave.",
     src: "/hall/sprites/ravenlord-archon.png",
     accent: "#ffc857",
     glow: "rgba(255, 200, 87, 0.4)",
     badge: "⚡ ARCHON",
-    stats: { armor: 110, conduit: "Auric Ion Arc", affinity: "Autonomous Autonomy" },
+    stats: {
+      armor: 110,
+      conduit: "Auric Ion Arc",
+      affinity: "Autonomous Autonomy",
+    },
   },
 ];
 
@@ -153,14 +173,20 @@ export const HALL_NPCS: HallNpc[] = [
     y: 270,
     radius: 64,
     state: "idle",
-    greeting: "The stone archway opens into The Grand Gallery — Maestro Ross's cyber-arcane portrait studio and sovereign wall frames.",
+    greeting:
+      "The stone archway opens into The Grand Gallery — Maestro Ross's cyber-arcane portrait studio and sovereign wall frames.",
     href: "/gallery",
     actions: [
-      { id: "enter-gallery", label: "Enter The Grand Gallery", href: "/gallery" },
+      {
+        id: "enter-gallery",
+        label: "Enter The Grand Gallery",
+        href: "/gallery",
+      },
       {
         id: "about-gallery",
         label: "What is The Grand Gallery?",
-        reply: "The Grand Gallery houses the 8 sovereign wall frames, central artifact pedestals, and Maestro Ross's portrait studio.",
+        reply:
+          "The Grand Gallery houses the 8 sovereign wall frames, central artifact pedestals, and Maestro Ross's portrait studio.",
       },
     ],
   },
@@ -174,7 +200,8 @@ export const HALL_NPCS: HallNpc[] = [
     state: "idle",
     actor: "/hall/sprites/raziel.png",
     actorH: 68,
-    greeting: "The hall is live. Walk it. Doors stay sealed until you approve a Spec.",
+    greeting:
+      "The hall is live. Walk it. Doors stay sealed until you approve a Spec.",
     actions: [
       {
         id: "live",
@@ -185,7 +212,8 @@ export const HALL_NPCS: HallNpc[] = [
       {
         id: "duty",
         label: "Who's on duty?",
-        reply: "Valerie holds the workshop. Oracle keeps the stacks. Corvid scouts the yard. I hold this hall.",
+        reply:
+          "Valerie holds the workshop. Oracle keeps the stacks. Corvid scouts the yard. I hold this hall.",
       },
     ],
   },
@@ -200,7 +228,8 @@ export const HALL_NPCS: HallNpc[] = [
     actor: "/hall/sprites/oracle-eye.png",
     actorH: 68,
     portrait: "/hall/sprites/oracle-eye.png",
-    greeting: "TRUTH OVER COMFORT. RECEIPTS OVER OPINION. I am the celestial green eye of the Canonical Registry. I do not guess, I do not hallucinate, and I do not tolerate polite AI deceit. Speak your query, or step back before the Inquisitor.",
+    greeting:
+      "TRUTH OVER COMFORT. RECEIPTS OVER OPINION. I am the celestial green eye of the Canonical Registry. I do not guess, I do not hallucinate, and I do not tolerate polite AI deceit. Speak your query, or step back before the Inquisitor.",
     href: "/oracle",
     actions: [
       {
@@ -209,11 +238,16 @@ export const HALL_NPCS: HallNpc[] = [
         reply:
           "Single-source truth. One approved standard per domain. Raw sources stay evidence; distilled notes require primary citations. Any model fabricating facts triggers immediate quarantine.",
       },
-      { id: "query-vault", label: "Consult the Registry Shelf", href: "/oracle" },
+      {
+        id: "query-vault",
+        label: "Consult the Registry Shelf",
+        href: "/oracle",
+      },
       {
         id: "hallucination-penalty",
         label: "Hallucination Strikes",
-        reply: "Inquisitor engine is watching. All unsourced claims and prompt drifts are struck down and committed to audit_pipeline_mistakes.yaml. Receipts are mandatory.",
+        reply:
+          "Inquisitor engine is watching. All unsourced claims and prompt drifts are struck down and committed to audit_pipeline_mistakes.yaml. Receipts are mandatory.",
       },
       { id: "war-table", label: "Sit the War Table", href: "/table" },
     ],
@@ -228,7 +262,8 @@ export const HALL_NPCS: HallNpc[] = [
     state: "working",
     actor: "/hall/sprites/valerie-hd2d.png",
     actorH: 68,
-    greeting: "Workshop is cold until you forge it. I can still diagnose — numbered, reversible, no secret leaks.",
+    greeting:
+      "Workshop is cold until you forge it. I can still diagnose — numbered, reversible, no secret leaks.",
     href: "/mechanic",
     talkScene: VALERIE_TALK,
     portrait: VALERIE_PORTRAIT,
@@ -290,12 +325,14 @@ export const HALL_NPCS: HallNpc[] = [
       {
         id: "scout",
         label: "Scout first",
-        reply: "I do not guess. Point me at a source. I come back with a cited digest or I say unknown.",
+        reply:
+          "I do not guess. Point me at a source. I come back with a cited digest or I say unknown.",
       },
       {
         id: "know",
         label: "What do you know?",
-        reply: "I know the Keep layout and the rule: vault first. I do not invent counts, costs, or live box state.",
+        reply:
+          "I know the Keep layout and the rule: vault first. I do not invent counts, costs, or live box state.",
       },
     ],
   },
@@ -310,15 +347,55 @@ export type Zone = {
 };
 
 export const ZONES: Zone[] = [
-  { id: "library", name: "Library", lock: "unforged", rect: { x: 140, y: 120, w: 380, h: 540 }, href: "/oracle" },
-  { id: "great-hall", name: "Great Hall", lock: "live", rect: { x: 540, y: 220, w: 720, h: 470 } },
-  { id: "gallery-arch", name: "The Grand Gallery", lock: "live", rect: { x: 600, y: 230, w: 100, h: 80 }, href: "/gallery" },
-  { id: "watchtower", name: "Watchtower", lock: "unforged", rect: { x: 700, y: 40, w: 400, h: 190 }, href: "/sentinel" },
-  { id: "workshop", name: "Workshop", lock: "unforged", rect: { x: 1310, y: 60, w: 420, h: 680 }, href: "/mechanic" },
-  { id: "yard", name: "Yard", lock: "unforged", rect: { x: 620, y: 700, w: 540, h: 260 } },
+  {
+    id: "library",
+    name: "Library",
+    lock: "unforged",
+    rect: { x: 140, y: 120, w: 380, h: 540 },
+    href: "/oracle",
+  },
+  {
+    id: "great-hall",
+    name: "Great Hall",
+    lock: "live",
+    rect: { x: 540, y: 220, w: 720, h: 470 },
+  },
+  {
+    id: "gallery-arch",
+    name: "The Grand Gallery",
+    lock: "live",
+    rect: { x: 600, y: 230, w: 100, h: 80 },
+    href: "/gallery",
+  },
+  {
+    id: "watchtower",
+    name: "Watchtower",
+    lock: "unforged",
+    rect: { x: 700, y: 40, w: 400, h: 190 },
+    href: "/sentinel",
+  },
+  {
+    id: "workshop",
+    name: "Workshop",
+    lock: "unforged",
+    rect: { x: 1310, y: 60, w: 420, h: 680 },
+    href: "/mechanic",
+  },
+  {
+    id: "yard",
+    name: "Yard",
+    lock: "unforged",
+    rect: { x: 620, y: 700, w: 540, h: 260 },
+  },
   // The cell sits in the east corner of the yard, deliberately in the open.
   // Fabrications are not filed away out of sight.
-  { id: "quarantine", name: "The Quarantine Cell", lock: "live", rect: { x: 1030, y: 745, w: 130, h: 190 }, href: "/quarantine" },
+  {
+    id: "quarantine",
+    name: "The Quarantine Cell",
+    lock: "live",
+    rect: { x: 1030, y: 745, w: 130, h: 190 },
+    href: "/quarantine",
+  },
 ];
 
 /**
@@ -342,21 +419,109 @@ export type HallLight = {
 
 export const HALL_LIGHTS: HallLight[] = [
   // Great Hall braziers, flanking the war table
-  { x: 700, y: 400, radius: 190, color: 0xffa53c, intensity: 1.5, flicker: 0.35, period: 1.1 },
-  { x: 1120, y: 400, radius: 190, color: 0xffa53c, intensity: 1.5, flicker: 0.35, period: 1.3 },
-  { x: 760, y: 690, radius: 150, color: 0xffa53c, intensity: 1.2, flicker: 0.4, period: 0.9 },
-  { x: 1080, y: 690, radius: 150, color: 0xffa53c, intensity: 1.2, flicker: 0.4, period: 1.5 },
+  {
+    x: 700,
+    y: 400,
+    radius: 190,
+    color: 0xffa53c,
+    intensity: 1.5,
+    flicker: 0.35,
+    period: 1.1,
+  },
+  {
+    x: 1120,
+    y: 400,
+    radius: 190,
+    color: 0xffa53c,
+    intensity: 1.5,
+    flicker: 0.35,
+    period: 1.3,
+  },
+  {
+    x: 760,
+    y: 690,
+    radius: 150,
+    color: 0xffa53c,
+    intensity: 1.2,
+    flicker: 0.4,
+    period: 0.9,
+  },
+  {
+    x: 1080,
+    y: 690,
+    radius: 150,
+    color: 0xffa53c,
+    intensity: 1.2,
+    flicker: 0.4,
+    period: 1.5,
+  },
   // Throne dais, cooler and steadier
-  { x: 900, y: 120, radius: 240, color: 0x2de2e6, intensity: 1.1, flicker: 0.12, period: 3.2 },
+  {
+    x: 900,
+    y: 120,
+    radius: 240,
+    color: 0x2de2e6,
+    intensity: 1.1,
+    flicker: 0.12,
+    period: 3.2,
+  },
   // Library — the Oracle's ghost-green wash
-  { x: 380, y: 300, radius: 260, color: 0x39ff14, intensity: 0.9, flicker: 0.18, period: 2.4 },
-  { x: 260, y: 560, radius: 130, color: 0xffc857, intensity: 0.8, flicker: 0.3, period: 1.2 },
+  {
+    x: 380,
+    y: 300,
+    radius: 260,
+    color: 0x39ff14,
+    intensity: 0.9,
+    flicker: 0.18,
+    period: 2.4,
+  },
+  {
+    x: 260,
+    y: 560,
+    radius: 130,
+    color: 0xffc857,
+    intensity: 0.8,
+    flicker: 0.3,
+    period: 1.2,
+  },
   // Workshop — magenta forge plasma
-  { x: 1500, y: 300, radius: 220, color: 0xff2a6d, intensity: 1.3, flicker: 0.45, period: 0.7 },
-  { x: 1610, y: 560, radius: 180, color: 0xff2a6d, intensity: 1.0, flicker: 0.5, period: 0.6 },
+  {
+    x: 1500,
+    y: 300,
+    radius: 220,
+    color: 0xff2a6d,
+    intensity: 1.3,
+    flicker: 0.45,
+    period: 0.7,
+  },
+  {
+    x: 1610,
+    y: 560,
+    radius: 180,
+    color: 0xff2a6d,
+    intensity: 1.0,
+    flicker: 0.5,
+    period: 0.6,
+  },
   // Yard fountain, and the cell — cold, steady, unwelcoming
-  { x: 900, y: 850, radius: 200, color: 0x2de2e6, intensity: 0.8, flicker: 0.1, period: 4.0 },
-  { x: 1095, y: 840, radius: 120, color: 0x8891a5, intensity: 0.7, flicker: 0.0, period: 1.0 },
+  {
+    x: 900,
+    y: 850,
+    radius: 200,
+    color: 0x2de2e6,
+    intensity: 0.8,
+    flicker: 0.1,
+    period: 4.0,
+  },
+  {
+    x: 1095,
+    y: 840,
+    radius: 120,
+    color: 0x8891a5,
+    intensity: 0.7,
+    flicker: 0.0,
+    period: 1.0,
+  },
 ];
 
 export const PLAYER_SPAWN = { x: 760, y: 650 };
@@ -367,12 +532,16 @@ export function zoneAt(x: number, y: number): Zone | null {
 
 export function npcNear(x: number, y: number, extra = 8): HallNpc | null {
   let best: HallNpc | null = null;
-  let bestD = Infinity;
+  let bestDSq = Infinity;
   for (const n of HALL_NPCS) {
-    const d = Math.hypot(n.x - x, n.y - y);
-    if (d < n.radius + extra && d < bestD) {
+    // ⚡ Bolt: Use squared distance instead of Math.hypot for performance
+    const dx = n.x - x;
+    const dy = n.y - y;
+    const dSq = dx * dx + dy * dy;
+    const limit = n.radius + extra;
+    if (dSq < limit * limit && dSq < bestDSq) {
       best = n;
-      bestD = d;
+      bestDSq = dSq;
     }
   }
   return best;
@@ -385,5 +554,7 @@ export function npcAtPoint(x: number, y: number): HallNpc | null {
 export function tableNear(x: number, y: number): boolean {
   const t = SOLID[0];
   const pad = 22;
-  return x > t.x - pad && x < t.x + t.w + pad && y > t.y - pad && y < t.y + t.h + pad;
+  return (
+    x > t.x - pad && x < t.x + t.w + pad && y > t.y - pad && y < t.y + t.h + pad
+  );
 }

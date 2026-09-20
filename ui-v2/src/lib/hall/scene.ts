@@ -118,7 +118,10 @@ export class HallScene extends Phaser.Scene {
 
     // Load all Ravenlord Armor Skins
     for (const skin of RAVENLORD_SKINS) {
-      this.load.spritesheet(`skin-${skin.id}`, skin.src, { frameWidth: FRAME_W, frameHeight: FRAME_H });
+      this.load.spritesheet(`skin-${skin.id}`, skin.src, {
+        frameWidth: FRAME_W,
+        frameHeight: FRAME_H,
+      });
     }
 
     for (const npc of HALL_NPCS) {
@@ -134,7 +137,11 @@ export class HallScene extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor(PALETTE.bg);
-    this.add.image(0, 0, "keep-map").setOrigin(0, 0).setDisplaySize(MAP_W, MAP_H).setDepth(0);
+    this.add
+      .image(0, 0, "keep-map")
+      .setOrigin(0, 0)
+      .setDisplaySize(MAP_W, MAP_H)
+      .setDepth(0);
     this.physics.world.setBounds(0, 0, MAP_W, MAP_H);
     this.cameras.main.setBounds(0, 0, MAP_W, MAP_H);
     this.cameras.main.centerOn(PLAYER_SPAWN.x, PLAYER_SPAWN.y);
@@ -155,7 +162,10 @@ export class HallScene extends Phaser.Scene {
       if (totalFrames >= 4) {
         this.anims.create({
           key: `${skin.id}-walk-down`,
-          frames: this.anims.generateFrameNumbers(texKey, { start: 0, end: Math.min(3, totalFrames - 1) }),
+          frames: this.anims.generateFrameNumbers(texKey, {
+            start: 0,
+            end: Math.min(3, totalFrames - 1),
+          }),
           frameRate: 8,
           repeat: -1,
         });
@@ -163,7 +173,10 @@ export class HallScene extends Phaser.Scene {
       if (totalFrames >= 8) {
         this.anims.create({
           key: `${skin.id}-walk-left`,
-          frames: this.anims.generateFrameNumbers(texKey, { start: 4, end: Math.min(7, totalFrames - 1) }),
+          frames: this.anims.generateFrameNumbers(texKey, {
+            start: 4,
+            end: Math.min(7, totalFrames - 1),
+          }),
           frameRate: 8,
           repeat: -1,
         });
@@ -171,7 +184,10 @@ export class HallScene extends Phaser.Scene {
       if (totalFrames >= 12) {
         this.anims.create({
           key: `${skin.id}-walk-right`,
-          frames: this.anims.generateFrameNumbers(texKey, { start: 8, end: Math.min(11, totalFrames - 1) }),
+          frames: this.anims.generateFrameNumbers(texKey, {
+            start: 8,
+            end: Math.min(11, totalFrames - 1),
+          }),
           frameRate: 8,
           repeat: -1,
         });
@@ -179,17 +195,36 @@ export class HallScene extends Phaser.Scene {
       if (totalFrames >= 16) {
         this.anims.create({
           key: `${skin.id}-walk-up`,
-          frames: this.anims.generateFrameNumbers(texKey, { start: 12, end: Math.min(15, totalFrames - 1) }),
+          frames: this.anims.generateFrameNumbers(texKey, {
+            start: 12,
+            end: Math.min(15, totalFrames - 1),
+          }),
           frameRate: 8,
           repeat: -1,
         });
       }
 
       if (totalFrames >= 1) {
-        this.anims.create({ key: `${skin.id}-idle-down`, frames: [{ key: texKey, frame: 0 }], frameRate: 1 });
-        this.anims.create({ key: `${skin.id}-idle-left`, frames: [{ key: texKey, frame: totalFrames > 4 ? 4 : 0 }], frameRate: 1 });
-        this.anims.create({ key: `${skin.id}-idle-right`, frames: [{ key: texKey, frame: totalFrames > 8 ? 8 : 0 }], frameRate: 1 });
-        this.anims.create({ key: `${skin.id}-idle-up`, frames: [{ key: texKey, frame: totalFrames > 12 ? 12 : 0 }], frameRate: 1 });
+        this.anims.create({
+          key: `${skin.id}-idle-down`,
+          frames: [{ key: texKey, frame: 0 }],
+          frameRate: 1,
+        });
+        this.anims.create({
+          key: `${skin.id}-idle-left`,
+          frames: [{ key: texKey, frame: totalFrames > 4 ? 4 : 0 }],
+          frameRate: 1,
+        });
+        this.anims.create({
+          key: `${skin.id}-idle-right`,
+          frames: [{ key: texKey, frame: totalFrames > 8 ? 8 : 0 }],
+          frameRate: 1,
+        });
+        this.anims.create({
+          key: `${skin.id}-idle-up`,
+          frames: [{ key: texKey, frame: totalFrames > 12 ? 12 : 0 }],
+          frameRate: 1,
+        });
       }
     }
 
@@ -197,14 +232,21 @@ export class HallScene extends Phaser.Scene {
     for (const npc of HALL_NPCS) {
       if (npc.id === "oracle") continue;
       const chip =
-        npc.state === "working" ? PALETTE.magenta : npc.state === "waiting_human" ? PALETTE.amber : PALETTE.cyan;
+        npc.state === "working"
+          ? PALETTE.magenta
+          : npc.state === "waiting_human"
+            ? PALETTE.amber
+            : PALETTE.cyan;
       const labelLift = 74;
 
       // Soft ground contact shadow under NPC feet
       this.add.ellipse(npc.x, npc.y + 2, 34, 12, 0x000000, 0.45).setDepth(5);
 
       if (npc.actor && this.textures.exists(`actor-${npc.id}`)) {
-        const spr = this.add.sprite(npc.x, npc.y, `actor-${npc.id}`, 0).setOrigin(0.5, 1).setDepth(7);
+        const spr = this.add
+          .sprite(npc.x, npc.y, `actor-${npc.id}`, 0)
+          .setOrigin(0.5, 1)
+          .setDepth(7);
         spr.texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
         spr.setDisplaySize(NPC_W, npc.actorH ?? NPC_H);
         try {
@@ -212,7 +254,10 @@ export class HallScene extends Phaser.Scene {
           if (frames > 1) {
             this.anims.create({
               key: `idle-${npc.id}`,
-              frames: this.anims.generateFrameNumbers(`actor-${npc.id}`, { start: 0, end: Math.min(3, frames - 1) }),
+              frames: this.anims.generateFrameNumbers(`actor-${npc.id}`, {
+                start: 0,
+                end: Math.min(3, frames - 1),
+              }),
               frameRate: 4,
               repeat: -1,
             });
@@ -224,7 +269,9 @@ export class HallScene extends Phaser.Scene {
       }
 
       // Indicator Rune Pip
-      this.add.circle(npc.x, npc.y - labelLift + 4, 3.5, chip, 0.95).setDepth(8);
+      this.add
+        .circle(npc.x, npc.y - labelLift + 4, 3.5, chip, 0.95)
+        .setDepth(8);
       this.add
         .text(npc.x, npc.y - labelLift, npc.name, {
           fontFamily: "monospace",
@@ -241,11 +288,21 @@ export class HallScene extends Phaser.Scene {
     // ==========================================
     // THE ORACLE: Chained Celestial Floating Green Eye
     // ==========================================
-    const oracle = HALL_NPCS.find((n) => n.id === "oracle") ?? { x: 380, y: 310, name: "The Oracle" };
+    const oracle = HALL_NPCS.find((n) => n.id === "oracle") ?? {
+      x: 380,
+      y: 310,
+      name: "The Oracle",
+    };
 
     // Glowing Emerald Halos & Aura
-    this.oracleHalo = this.add.circle(oracle.x, oracle.y - 14, 75, 0x39ff14, 0.22).setDepth(6).setBlendMode(Phaser.BlendModes.ADD);
-    this.oracleGlow = this.add.circle(oracle.x, oracle.y - 14, 40, 0x00ff66, 0.38).setDepth(7).setBlendMode(Phaser.BlendModes.ADD);
+    this.oracleHalo = this.add
+      .circle(oracle.x, oracle.y - 14, 75, 0x39ff14, 0.22)
+      .setDepth(6)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    this.oracleGlow = this.add
+      .circle(oracle.x, oracle.y - 14, 40, 0x00ff66, 0.38)
+      .setDepth(7)
+      .setBlendMode(Phaser.BlendModes.ADD);
 
     // Ethereal Green Flames & Smoke Aura
     this.tweens.add({
@@ -259,14 +316,21 @@ export class HallScene extends Phaser.Scene {
     });
 
     // The Floating Green Eye Sprite
-    this.oracleEye = this.add.image(oracle.x, oracle.y - 14, "oracle-eye").setOrigin(0.5, 0.5).setDepth(9);
+    this.oracleEye = this.add
+      .image(oracle.x, oracle.y - 14, "oracle-eye")
+      .setOrigin(0.5, 0.5)
+      .setDepth(9);
     this.oracleEye.setDisplaySize(68, 68);
 
     // Iris and pupil as their own objects so the gaze can lag behind the eye.
     // A pupil that snaps to the player reads mechanical; one that drags reads
     // like something deciding whether to look at you.
-    this.oracleIris = this.add.circle(oracle.x, oracle.y - 14, 11, 0x39ff14, 0.9).setDepth(10);
-    this.oraclePupil = this.add.circle(oracle.x, oracle.y - 14, 5, 0x05020d, 0.95).setDepth(11);
+    this.oracleIris = this.add
+      .circle(oracle.x, oracle.y - 14, 11, 0x39ff14, 0.9)
+      .setDepth(10);
+    this.oraclePupil = this.add
+      .circle(oracle.x, oracle.y - 14, 5, 0x05020d, 0.95)
+      .setDepth(11);
     this.irisPos = { x: oracle.x, y: oracle.y - 14 };
 
     // Dark Iron Arcane Chains Anchoring the Eye
@@ -277,7 +341,10 @@ export class HallScene extends Phaser.Scene {
       { x: oracle.x + 130, y: oracle.y + 110 },
     ];
     for (const a of chainAnchors) {
-      const chain = this.add.line(0, 0, a.x, a.y, oracle.x, oracle.y - 14, 0x1e222b).setLineWidth(2).setDepth(5);
+      const chain = this.add
+        .line(0, 0, a.x, a.y, oracle.x, oracle.y - 14, 0x1e222b)
+        .setLineWidth(2)
+        .setDepth(5);
       this.oracleChains.push(chain);
     }
 
@@ -309,10 +376,20 @@ export class HallScene extends Phaser.Scene {
     });
 
     // Spawn Player (Ravenlord Jason Boyd)
-    this.shadow = this.add.ellipse(PLAYER_SPAWN.x, PLAYER_SPAWN.y + 2, 34, 12, 0x000000, 0.45).setDepth(6);
-    this.reticle = this.add.circle(0, 0, 3, PALETTE.cyan, 0.7).setDepth(5).setVisible(false);
+    this.shadow = this.add
+      .ellipse(PLAYER_SPAWN.x, PLAYER_SPAWN.y + 2, 34, 12, 0x000000, 0.45)
+      .setDepth(6);
+    this.reticle = this.add
+      .circle(0, 0, 3, PALETTE.cyan, 0.7)
+      .setDepth(5)
+      .setVisible(false);
 
-    this.player = this.physics.add.sprite(PLAYER_SPAWN.x, PLAYER_SPAWN.y, `skin-${this.activeSkinId}`, 0);
+    this.player = this.physics.add.sprite(
+      PLAYER_SPAWN.x,
+      PLAYER_SPAWN.y,
+      `skin-${this.activeSkinId}`,
+      0,
+    );
     this.player.texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
     this.player.setOrigin(0.5, 1).setCollideWorldBounds(true).setDepth(7);
     this.player.setDisplaySize(OP_W, OP_H);
@@ -330,7 +407,14 @@ export class HallScene extends Phaser.Scene {
     // Point lights: no normal map, no Light2D shader pass. Cheap enough to put
     // one on every brazier and conduit in the keep.
     for (const l of HALL_LIGHTS) {
-      const light = this.add.pointlight(l.x, l.y, l.color, l.radius, l.intensity * 0.06, 0.08);
+      const light = this.add.pointlight(
+        l.x,
+        l.y,
+        l.color,
+        l.radius,
+        l.intensity * 0.06,
+        0.08,
+      );
       light.setDepth(4);
       this.hallLights.push(light);
       this.lightBase.push(l.intensity * 0.06);
@@ -373,8 +457,12 @@ export class HallScene extends Phaser.Scene {
       if (this.paused) return;
       const w = this.cameras.main.getWorldPoint(p.x, p.y);
       const hit = npcAtPoint(w.x, w.y);
-      const distToPlayer = Math.hypot(w.x - this.player.x, w.y - this.player.y);
-      if (hit && distToPlayer < 90) {
+      // ⚡ Bolt: Use squared distance instead of Math.hypot for performance
+      const dx = w.x - this.player.x;
+      const dy = w.y - this.player.y;
+      const distToPlayerSq = dx * dx + dy * dy;
+      if (hit && distToPlayerSq < 8100) {
+        // 90 * 90 = 8100
         if (hit.id === "oracle") {
           hallAudio.playOracleGaze();
         } else {
@@ -403,7 +491,11 @@ export class HallScene extends Phaser.Scene {
     });
   }
 
-  private safePlayAnim(sprite: Phaser.GameObjects.Sprite | null, key: string, ignoreIfPlaying = true) {
+  private safePlayAnim(
+    sprite: Phaser.GameObjects.Sprite | null,
+    key: string,
+    ignoreIfPlaying = true,
+  ) {
     if (!sprite || !sprite.anims) return;
     try {
       if (this.anims.exists(key)) {
@@ -433,7 +525,11 @@ export class HallScene extends Phaser.Scene {
     if (this.textures.exists(`skin-${skin.id}`)) {
       this.player.setTexture(`skin-${skin.id}`);
       this.player.texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
-      this.safePlayAnim(this.player, `${this.activeSkinId}-idle-${this.lastFacing}`, true);
+      this.safePlayAnim(
+        this.player,
+        `${this.activeSkinId}-idle-${this.lastFacing}`,
+        true,
+      );
     }
 
     // Audio & Visual Armor Forge Burst FX
@@ -510,16 +606,27 @@ export class HallScene extends Phaser.Scene {
   public flareQuarantine(claim?: string) {
     this.setTruthState("none");
     this.oracleProverbText
-      ?.setText(claim ? `QUARANTINED: ${claim.slice(0, 42)}…` : "A LIE ENTERS THE CELL")
+      ?.setText(
+        claim ? `QUARANTINED: ${claim.slice(0, 42)}…` : "A LIE ENTERS THE CELL",
+      )
       .setAlpha(1)
       .setScale(1.3);
     this.oracleHalo?.setScale(2.4);
     this.oracleGlow?.setScale(2.0);
     this.cameras.main.shake(180, 0.004);
-    this.tweens.add({ targets: [this.oracleHalo, this.oracleGlow], scale: 1, duration: 1400, ease: "Cubic.easeOut" });
-    this.tweens.add({ targets: this.oracleProverbText, scale: 1, duration: 900, ease: "Back.easeOut" });
+    this.tweens.add({
+      targets: [this.oracleHalo, this.oracleGlow],
+      scale: 1,
+      duration: 1400,
+      ease: "Cubic.easeOut",
+    });
+    this.tweens.add({
+      targets: this.oracleProverbText,
+      scale: 1,
+      duration: 900,
+      ease: "Back.easeOut",
+    });
   }
-
 
   // ==========================================
   // GAME FEEL
@@ -541,9 +648,14 @@ export class HallScene extends Phaser.Scene {
   /** Wax seals left on the war table, one per gate sealed. Never cleared. */
   private seals: Phaser.GameObjects.Arc[] = [];
   /** Dust that accumulates in rooms you stop visiting. */
-  private dust = new Map<string, Phaser.GameObjects.Particles.ParticleEmitter>();
+  private dust = new Map<
+    string,
+    Phaser.GameObjects.Particles.ParticleEmitter
+  >();
   /** Objects staged for the quarantine tableau. Cleared when it closes. */
-  private tableau: Array<Phaser.GameObjects.Rectangle | Phaser.GameObjects.Text> = [];
+  private tableau: Array<
+    Phaser.GameObjects.Rectangle | Phaser.GameObjects.Text
+  > = [];
   private tableauFx: Phaser.FX.ColorMatrix | null = null;
   public tableauOpen = false;
   private freezeMs = 0;
@@ -611,7 +723,13 @@ export class HallScene extends Phaser.Scene {
     // The press itself: freeze, then the seal settles.
     this.hitPause(120);
     seal.setScale(2.6).setAlpha(0);
-    this.tweens.add({ targets: seal, scale: 1, alpha: 0.85, duration: 320, ease: "Back.easeOut" });
+    this.tweens.add({
+      targets: seal,
+      scale: 1,
+      alpha: 0.85,
+      duration: 320,
+      ease: "Back.easeOut",
+    });
     this.cameras.main.shake(90, 0.0025);
   }
 
@@ -749,7 +867,12 @@ export class HallScene extends Phaser.Scene {
    * empty, because an empty frame reads as missing data rather than as the
    * finding it actually is.
    */
-  public openTableau(claim: string, prompt: string | null, evidence: string, when: string) {
+  public openTableau(
+    claim: string,
+    prompt: string | null,
+    evidence: string,
+    when: string,
+  ) {
     if (this.tableauOpen) return;
     this.tableauOpen = true;
     this.paused = true;
@@ -762,11 +885,24 @@ export class HallScene extends Phaser.Scene {
     // size — not by scroll offset. Oversized so a mid-tableau resize cannot
     // uncover a corner.
     const shroud = this.add
-      .rectangle(cam.width / 2, cam.height / 2, cam.width * 1.5, cam.height * 1.5, 0x05020d, 0.88)
+      .rectangle(
+        cam.width / 2,
+        cam.height / 2,
+        cam.width * 1.5,
+        cam.height * 1.5,
+        0x05020d,
+        0.88,
+      )
       .setDepth(40)
       .setScrollFactor(0);
 
-    const mono = (y: number, text: string, size: number, color: string, alpha = 1) =>
+    const mono = (
+      y: number,
+      text: string,
+      size: number,
+      color: string,
+      alpha = 1,
+    ) =>
       this.add
         .text(cam.width / 2, y, text, {
           fontFamily: "monospace",
@@ -781,7 +917,8 @@ export class HallScene extends Phaser.Scene {
         .setAlpha(alpha);
 
     // Rectangle and Text both carry setAlpha, so the fade below is type-safe.
-    const items: Array<Phaser.GameObjects.Rectangle | Phaser.GameObjects.Text> = [shroud];
+    const items: Array<Phaser.GameObjects.Rectangle | Phaser.GameObjects.Text> =
+      [shroud];
     // Clear of the HUD strip along the top.
     let y = 132;
 
@@ -807,7 +944,9 @@ export class HallScene extends Phaser.Scene {
     items.push(
       mono(
         y,
-        evidence.trim() ? evidence.slice(0, 300) : "nothing — the answer was given against an empty retrieval set",
+        evidence.trim()
+          ? evidence.slice(0, 300)
+          : "nothing — the answer was given against an empty retrieval set",
         12,
         // The camera is desaturated, so the "no evidence" case is distinguished
         // by being the brightest thing on screen rather than by being red.
@@ -815,11 +954,18 @@ export class HallScene extends Phaser.Scene {
       ),
     );
 
-    items.push(mono(cam.height - 104, "[E] or [ESC] to step back", 11, "#9aa3b2", 0.7));
+    items.push(
+      mono(cam.height - 104, "[E] or [ESC] to step back", 11, "#9aa3b2", 0.7),
+    );
 
     for (const item of items) {
       item.setAlpha(0);
-      this.tweens.add({ targets: item, alpha: item === shroud ? 0.88 : 1, duration: 700, ease: "Sine.easeInOut" });
+      this.tweens.add({
+        targets: item,
+        alpha: item === shroud ? 0.88 : 1,
+        duration: 700,
+        ease: "Sine.easeInOut",
+      });
     }
     this.tableau = items;
     this.cameras.main.shake(220, 0.003);
@@ -832,7 +978,9 @@ export class HallScene extends Phaser.Scene {
     if (this.tableauFx) {
       // Remove only the tableau's own effect — postFX.clear() would take the
       // camera vignette with it.
-      this.cameras.main.postFX.remove(this.tableauFx as unknown as Phaser.FX.Controller);
+      this.cameras.main.postFX.remove(
+        this.tableauFx as unknown as Phaser.FX.Controller,
+      );
       this.tableauFx = null;
     }
     for (const item of this.tableau) item.destroy();
@@ -889,7 +1037,8 @@ export class HallScene extends Phaser.Scene {
 
     // Update Floating Truth Proverb
     const proverb =
-      customProverb || TRUTH_PROVERBS[Math.floor(Math.random() * TRUTH_PROVERBS.length)];
+      customProverb ||
+      TRUTH_PROVERBS[Math.floor(Math.random() * TRUTH_PROVERBS.length)];
     this.oracleProverbText.setText(proverb);
     this.oracleProverbText.setScale(1.35).setAlpha(1);
     this.tweens.add({
@@ -950,12 +1099,15 @@ export class HallScene extends Phaser.Scene {
       // coordinate reads as scenery; one that wanders reads as awake.
       this.oracleDriftT += delta * 0.00035;
       const driftX = Math.sin(this.oracleDriftT * 0.9) * 26;
-      const driftY = Math.cos(this.oracleDriftT * 1.3) * 14 + Math.sin(this.oracleDriftT * 2.7) * 4;
+      const driftY =
+        Math.cos(this.oracleDriftT * 1.3) * 14 +
+        Math.sin(this.oracleDriftT * 2.7) * 4;
 
       // Look-at: lean toward the operator, harder the closer they get.
       const dx = this.player.x - (this.oracleAnchor.x + driftX);
       const dy = this.player.y - (this.oracleAnchor.y + driftY);
-      const dist = Math.hypot(dx, dy) || 1;
+      // ⚡ Bolt: Use Math.sqrt(dx*dx + dy*dy) instead of Math.hypot for performance
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
       const attention = Phaser.Math.Clamp(1 - (dist - 90) / 320, 0, 1);
       const leanX = (dx / dist) * 11 * attention;
       const leanY = (dy / dist) * 8 * attention;
@@ -969,15 +1121,23 @@ export class HallScene extends Phaser.Scene {
       // An eye that stops blinking while it thinks is deeply unsettling, and
       // costs one boolean.
       if (this.oracleThinking) this.blinkTimer = 1200;
-      if (!this.oracleThinking && this.blinkTimer <= 0 && this.lidTarget === 0) {
+      if (
+        !this.oracleThinking &&
+        this.blinkTimer <= 0 &&
+        this.lidTarget === 0
+      ) {
         this.lidTarget = 1;
         this.time.delayedCall(90, () => {
           this.lidTarget = 0;
         });
         this.blinkTimer = 2600 + Math.random() * 4200;
       }
-      this.lidClosed += (this.lidTarget - this.lidClosed) * Math.min(1, delta * 0.022);
-      this.oracleEye.setDisplaySize(68, Math.max(2, 68 * (1 - this.lidClosed * 0.97)));
+      this.lidClosed +=
+        (this.lidTarget - this.lidClosed) * Math.min(1, delta * 0.022);
+      this.oracleEye.setDisplaySize(
+        68,
+        Math.max(2, 68 * (1 - this.lidClosed * 0.97)),
+      );
 
       // Pupil dilation: the iris tightens and brightens as you close on it.
       const dilate = 1 + attention * 0.45;
@@ -995,7 +1155,9 @@ export class HallScene extends Phaser.Scene {
       this.irisPos.y += (ty - this.irisPos.y) * lag;
 
       const lidScale = Math.max(0.04, 1 - this.lidClosed);
-      this.oracleIris?.setPosition(this.irisPos.x, this.irisPos.y).setScale(1, lidScale);
+      this.oracleIris
+        ?.setPosition(this.irisPos.x, this.irisPos.y)
+        .setScale(1, lidScale);
       this.oraclePupil
         ?.setPosition(this.irisPos.x, this.irisPos.y)
         // Pupil contracts as you close on it, the way an eye adjusting to a
@@ -1013,7 +1175,8 @@ export class HallScene extends Phaser.Scene {
       ];
       for (let i = 0; i < this.oracleChains.length; i++) {
         const a = chainAnchors[i];
-        if (a && this.oracleChains[i]) this.oracleChains[i].setTo(a.x, a.y, eyeX, eyeY);
+        if (a && this.oracleChains[i])
+          this.oracleChains[i].setTo(a.x, a.y, eyeX, eyeY);
       }
       this.oracleEye.setRotation(Math.sin(this.oracleDriftT * 1.7) * 0.05);
 
@@ -1022,8 +1185,11 @@ export class HallScene extends Phaser.Scene {
         const cfg = HALL_LIGHTS[i];
         if (!cfg || cfg.flicker === 0) continue;
         this.lightPhase[i] += (delta / 1000) * ((Math.PI * 2) / cfg.period);
-        const wobble = Math.sin(this.lightPhase[i]) * 0.6 + Math.sin(this.lightPhase[i] * 2.7) * 0.4;
-        this.hallLights[i].intensity = this.lightBase[i] * (1 + wobble * cfg.flicker);
+        const wobble =
+          Math.sin(this.lightPhase[i]) * 0.6 +
+          Math.sin(this.lightPhase[i] * 2.7) * 0.4;
+        this.hallLights[i].intensity =
+          this.lightBase[i] * (1 + wobble * cfg.flicker);
       }
 
       this.oracleSpawnTimer += delta;
@@ -1058,19 +1224,23 @@ export class HallScene extends Phaser.Scene {
     if (vx !== 0 || vy !== 0) {
       this.dest = null;
       this.reticle.setVisible(false);
-      const n = Math.hypot(vx, vy) || 1;
+      // ⚡ Bolt: Use Math.sqrt instead of Math.hypot for performance
+      const n = Math.sqrt(vx * vx + vy * vy) || 1;
       vx = (vx / n) * speed;
       vy = (vy / n) * speed;
     } else if (this.dest) {
       const dx = this.dest.x - this.player.x;
       const dy = this.dest.y - this.player.y;
-      if (Math.hypot(dx, dy) < 8) {
+      // ⚡ Bolt: Use squared distance for comparison instead of Math.hypot
+      if (dx * dx + dy * dy < 64) {
+        // 8 * 8 = 64
         this.dest = null;
         this.reticle.setVisible(false);
         vx = 0;
         vy = 0;
       } else {
-        const n = Math.hypot(dx, dy);
+        // ⚡ Bolt: Use Math.sqrt instead of Math.hypot for performance
+        const n = Math.sqrt(dx * dx + dy * dy);
         vx = (dx / n) * speed;
         vy = (dy / n) * speed;
       }
@@ -1084,14 +1254,26 @@ export class HallScene extends Phaser.Scene {
     // Check X movement with upper & lower foot bounds
     const canMoveX =
       vx === 0 ||
-      (walkable(feetX + (vx > 0 ? probeMargin : -probeMargin) + (vx * delta) / 1000, feetY - 4) &&
-       walkable(feetX + (vx > 0 ? probeMargin : -probeMargin) + (vx * delta) / 1000, feetY + 4));
+      (walkable(
+        feetX + (vx > 0 ? probeMargin : -probeMargin) + (vx * delta) / 1000,
+        feetY - 4,
+      ) &&
+        walkable(
+          feetX + (vx > 0 ? probeMargin : -probeMargin) + (vx * delta) / 1000,
+          feetY + 4,
+        ));
 
     // Check Y movement with left & right foot bounds
     const canMoveY =
       vy === 0 ||
-      (walkable(feetX - 6, feetY + (vy > 0 ? probeMargin : -probeMargin) + (vy * delta) / 1000) &&
-       walkable(feetX + 6, feetY + (vy > 0 ? probeMargin : -probeMargin) + (vy * delta) / 1000));
+      (walkable(
+        feetX - 6,
+        feetY + (vy > 0 ? probeMargin : -probeMargin) + (vy * delta) / 1000,
+      ) &&
+        walkable(
+          feetX + 6,
+          feetY + (vy > 0 ? probeMargin : -probeMargin) + (vy * delta) / 1000,
+        ));
 
     const finalVx = canMoveX ? vx : 0;
     const finalVy = canMoveY ? vy : 0;
@@ -1100,7 +1282,8 @@ export class HallScene extends Phaser.Scene {
 
     // Anticipation and follow-through: a short stretch as the Ravenlord takes
     // off, a squash as he plants. Without these he slides rather than walks.
-    const isMoving = Math.hypot(finalVx, finalVy) > 10;
+    // ⚡ Bolt: Use squared velocity for comparison instead of Math.hypot
+    const isMoving = finalVx * finalVx + finalVy * finalVy > 100; // 10 * 10 = 100
     if (isMoving !== this.wasMoving) {
       this.squash(isMoving ? 0.94 : 1.07, isMoving ? 1.07 : 0.93);
       this.wasMoving = isMoving;
@@ -1139,7 +1322,11 @@ export class HallScene extends Phaser.Scene {
       }
     } else {
       // Idle pose facing the last walked direction
-      this.safePlayAnim(this.player, `${this.activeSkinId}-idle-${this.lastFacing}`, true);
+      this.safePlayAnim(
+        this.player,
+        `${this.activeSkinId}-idle-${this.lastFacing}`,
+        true,
+      );
     }
 
     // Zone Transition Triggers
@@ -1168,4 +1355,3 @@ export class HallScene extends Phaser.Scene {
     }
   }
 }
-
