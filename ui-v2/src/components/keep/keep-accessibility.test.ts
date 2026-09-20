@@ -1,0 +1,34 @@
+import assert from "node:assert";
+import test, { describe } from "node:test";
+import fs from "node:fs";
+import path from "node:path";
+
+describe("Keep components accessibility test", () => {
+  test("WarTablePanel has accessible Re-read button with aria-label and focus-visible styling", () => {
+    const filePath = path.join(process.cwd(), "src/components/keep/war-table-panel.tsx");
+    const content = fs.readFileSync(filePath, "utf-8");
+
+    assert.ok(
+      content.includes('aria-label="Re-read war table pending gates"'),
+      "WarTablePanel Re-read button should have descriptive aria-label"
+    );
+    assert.ok(
+      content.includes("focus-visible:ring-1"),
+      "WarTablePanel Re-read button should have focus-visible styling"
+    );
+  });
+
+  test("WatchtowerBeacon has accessible Re-read button with aria-label and focus-visible styling", () => {
+    const filePath = path.join(process.cwd(), "src/components/keep/watchtower-beacon.tsx");
+    const content = fs.readFileSync(filePath, "utf-8");
+
+    assert.ok(
+      content.includes('aria-label="Re-read stack health beacon status"'),
+      "WatchtowerBeacon Re-read button should have descriptive aria-label"
+    );
+    assert.ok(
+      content.includes("focus-visible:ring-1"),
+      "WatchtowerBeacon Re-read button should have focus-visible styling"
+    );
+  });
+});
