@@ -367,12 +367,17 @@ export function zoneAt(x: number, y: number): Zone | null {
 
 export function npcNear(x: number, y: number, extra = 8): HallNpc | null {
   let best: HallNpc | null = null;
-  let bestD = Infinity;
+  let bestDSq = Infinity;
   for (const n of HALL_NPCS) {
-    const d = Math.hypot(n.x - x, n.y - y);
-    if (d < n.radius + extra && d < bestD) {
+    // PERFORMANCE: Use squared distance to avoid Math.hypot/sqrt in hot loops
+    const dx = n.x - x;
+    const dy = n.y - y;
+    const dSq = dx * dx + dy * dy;
+    const threshold = n.radius + extra;
+    const thresholdSq = threshold * threshold;
+    if (dSq < thresholdSq && dSq < bestDSq) {
       best = n;
-      bestD = d;
+      bestDSq = dSq;
     }
   }
   return best;
@@ -392,13 +397,16 @@ import { isFacingTarget, type Facing } from "./locomotion.ts";
 
 export function npcFacing(x: number, y: number, facing: Facing, extra = 12): HallNpc | null {
   let best: HallNpc | null = null;
-  let bestD = Infinity;
+  let bestDSq = Infinity;
   for (const n of HALL_NPCS) {
     if (isFacingTarget(x, y, facing, n.x, n.y, n.radius + extra)) {
-      const d = Math.hypot(n.x - x, n.y - y);
-      if (d < bestD) {
+      // PERFORMANCE: Use squared distance to avoid Math.hypot/sqrt in hot loops
+      const dx = n.x - x;
+      const dy = n.y - y;
+      const dSq = dx * dx + dy * dy;
+      if (dSq < bestDSq) {
         best = n;
-        bestD = d;
+        bestDSq = dSq;
       }
     }
   }
