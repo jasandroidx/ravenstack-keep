@@ -8,3 +8,11 @@ dist/
 public/data/phrases.json
 __pycache__/
 *.pyc
+.env
+.env.local
+
+# Stray Next.js dev artifacts from an agent-town-based coding sandbox
+# ("Grok Build") that ran with its cwd set to this repo — see keep.log.
+.next/
+next-env.d.ts
+*.log
