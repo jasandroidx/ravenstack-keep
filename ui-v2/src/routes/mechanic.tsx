@@ -18,6 +18,7 @@ function MechanicPage() {
   );
   const [busy, setBusy] = useState(false);
   const [finding, setFinding] = useState<string | null>(null);
+  const [source, setSource] = useState<string | null>(null);
 
   async function onDiagnose(e: React.FormEvent) {
     e.preventDefault();
@@ -29,6 +30,7 @@ function MechanicPage() {
         return;
       }
       setFinding(out.text);
+      setSource(`${out.model} · ${out.sawBox ? "read live stack_health" : "no live box reading"}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Diagnosis failed");
     } finally {
@@ -102,8 +104,11 @@ function MechanicPage() {
       </form>
 
       {finding ? (
-        <article className="mt-8 whitespace-pre-wrap rounded-xl border border-line bg-surface p-6 text-muted">
-          {finding}
+        <article className="mt-8 rounded-xl border border-line bg-surface p-6">
+          <p className="whitespace-pre-wrap text-muted">{finding}</p>
+          {source ? (
+            <p className="mt-4 text-[11px] uppercase tracking-[0.15em] text-subtle">{source}</p>
+          ) : null}
         </article>
       ) : null}
     </KeepShell>

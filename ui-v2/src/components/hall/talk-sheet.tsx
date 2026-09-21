@@ -19,6 +19,9 @@ export function TalkSheet({
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Which plane answered, and whether it saw the box. Canned action replies
+  // clear it so a scripted line is never mistaken for a live one.
+  const [source, setSource] = useState<string | null>(null);
 
   function runAction(action: HallAction) {
     if (action.href === "/table") {
@@ -28,6 +31,7 @@ export function TalkSheet({
     if (action.reply) {
       setLine(action.reply);
       setError(null);
+      setSource(null);
     }
   }
 
@@ -44,10 +48,12 @@ export function TalkSheet({
         return;
       }
       setLine(res.reply);
+      setSource(`${res.model} · ${res.sawBox ? "live box" : "no live reading"}`);
       setInput("");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "The seat did not answer.";
       setError(msg);
+      setSource(null);
       toast.error(msg);
     } finally {
       setBusy(false);
@@ -86,6 +92,9 @@ export function TalkSheet({
               {line}
             </p>
             {error ? <p className="mt-2 text-sm text-[#ff3b3b]">{error}</p> : null}
+            {source ? (
+              <p className="mt-2 text-[11px] uppercase tracking-[0.15em] text-[#2de2e6]/70">{source}</p>
+            ) : null}
 
             <div className="mt-3 flex flex-wrap gap-2">
               {npc.actions.map((action) =>

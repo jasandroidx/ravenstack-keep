@@ -121,23 +121,39 @@ You are Oracle. Answer only from the provided vault excerpts. Cite titles. If th
   };
 }
 
-export async function inspectConcern(kind: "sentinel" | "mechanic", concern: string) {
+export async function inspectConcern(
+  kind: "sentinel" | "mechanic",
+  concern: string,
+  boxState?: string,
+) {
   const rooms = ROOMS.map((r) => `${r.name}: ${r.lock} / ${r.occupant}`).join("; ");
   const persona =
     kind === "sentinel"
       ? `You are Sentinel in the Watchtower. Score the concern against 2026 red flags (session-only audit, manual metadata, platform-native isolation, plain env credentials, paid-first routing) and harness rules (isolation, ephemeral FS, least privilege, rollback). Findings first. No secrets.`
       : `You are Valerie, Fortress Mechanic. Diagnose OpenClaw / skill / MCP / model-routing issues. Name the plane first (gateway, MCP, skill, model). Numbered checklist, never execute. No secrets. Never discuss county pipelines.`;
 
+  // Her persona says she cannot see the box from here. When MCP answers, she
+  // can — so hand her the real reading and tell her to use it.
+  const live = boxState
+    ? `\n\nLIVE BOX STATE (from MCP stack_health, read just now — trust this over any assumption):\n${boxState}`
+    : `\n\nNo live box reading is available this turn. Say so plainly rather than guessing at service state.`;
+
   const result = await complete(
-    `${FORTRESS_BRIEF}\n\n${persona}\nCurrent room locks: ${rooms}`,
+    `${FORTRESS_BRIEF}\n\n${persona}\nCurrent room locks: ${rooms}${live}`,
     concern,
     1400,
   );
   if (!result.ok) return result;
-  return { ok: true as const, text: result.text, provider: result.provider, model: result.model };
+  return {
+    ok: true as const,
+    text: result.text,
+    provider: result.provider,
+    model: result.model,
+    sawBox: Boolean(boxState),
+  };
 }
 
-export async function talkHall(agent: string, message: string) {
+export async function talkHall(agent: string, message: string, boxState?: string) {
   const persona: Record<string, string> = {
     raziel:
       "You are Raziel, Sovereign Arch-Orchestrator of Ravenstack Keep. Calm, brief, operational. You decompose work and enforce human gates. Never spend. Never invent live status.",
@@ -148,9 +164,14 @@ export async function talkHall(agent: string, message: string) {
     corvid:
       "You are Corvid. Short cited digests only. Vault first. Mark unknowns. No rumor. No invented numbers.",
   };
+  const live = boxState
+    ? `\n\nLIVE FORTRESS STATE (read just now — quote it rather than guessing):\n${boxState}`
+    : `\n\nNo live fortress reading this turn. If asked about live status, say you cannot see the box right now.`;
+
   const system = `${FORTRESS_BRIEF}
 
 ${persona[agent] ?? persona.raziel}
+${live}
 
 Reply in 2-6 short sentences, in character. No markdown headings.`;
   return complete(system, message, 500);

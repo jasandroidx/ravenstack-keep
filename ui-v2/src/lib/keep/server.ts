@@ -4,11 +4,46 @@ import { getSql } from "@/lib/db";
 import { askOracle, conveneTable, forgeSpec, generatePortraitImage, generatePortraitLore, inspectConcern, talkHall } from "./ai";
 import { ARCHITECTURE, KNOWLEDGE, ROOMS, SKILL_SURFACE, SPECS, getRoom, getSpecForRoom, roomCounts } from "./catalog";
 import { fetchKeepPulse } from "./pulse";
-import { boxToolsAvailable, queryKnowledge } from "./box-adapter";
+import { boxToolsAvailable, queryKnowledge, stackHealth } from "./box-adapter";
 import { mcpConfigured, mcpHealth } from "./mcp";
 import { routingStatus } from "./router";
 import type { DraftSpec, TableResult } from "./types";
 import type { CommissionRequest, LoreRerollRequest, PortraitItem } from "@/lib/gallery/types";
+
+/**
+ * Live stack reading for Valerie / Sentinel. Returns undefined rather than a
+ * placeholder when MCP is unavailable, so the persona says "I cannot see the
+ * box" instead of narrating a fiction.
+ */
+async function liveStackSummary(): Promise<string | undefined> {
+  if (!mcpConfigured()) return undefined;
+  const res = await stackHealth();
+  if (!res.ok) return undefined;
+  const body = res.text?.trim();
+  if (!body) return undefined;
+  // stack_health is already short prose; cap it so it cannot crowd the prompt.
+  return body.length > 2000 ? `${body.slice(0, 2000)}\n…(truncated)` : body;
+}
+
+/** Compact fortress state for hall dialogue. Paper is labeled as paper. */
+async function livePulseSummary(): Promise<string | undefined> {
+  const pulse = await fetchKeepPulse();
+  if (pulse.source !== "live") return undefined;
+  const parts = [
+    `network: ${pulse.network}`,
+    `reclaw: ${pulse.services.reclaw}`,
+    `openclaw: ${pulse.services.openclaw}`,
+    `mcp: ${pulse.services.mcp}`,
+    `queue: ${pulse.queue.status} (cursor ${pulse.queue.cursor})`,
+  ];
+  if (typeof pulse.ollamaModels === "number") parts.push(`local models: ${pulse.ollamaModels}`);
+  if (pulse.rooms.length) {
+    parts.push(`rooms: ${pulse.rooms.map((r) => `${r.name}=${r.status || (r.empty ? "empty" : "occupied")}`).join(", ")}`);
+  } else {
+    parts.push("room occupancy: not reported by the box");
+  }
+  return parts.join("\n");
+}
 
 export const getKeepSnapshot = createServerFn({ method: "GET" }).handler(async () => {
   const pulse = await fetchKeepPulse();
@@ -155,7 +190,8 @@ export const runInspection = createServerFn({ method: "POST" })
   }))
   .handler(async ({ context, data }) => {
     if (!data.concern) return { ok: false as const, error: "Name the concern." };
-    const result = await inspectConcern(data.kind, data.concern);
+    const boxState = await liveStackSummary();
+    const result = await inspectConcern(data.kind, data.concern, boxState);
     if (!result.ok) return result;
     const sql = await getSql();
     await sql`
@@ -194,9 +230,16 @@ export const talkInHall = createServerFn({ method: "POST" })
     if (!data.message) return { ok: false as const, error: "Say something." };
     const allowed = new Set(["raziel", "oracle", "valerie", "corvid"]);
     if (!allowed.has(data.agent)) return { ok: false as const, error: "Unknown seat." };
-    const result = await talkHall(data.agent, data.message);
+    const boxState = await livePulseSummary();
+    const result = await talkHall(data.agent, data.message, boxState);
     if (!result.ok) return result;
-    return { ok: true as const, reply: result.text };
+    return {
+      ok: true as const,
+      reply: result.text,
+      provider: result.provider,
+      model: result.model,
+      sawBox: Boolean(boxState),
+    };
   });
 
 /**
