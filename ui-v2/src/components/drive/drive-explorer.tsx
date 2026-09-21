@@ -22,6 +22,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import { useGoogleDriveAuth } from "@/lib/drive/google-auth";
+import { useDebounce } from "@/hooks/use-debounce";
 import {
   listDriveFiles,
   getDriveAbout,
@@ -45,14 +46,24 @@ interface FolderBreadcrumb {
 }
 
 export function GoogleDriveExplorer() {
-  const { user, token, isAuthenticated, loading: authLoading, signIn, signOut } = useGoogleDriveAuth();
+  const {
+    user,
+    token,
+    isAuthenticated,
+    loading: authLoading,
+    signIn,
+    signOut,
+  } = useGoogleDriveAuth();
 
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [about, setAbout] = useState<DriveAbout | null>(null);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [activeCategory, setActiveCategory] = useState<string>("all");
-  const [breadcrumbs, setBreadcrumbs] = useState<FolderBreadcrumb[]>([{ id: "root", name: "My Drive" }]);
+  const [breadcrumbs, setBreadcrumbs] = useState<FolderBreadcrumb[]>([
+    { id: "root", name: "My Drive" },
+  ]);
   const currentFolderId = breadcrumbs[breadcrumbs.length - 1]?.id || "root";
 
   // Selected file for preview / details
@@ -100,10 +111,14 @@ export function GoogleDriveExplorer() {
     if (!token) return;
     setLoading(true);
     try {
+      // ⚡ Bolt Performance Optimization:
+      // We use `debouncedSearchQuery` instead of `searchQuery` here.
+      // This limits Google Drive API search requests to at most one per 300ms,
+      // significantly reducing unnecessary network calls and re-renders while the user types.
       const [filesRes, aboutRes] = await Promise.all([
         listDriveFiles(token, {
           folderId: currentFolderId,
-          searchQuery: searchQuery.trim() || undefined,
+          searchQuery: debouncedSearchQuery.trim() || undefined,
           mimeCategory: activeCategory,
           includeTrashed: activeCategory === "trash",
         }),
@@ -117,11 +132,15 @@ export function GoogleDriveExplorer() {
       if (aboutRes) setAbout(aboutRes);
     } catch (err) {
       console.error("Failed to load Google Drive files:", err);
-      toast.error(err instanceof Error ? err.message : "Failed to load Google Drive files");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Failed to load Google Drive files",
+      );
     } finally {
       setLoading(false);
     }
-  }, [token, currentFolderId, searchQuery, activeCategory]);
+  }, [token, currentFolderId, debouncedSearchQuery, activeCategory]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -178,7 +197,9 @@ export function GoogleDriveExplorer() {
       setIsCreatingFolder(false);
       loadDriveData();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create folder");
+      toast.error(
+        err instanceof Error ? err.message : "Failed to create folder",
+      );
     }
   };
 
@@ -187,8 +208,16 @@ export function GoogleDriveExplorer() {
     e.preventDefault();
     if (!token || !newDocName.trim()) return;
     try {
-      const fileName = newDocName.endsWith(".md") || newDocName.endsWith(".txt") ? newDocName : `${newDocName}.md`;
-      await createDriveTextFile(token, fileName, newDocContent, currentFolderId);
+      const fileName =
+        newDocName.endsWith(".md") || newDocName.endsWith(".txt")
+          ? newDocName
+          : `${newDocName}.md`;
+      await createDriveTextFile(
+        token,
+        fileName,
+        newDocContent,
+        currentFolderId,
+      );
       toast.success(`Created "${fileName}" in Google Drive`);
       setNewDocName("");
       setNewDocContent("");
@@ -220,15 +249,21 @@ export function GoogleDriveExplorer() {
     const fileList = Array.from(uploadFiles);
     if (fileList.length === 0) return;
 
-    const toastId = toast.loading(`Uploading ${fileList.length} file(s) to Google Drive…`);
+    const toastId = toast.loading(
+      `Uploading ${fileList.length} file(s) to Google Drive…`,
+    );
     try {
       for (const file of fileList) {
         await uploadFileToDrive(token, file, currentFolderId);
       }
-      toast.success(`Successfully uploaded ${fileList.length} file(s)`, { id: toastId });
+      toast.success(`Successfully uploaded ${fileList.length} file(s)`, {
+        id: toastId,
+      });
       loadDriveData();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Upload failed", { id: toastId });
+      toast.error(err instanceof Error ? err.message : "Upload failed", {
+        id: toastId,
+      });
     }
   };
 
@@ -248,7 +283,9 @@ export function GoogleDriveExplorer() {
           if (selectedFile?.id === file.id) setSelectedFile(null);
           loadDriveData();
         } catch (err) {
-          toast.error(err instanceof Error ? err.message : "Failed to trash file");
+          toast.error(
+            err instanceof Error ? err.message : "Failed to trash file",
+          );
         }
       },
     });
@@ -270,7 +307,9 @@ export function GoogleDriveExplorer() {
           if (selectedFile?.id === file.id) setSelectedFile(null);
           loadDriveData();
         } catch (err) {
-          toast.error(err instanceof Error ? err.message : "Permanent delete failed");
+          toast.error(
+            err instanceof Error ? err.message : "Permanent delete failed",
+          );
         }
       },
     });
@@ -282,8 +321,10 @@ export function GoogleDriveExplorer() {
     const toastId = toast.loading(`Extracting knowledge from "${file.name}"…`);
     try {
       const content = await getFileContent(token, file.id, file.mimeType);
-      const textToSave = content.text || `Reference document: ${file.name} (URL: ${file.webViewLink || "Google Drive"})`;
-      
+      const textToSave =
+        content.text ||
+        `Reference document: ${file.name} (URL: ${file.webViewLink || "Google Drive"})`;
+
       // Store in session storage / local fortress catalog
       const knowledgeItem = {
         id: `drive-${file.id}`,
@@ -294,14 +335,27 @@ export function GoogleDriveExplorer() {
         ingestedAt: new Date().toISOString(),
       };
 
-      const existing = JSON.parse(localStorage.getItem("ravenstack_custom_knowledge") || "[]");
-      const updated = [knowledgeItem, ...existing.filter((k: { id: string }) => k.id !== knowledgeItem.id)];
-      localStorage.setItem("ravenstack_custom_knowledge", JSON.stringify(updated));
+      const existing = JSON.parse(
+        localStorage.getItem("ravenstack_custom_knowledge") || "[]",
+      );
+      const updated = [
+        knowledgeItem,
+        ...existing.filter((k: { id: string }) => k.id !== knowledgeItem.id),
+      ];
+      localStorage.setItem(
+        "ravenstack_custom_knowledge",
+        JSON.stringify(updated),
+      );
 
       setIngestedFiles((prev) => new Set([...prev, file.id]));
-      toast.success(`Ingested "${file.name}" into Ravenstack Oracle shelf!`, { id: toastId });
+      toast.success(`Ingested "${file.name}" into Ravenstack Oracle shelf!`, {
+        id: toastId,
+      });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to ingest document", { id: toastId });
+      toast.error(
+        err instanceof Error ? err.message : "Failed to ingest document",
+        { id: toastId },
+      );
     }
   };
 
@@ -335,16 +389,28 @@ export function GoogleDriveExplorer() {
     if (file.mimeType.startsWith("image/")) {
       return <ImageIcon className="h-5 w-5 text-cyan-400" />;
     }
-    if (file.mimeType.includes("json") || file.mimeType.includes("javascript") || file.mimeType.includes("typescript") || file.mimeType.includes("markdown")) {
+    if (
+      file.mimeType.includes("json") ||
+      file.mimeType.includes("javascript") ||
+      file.mimeType.includes("typescript") ||
+      file.mimeType.includes("markdown")
+    ) {
       return <FileCode className="h-5 w-5 text-green-400" />;
     }
     return <FileGeneric className="h-5 w-5 text-zinc-400" />;
   };
 
   // Quota calculation
-  const quotaLimit = about?.storageQuota?.limit ? parseInt(about.storageQuota.limit, 10) : 0;
-  const quotaUsage = about?.storageQuota?.usage ? parseInt(about.storageQuota.usage, 10) : 0;
-  const quotaPercent = quotaLimit > 0 ? Math.min(100, Math.round((quotaUsage / quotaLimit) * 100)) : 0;
+  const quotaLimit = about?.storageQuota?.limit
+    ? parseInt(about.storageQuota.limit, 10)
+    : 0;
+  const quotaUsage = about?.storageQuota?.usage
+    ? parseInt(about.storageQuota.usage, 10)
+    : 0;
+  const quotaPercent =
+    quotaLimit > 0
+      ? Math.min(100, Math.round((quotaUsage / quotaLimit) * 100))
+      : 0;
 
   if (!isAuthenticated) {
     return (
@@ -353,10 +419,16 @@ export function GoogleDriveExplorer() {
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-elevated border border-line">
             <HardDrive className="h-8 w-8 text-accent" />
           </div>
-          <p className="mt-4 text-[11px] uppercase tracking-[0.2em] text-subtle">Google Workspace · Drive Integration</p>
-          <h1 className="mt-2 font-display text-3xl md:text-4xl text-fg">Google Drive Vault</h1>
+          <p className="mt-4 text-[11px] uppercase tracking-[0.2em] text-subtle">
+            Google Workspace · Drive Integration
+          </p>
+          <h1 className="mt-2 font-display text-3xl md:text-4xl text-fg">
+            Google Drive Vault
+          </h1>
           <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-muted">
-            Connect your Google Drive account with user authorization to browse files, preview documents, ingest knowledge into the Ravenstack Oracle, and manage fortress assets directly from the Keep.
+            Connect your Google Drive account with user authorization to browse
+            files, preview documents, ingest knowledge into the Ravenstack
+            Oracle, and manage fortress assets directly from the Keep.
           </p>
 
           <div className="mt-8 flex justify-center">
@@ -369,27 +441,58 @@ export function GoogleDriveExplorer() {
               className="group inline-flex items-center gap-3 rounded-md border border-line bg-elevated px-5 py-2.5 text-sm font-medium text-fg shadow-sm transition-all hover:border-line-strong hover:bg-surface focus:outline-none focus:ring-2 focus:ring-accent/40 disabled:opacity-50"
             >
               <svg className="h-5 w-5" viewBox="0 0 48 48">
-                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
-                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
-                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
-                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+                <path
+                  fill="#EA4335"
+                  d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+                />
+                <path
+                  fill="#4285F4"
+                  d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+                />
               </svg>
-              <span>{authLoading ? "Authorizing Google Drive…" : "Sign in with Google"}</span>
+              <span>
+                {authLoading
+                  ? "Authorizing Google Drive…"
+                  : "Sign in with Google"}
+              </span>
             </button>
           </div>
 
           <div className="mt-8 grid grid-cols-1 gap-4 text-left md:grid-cols-3">
             <div className="rounded-lg border border-line bg-elevated/40 p-4">
-              <h4 className="font-display text-sm font-semibold text-fg">Secure & Client-First</h4>
-              <p className="mt-1 text-xs text-muted">Tokens remain safely in browser memory, never saved to persistent storage.</p>
+              <h4 className="font-display text-sm font-semibold text-fg">
+                Secure & Client-First
+              </h4>
+              <p className="mt-1 text-xs text-muted">
+                Tokens remain safely in browser memory, never saved to
+                persistent storage.
+              </p>
             </div>
             <div className="rounded-lg border border-line bg-elevated/40 p-4">
-              <h4 className="font-display text-sm font-semibold text-fg">Knowledge Ingestion</h4>
-              <p className="mt-1 text-xs text-muted">Import Google Docs, Sheets, and Notes directly into the Oracle shelf.</p>
+              <h4 className="font-display text-sm font-semibold text-fg">
+                Knowledge Ingestion
+              </h4>
+              <p className="mt-1 text-xs text-muted">
+                Import Google Docs, Sheets, and Notes directly into the Oracle
+                shelf.
+              </p>
             </div>
             <div className="rounded-lg border border-line bg-elevated/40 p-4">
-              <h4 className="font-display text-sm font-semibold text-fg">Protected Actions</h4>
-              <p className="mt-1 text-xs text-muted">Every file deletion and edit requires explicit human confirmation.</p>
+              <h4 className="font-display text-sm font-semibold text-fg">
+                Protected Actions
+              </h4>
+              <p className="mt-1 text-xs text-muted">
+                Every file deletion and edit requires explicit human
+                confirmation.
+              </p>
             </div>
           </div>
         </div>
@@ -409,10 +512,15 @@ export function GoogleDriveExplorer() {
         <div>
           <div className="flex items-center gap-2">
             <HardDrive className="h-5 w-5 text-accent" />
-            <h1 className="font-display text-2xl tracking-tight text-fg">Google Drive Vault</h1>
+            <h1 className="font-display text-2xl tracking-tight text-fg">
+              Google Drive Vault
+            </h1>
           </div>
           <p className="mt-1 text-xs text-muted">
-            Authenticated as <span className="text-fg font-medium">{user?.email || about?.user?.emailAddress || "Google User"}</span>
+            Authenticated as{" "}
+            <span className="text-fg font-medium">
+              {user?.email || about?.user?.emailAddress || "Google User"}
+            </span>
           </p>
         </div>
 
@@ -422,7 +530,9 @@ export function GoogleDriveExplorer() {
             <div className="flex min-w-[180px] flex-col gap-1 rounded-lg border border-line bg-elevated px-3 py-2 text-xs">
               <div className="flex justify-between text-muted">
                 <span>Storage</span>
-                <span className="font-mono text-fg">{formatBytes(quotaUsage)} / {formatBytes(quotaLimit)}</span>
+                <span className="font-mono text-fg">
+                  {formatBytes(quotaUsage)} / {formatBytes(quotaLimit)}
+                </span>
               </div>
               <div className="h-1.5 w-full overflow-hidden rounded-full bg-bg">
                 <div
@@ -440,7 +550,9 @@ export function GoogleDriveExplorer() {
             disabled={loading}
             className="gap-1.5 text-xs"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
+            />
             Refresh
           </Button>
 
@@ -544,7 +656,9 @@ export function GoogleDriveExplorer() {
               <button
                 onClick={() => navigateToBreadcrumb(i)}
                 className={`hover:text-fg transition-colors ${
-                  i === breadcrumbs.length - 1 ? "font-semibold text-fg" : "text-muted"
+                  i === breadcrumbs.length - 1
+                    ? "font-semibold text-fg"
+                    : "text-muted"
                 }`}
               >
                 {b.name}
@@ -557,7 +671,8 @@ export function GoogleDriveExplorer() {
       {/* Drag overlay */}
       {isDragging && (
         <div className="rounded-xl border-2 border-dashed border-accent bg-accent/10 p-8 text-center text-sm text-accent">
-          Drop files here to upload directly to Google Drive ({breadcrumbs[breadcrumbs.length - 1]?.name})
+          Drop files here to upload directly to Google Drive (
+          {breadcrumbs[breadcrumbs.length - 1]?.name})
         </div>
       )}
 
@@ -580,7 +695,9 @@ export function GoogleDriveExplorer() {
               <div className="py-16 text-center text-sm text-muted">
                 <Folder className="mx-auto h-8 w-8 text-subtle" />
                 <p className="mt-2">No files found in this directory</p>
-                <p className="text-xs text-subtle">Upload or create a file above.</p>
+                <p className="text-xs text-subtle">
+                  Upload or create a file above.
+                </p>
               </div>
             ) : (
               <div className="divide-y divide-line">
@@ -610,12 +727,16 @@ export function GoogleDriveExplorer() {
                           {file.name}
                         </span>
                         {file.shared && (
-                          <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] text-subtle">Shared</span>
+                          <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] text-subtle">
+                            Shared
+                          </span>
                         )}
                       </div>
 
                       <div className="hidden col-span-3 md:block text-xs text-muted truncate">
-                        {file.modifiedTime ? new Date(file.modifiedTime).toLocaleDateString() : "—"}
+                        {file.modifiedTime
+                          ? new Date(file.modifiedTime).toLocaleDateString()
+                          : "—"}
                       </div>
 
                       <div className="col-span-6 md:col-span-2 text-right text-xs font-mono text-muted">
@@ -652,22 +773,30 @@ export function GoogleDriveExplorer() {
               <div className="space-y-2 text-xs">
                 <div className="flex justify-between">
                   <span className="text-subtle">Type:</span>
-                  <span className="text-fg">{getMimeInfo(selectedFile.mimeType).label}</span>
+                  <span className="text-fg">
+                    {getMimeInfo(selectedFile.mimeType).label}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-subtle">Size:</span>
-                  <span className="font-mono text-fg">{formatBytes(selectedFile.size)}</span>
+                  <span className="font-mono text-fg">
+                    {formatBytes(selectedFile.size)}
+                  </span>
                 </div>
                 {selectedFile.modifiedTime && (
                   <div className="flex justify-between">
                     <span className="text-subtle">Last Modified:</span>
-                    <span className="text-fg">{new Date(selectedFile.modifiedTime).toLocaleString()}</span>
+                    <span className="text-fg">
+                      {new Date(selectedFile.modifiedTime).toLocaleString()}
+                    </span>
                   </div>
                 )}
                 {selectedFile.owners?.[0] && (
                   <div className="flex justify-between">
                     <span className="text-subtle">Owner:</span>
-                    <span className="text-fg truncate max-w-[150px]">{selectedFile.owners[0].displayName}</span>
+                    <span className="text-fg truncate max-w-[150px]">
+                      {selectedFile.owners[0].displayName}
+                    </span>
                   </div>
                 )}
               </div>
@@ -676,14 +805,20 @@ export function GoogleDriveExplorer() {
               <div className="rounded-lg border border-line bg-elevated/50 p-3">
                 <div className="flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-subtle mb-2">
                   <span>Preview</span>
-                  {previewLoading && <RefreshCw className="h-3 w-3 animate-spin text-accent" />}
+                  {previewLoading && (
+                    <RefreshCw className="h-3 w-3 animate-spin text-accent" />
+                  )}
                 </div>
                 {previewLoading ? (
-                  <div className="py-6 text-center text-xs text-muted">Loading preview…</div>
+                  <div className="py-6 text-center text-xs text-muted">
+                    Loading preview…
+                  </div>
                 ) : previewContent ? (
                   <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap font-mono text-xs text-muted">
                     {previewContent.slice(0, 1000)}
-                    {previewContent.length > 1000 ? "\n\n… [Content truncated for preview]" : ""}
+                    {previewContent.length > 1000
+                      ? "\n\n… [Content truncated for preview]"
+                      : ""}
                   </pre>
                 ) : (
                   <p className="py-4 text-center text-xs text-subtle">
@@ -716,7 +851,9 @@ export function GoogleDriveExplorer() {
                   className="gap-1.5 text-xs border-accent/40 text-accent hover:bg-accent/10"
                 >
                   <BookOpen className="h-3.5 w-3.5" />
-                  {ingestedFiles.has(selectedFile.id) ? "Ingested in Oracle" : "Ingest into Oracle Shelf"}
+                  {ingestedFiles.has(selectedFile.id)
+                    ? "Ingested in Oracle"
+                    : "Ingest into Oracle Shelf"}
                 </Button>
 
                 <div className="flex gap-2">
@@ -758,8 +895,13 @@ export function GoogleDriveExplorer() {
           ) : (
             <div className="rounded-xl border border-dashed border-line bg-surface/50 p-8 text-center text-xs text-muted">
               <Eye className="mx-auto h-6 w-6 text-subtle" />
-              <p className="mt-2 font-medium">Select a file to inspect details</p>
-              <p className="mt-1 text-subtle">Preview text, ingest into Oracle, or open directly in Google Drive.</p>
+              <p className="mt-2 font-medium">
+                Select a file to inspect details
+              </p>
+              <p className="mt-1 text-subtle">
+                Preview text, ingest into Oracle, or open directly in Google
+                Drive.
+              </p>
             </div>
           )}
         </div>
@@ -769,8 +911,13 @@ export function GoogleDriveExplorer() {
       {isCreatingFolder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-xl border border-line bg-surface p-6 shadow-xl">
-            <h3 className="font-display text-lg text-fg">New Google Drive Folder</h3>
-            <p className="mt-1 text-xs text-muted">Create a new directory inside {breadcrumbs[breadcrumbs.length - 1]?.name}.</p>
+            <h3 className="font-display text-lg text-fg">
+              New Google Drive Folder
+            </h3>
+            <p className="mt-1 text-xs text-muted">
+              Create a new directory inside{" "}
+              {breadcrumbs[breadcrumbs.length - 1]?.name}.
+            </p>
             <form onSubmit={handleCreateFolderSubmit} className="mt-4">
               <input
                 type="text"
@@ -781,10 +928,19 @@ export function GoogleDriveExplorer() {
                 className="w-full rounded-md border border-line bg-elevated px-3 py-2 text-sm text-fg outline-none focus:border-accent"
               />
               <div className="mt-5 flex justify-end gap-2">
-                <Button type="button" variant="ghost" size="sm" onClick={() => setIsCreatingFolder(false)}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsCreatingFolder(false)}
+                >
                   Cancel
                 </Button>
-                <Button type="submit" size="sm" disabled={!newFolderName.trim()}>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={!newFolderName.trim()}
+                >
                   Create Folder
                 </Button>
               </div>
@@ -797,8 +953,12 @@ export function GoogleDriveExplorer() {
       {isCreatingDoc && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div className="w-full max-w-lg rounded-xl border border-line bg-surface p-6 shadow-xl">
-            <h3 className="font-display text-lg text-fg">New Note in Google Drive</h3>
-            <p className="mt-1 text-xs text-muted">Save a Markdown note or document directly into your Drive.</p>
+            <h3 className="font-display text-lg text-fg">
+              New Note in Google Drive
+            </h3>
+            <p className="mt-1 text-xs text-muted">
+              Save a Markdown note or document directly into your Drive.
+            </p>
             <form onSubmit={handleCreateDocSubmit} className="mt-4 space-y-3">
               <input
                 type="text"
@@ -816,7 +976,12 @@ export function GoogleDriveExplorer() {
                 className="w-full rounded-md border border-line bg-elevated px-3 py-2 font-mono text-sm text-fg outline-none focus:border-accent"
               />
               <div className="flex justify-end gap-2 pt-2">
-                <Button type="button" variant="ghost" size="sm" onClick={() => setIsCreatingDoc(false)}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsCreatingDoc(false)}
+                >
                   Cancel
                 </Button>
                 <Button type="submit" size="sm" disabled={!newDocName.trim()}>
@@ -833,7 +998,9 @@ export function GoogleDriveExplorer() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-xl border border-line bg-surface p-6 shadow-xl">
             <h3 className="font-display text-lg text-fg">Rename File</h3>
-            <p className="mt-1 text-xs text-muted">Enter a new name for "{renameTarget.name}".</p>
+            <p className="mt-1 text-xs text-muted">
+              Enter a new name for "{renameTarget.name}".
+            </p>
             <form onSubmit={handleRenameSubmit} className="mt-4">
               <input
                 type="text"
@@ -843,7 +1010,12 @@ export function GoogleDriveExplorer() {
                 className="w-full rounded-md border border-line bg-elevated px-3 py-2 text-sm text-fg outline-none focus:border-accent"
               />
               <div className="mt-5 flex justify-end gap-2">
-                <Button type="button" variant="ghost" size="sm" onClick={() => setRenameTarget(null)}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setRenameTarget(null)}
+                >
                   Cancel
                 </Button>
                 <Button type="submit" size="sm" disabled={!renameValue.trim()}>
@@ -861,14 +1033,20 @@ export function GoogleDriveExplorer() {
           <div className="w-full max-w-md rounded-xl border border-line bg-surface p-6 shadow-2xl">
             <div className="flex items-center gap-3 text-red-400">
               <AlertTriangle className="h-6 w-6 shrink-0" />
-              <h3 className="font-display text-lg font-semibold text-fg">{confirmModal.title}</h3>
+              <h3 className="font-display text-lg font-semibold text-fg">
+                {confirmModal.title}
+              </h3>
             </div>
-            <p className="mt-3 text-sm text-muted leading-relaxed">{confirmModal.message}</p>
+            <p className="mt-3 text-sm text-muted leading-relaxed">
+              {confirmModal.message}
+            </p>
             <div className="mt-6 flex justify-end gap-3">
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
+                onClick={() =>
+                  setConfirmModal((prev) => ({ ...prev, isOpen: false }))
+                }
               >
                 Cancel
               </Button>
