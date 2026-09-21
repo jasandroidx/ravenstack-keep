@@ -191,5 +191,67 @@ assert.match(deadMcp.error ?? "", /unreachable|timed out/i);
 assert.ok(deadMcp.hint, "a down MCP still explains itself");
 ok("a down MCP reports unreachable with a hint");
 
+// --- pulse parser against the box's real dashboard_status ------------------
+// Captured live 2026-09-21. Services arrive as objects, the queue key is
+// county_queue, and agents_active is null — all three broke the first parser.
+const REAL_DASHBOARD = {
+  generated_at: "2026-09-21T17:35:01Z",
+  network: "CONNECTED",
+  network_detail: "compose+health",
+  agents_active: null,
+  rooms: [],
+  occupancy: "unknown",
+  services: {
+    reclaw_api: { status: "ok", env: "prod", version: "2.0.0", compose: "up", health_code: "200" },
+    openclaw: { ok: true, status: "live", compose: "up", health_code: "200" },
+    mcp: { status: "unprobed", service: "reclaw-platform", transport: "streamable-http", port: 8100, note: "not probed" },
+    dashboard: { status: "ok", compose: "unknown", health_code: "200" },
+    ollama_models: 3,
+  },
+  county_queue: { status: "idle", cursor: 6, total: 92, pending_county: null, pending_flags: null, top_finding: null },
+  mcp_public_url_present: true,
+  bridge: "active",
+  tunnel: "inactive",
+};
+
+const dash = http.createServer((_req, res) => {
+  res.writeHead(200, { "content-type": "application/json" });
+  res.end(JSON.stringify(REAL_DASHBOARD));
+});
+const dport = await listen(dash);
+
+delete process.env.MCP_BASE_URL;
+delete process.env.KEEP_MCP_URL;
+process.env.KEEP_PULSE_URL = `http://127.0.0.1:${dport}/status.json`;
+
+const { fetchKeepPulse } = await import("../src/lib/keep/pulse.ts");
+const pulse = await fetchKeepPulse();
+
+assert.equal(pulse.source, "live");
+assert.equal(pulse.network, "CONNECTED");
+ok("pulse reads the live dashboard payload");
+
+assert.equal(pulse.services.reclaw, "ok", "reclaw_api object collapses to its status");
+assert.equal(pulse.services.openclaw, "live");
+for (const v of Object.values(pulse.services)) {
+  assert.notEqual(v, "[object Object]", "no service renders as [object Object]");
+}
+ok("object-shaped services collapse to labels, never [object Object]");
+
+assert.equal(pulse.services.mcp, "active", "unprobed mcp falls back to the bridge unit state");
+ok("an unprobed MCP status falls back to the bridge unit");
+
+assert.equal(pulse.queue.status, "idle", "county_queue is read as the queue");
+assert.equal(pulse.queue.cursor, 6);
+ok("county_queue maps onto the queue chip");
+
+assert.equal(pulse.agentsActive, 0, "null agents_active does not become NaN");
+assert.equal(pulse.ollamaModels, 3);
+ok("null agents_active is 0, and the local model count carries through");
+
+assert.match(pulse.note ?? "", /no room occupancy/, "empty rooms is stated, not faked as idle");
+ok("a live payload with no rooms says so instead of inventing idle chips");
+
+dash.close();
 ollama.close();
 console.log(`\n${n} checks passed`);

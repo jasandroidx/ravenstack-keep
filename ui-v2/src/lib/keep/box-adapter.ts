@@ -62,9 +62,19 @@ export async function stackHealth(): Promise<BoxResult> {
   return mcpCallTool("stack_health", {});
 }
 
-/** Read-only view of the gate queue. Approving is a separate, confirmed call. */
+/**
+ * Read-only view of the gate queue. Approving is a separate, confirmed call.
+ *
+ * reclaw-platform calls it pending_gates; Keep MCP calls it list_pending_gates.
+ * Verified against both servers, so try whichever the endpoint actually lists.
+ */
 export async function pendingGates(): Promise<BoxResult> {
-  return mcpCallTool("pending_gates", {});
+  const listed = await mcpListTools();
+  if (!listed.ok) return listed;
+  const names = new Set(listed.tools.map((t) => t.name));
+  if (names.has("pending_gates")) return mcpCallTool("pending_gates", {});
+  if (names.has("list_pending_gates")) return mcpCallTool("list_pending_gates", {});
+  return { ok: false, base: listed.base, error: "Box lists no gate tool (pending_gates / list_pending_gates)" };
 }
 
 /**
