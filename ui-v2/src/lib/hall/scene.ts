@@ -178,7 +178,10 @@ export class HallScene extends Phaser.Scene {
       .setDepth(25)
       .setBlendMode(Phaser.BlendModes.ADD);
 
-    // Register 4-Directional Animations for ALL Ravenlord Skins
+    // Register directional animations for ALL Ravenlord Skins. Only down/left/up
+    // are drawn; "right" is the left row mirrored via setFlipX (see
+    // applyFacingAnim) so turning left<->right is the same character turning,
+    // not a swap to a separately-drawn sprite.
     for (const skin of RAVENLORD_SKINS) {
       const texKey = `skin-${skin.id}`;
       this.anims.create({
@@ -190,12 +193,6 @@ export class HallScene extends Phaser.Scene {
       this.anims.create({
         key: `${skin.id}-walk-left`,
         frames: this.anims.generateFrameNumbers(texKey, { start: 4, end: 7 }),
-        frameRate: 8,
-        repeat: -1,
-      });
-      this.anims.create({
-        key: `${skin.id}-walk-right`,
-        frames: this.anims.generateFrameNumbers(texKey, { start: 8, end: 11 }),
         frameRate: 8,
         repeat: -1,
       });
@@ -213,11 +210,6 @@ export class HallScene extends Phaser.Scene {
       this.anims.create({
         key: `${skin.id}-idle-left`,
         frames: [{ key: texKey, frame: 4 }],
-        frameRate: 1,
-      });
-      this.anims.create({
-        key: `${skin.id}-idle-right`,
-        frames: [{ key: texKey, frame: 8 }],
         frameRate: 1,
       });
       this.anims.create({
@@ -418,13 +410,25 @@ export class HallScene extends Phaser.Scene {
       // Ignore
     }
     this.eventsOut.onSkinChange?.(skinId);
-    this.safePlayAnim(this.player, `${this.activeSkinId}-idle-${this.lastFacing}`, true);
+    this.applyFacingAnim("idle", true);
   }
 
   private safePlayAnim(target: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody, key: string, ignoreIfPlaying = false) {
     if (this.anims.exists(key)) {
       target.play(key, ignoreIfPlaying);
     }
+  }
+
+  /**
+   * "Right" has no drawn frames of its own -- it's the left row mirrored, so
+   * the player visibly turns instead of swapping to a differently-drawn
+   * sprite when crossing left<->right.
+   */
+  private applyFacingAnim(prefix: "walk" | "idle", ignoreIfPlaying = false) {
+    const facing = this.lastFacing;
+    this.player.setFlipX(facing === "right");
+    const animFacing = facing === "right" ? "left" : facing;
+    this.safePlayAnim(this.player, `${this.activeSkinId}-${prefix}-${animFacing}`, ignoreIfPlaying);
   }
 
   private loadVisits() {
@@ -852,9 +856,9 @@ export class HallScene extends Phaser.Scene {
     // Directional Facing & Animations
     if (isMoving) {
       this.lastFacing = determineFacing(finalVx, finalVy, this.lastFacing);
-      this.safePlayAnim(this.player, `${this.activeSkinId}-walk-${this.lastFacing}`, true);
+      this.applyFacingAnim("walk", true);
     } else {
-      this.safePlayAnim(this.player, `${this.activeSkinId}-idle-${this.lastFacing}`, true);
+      this.applyFacingAnim("idle", true);
     }
 
     // Zone Transition Triggers
