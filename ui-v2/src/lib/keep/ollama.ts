@@ -62,18 +62,75 @@ export type OllamaModel = {
   quantization: string;
 };
 
-export type OllamaFailure = { ok: false; error: string; hint?: string };
+/** `error` stays short enough for a dialogue box; `detail` carries the plumbing. */
+export type OllamaFailure = { ok: false; error: string; hint?: string; detail?: string };
 
 function env(name: string): string {
   if (typeof process === "undefined" || !process.env) return "";
   return process.env[name]?.trim() ?? "";
 }
 
-/** Accepts "127.0.0.1:11434" as well as a full URL — OLLAMA_HOST is often bare. */
-export function ollamaBaseUrl(): string {
-  const raw = env("OLLAMA_BASE_URL") || env("OLLAMA_HOST") || DEFAULT_BASE;
+function normalizeBase(raw: string): string {
   const withScheme = /^https?:\/\//i.test(raw) ? raw : `http://${raw}`;
   return withScheme.replace(/\/+$/, "");
+}
+
+/**
+ * Where Ollama might be, in order, when nothing is configured.
+ *
+ * 127.0.0.1 is right on the box and on a laptop, but inside a container it is
+ * the container itself — which is exactly how "Ollama is running but the app
+ * cannot see it" happens. host.docker.internal and the default bridge gateway
+ * cover the containerised case, so the app finds the daemon instead of making
+ * the operator guess which address applies to where it happens to be running.
+ */
+const CANDIDATE_BASES = [
+  "http://127.0.0.1:11434",
+  "http://host.docker.internal:11434",
+  "http://172.17.0.1:11434",
+];
+
+/** An explicit setting always wins. Bare host:port is fine — OLLAMA_HOST often is. */
+function configuredBase(): string {
+  const raw = env("OLLAMA_BASE_URL") || env("OLLAMA_HOST");
+  return raw ? normalizeBase(raw) : "";
+}
+
+/** Last base that actually answered, so probing happens once, not per request. */
+let resolvedBase: string | null = null;
+
+export function ollamaBaseUrl(): string {
+  return configuredBase() || resolvedBase || DEFAULT_BASE;
+}
+
+/** GET /api/tags on one base. Short timeout — this runs against dead hosts. */
+async function probe(base: string): Promise<unknown | null> {
+  try {
+    return await fetchJson(`${base}/api/tags`, { method: "GET", headers: { Accept: "application/json" } }, 2500);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Find a base that answers. Returns the configured one untouched when set —
+ * a wrong explicit value should surface as an error, not be silently replaced.
+ */
+async function discoverBase(): Promise<{ base: string; raw: unknown } | null> {
+  const explicit = configuredBase();
+  if (explicit) {
+    const raw = await probe(explicit);
+    return raw ? { base: explicit, raw } : null;
+  }
+  const order = resolvedBase ? [resolvedBase, ...CANDIDATE_BASES.filter((b) => b !== resolvedBase)] : CANDIDATE_BASES;
+  for (const base of order) {
+    const raw = await probe(base);
+    if (raw) {
+      resolvedBase = base;
+      return { base, raw };
+    }
+  }
+  return null;
 }
 
 function timeoutMs(): number {
@@ -109,11 +166,12 @@ function describeFailure(err: unknown, base: string): OllamaFailure {
   if (isConnectionError(err)) {
     return {
       ok: false,
-      error: `Ollama unreachable at ${base} (${msg})`,
+      error: `Ollama is not answering at ${base}`,
       hint: "Start it with `ollama serve`, or point OLLAMA_BASE_URL at the box.",
+      detail: msg,
     };
   }
-  return { ok: false, error: `Ollama error at ${base}: ${msg}` };
+  return { ok: false, error: `Ollama error at ${base}`, detail: msg };
 }
 
 let modelCache: { at: number; base: string; models: OllamaModel[] } | null = null;
@@ -127,7 +185,20 @@ export async function listOllamaModels(
     return { ok: true, base, models: modelCache.models };
   }
   try {
-    const raw = (await fetchJson(`${base}/api/tags`, { method: "GET", headers: { Accept: "application/json" } }, 10_000)) as {
+    const found = await discoverBase();
+    if (!found) {
+      const tried = configuredBase() ? [configuredBase()] : CANDIDATE_BASES;
+      return {
+        ok: false,
+        base,
+        error: `Ollama is not answering at ${tried.join(", ")}`,
+        hint: configuredBase()
+          ? "OLLAMA_BASE_URL is set — check that address, or unset it to auto-discover."
+          : "Start it with `ollama serve`, or set OLLAMA_BASE_URL to reach the box.",
+        detail: `probed: ${tried.join(", ")}`,
+      };
+    }
+    const raw = found.raw as {
       models?: Array<{
         name?: string;
         model?: string;
@@ -144,8 +215,8 @@ export async function listOllamaModels(
         quantization: String(m.details?.quantization_level ?? ""),
       }))
       .filter((m) => m.name.length > 0);
-    modelCache = { at: Date.now(), base, models };
-    return { ok: true, base, models };
+    modelCache = { at: Date.now(), base: found.base, models };
+    return { ok: true, base: found.base, models };
   } catch (err) {
     modelCache = null;
     return { ...describeFailure(err, base), base };

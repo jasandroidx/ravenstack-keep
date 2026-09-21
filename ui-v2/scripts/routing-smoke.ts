@@ -173,15 +173,35 @@ process.env.OLLAMA_BASE_URL = "http://127.0.0.1:1";  // closed port
 process.env.KEEP_MODEL_ROUTE = "local";
 const dead = await complete("sys", "user", 10);
 assert.ok(!dead.ok, "dead local plane fails");
-assert.match(dead.error, /route=local/);
-assert.match(dead.error, /unreachable/i, "classified as unreachable, not a generic error");
-assert.match(dead.hint ?? "", /ollama serve/, "keeps the actionable hint");
-ok("a dead local plane says unreachable and keeps the `ollama serve` hint");
+// The headline must stay short enough for a dialogue box; the plumbing
+// (route, raw socket errors) belongs in detail, not in the agent's mouth.
+assert.match(dead.error, /not answering/i, "classified, not a generic failure");
+assert.ok(dead.error.length < 120, `headline too long for a dialogue box: ${dead.error.length}`);
+assert.ok(!/ECONNREFUSED/.test(dead.error), "raw socket noise stays out of the headline");
+assert.match(dead.detail ?? "", /route=local/, "route is recorded in detail");
+assert.ok((dead.hint ?? "").length > 0, "still carries an actionable hint");
+assert.match(dead.hint ?? "", /OLLAMA_BASE_URL/, "explicit base is pointed at, not `ollama serve`");
+ok("a dead local plane gives a short headline, with plumbing kept in detail");
 
 const deadStatus = await routingStatus();
 assert.equal(deadStatus.local.reachable, false);
-assert.match(deadStatus.local.hint ?? "", /ollama serve/);
-ok("routingStatus surfaces the same hint to the bench");
+// With an explicit base set, the hint points at that setting rather than
+// telling the operator to start a daemon they may have deliberately pointed
+// somewhere else.
+assert.match(deadStatus.local.hint ?? "", /OLLAMA_BASE_URL/, "explicit base gets a config-shaped hint");
+ok("routingStatus hints at the setting when the base was configured");
+
+// Auto-discovery: with nothing configured it must probe the known candidates
+// and say which it tried, rather than silently assuming one address.
+delete process.env.OLLAMA_BASE_URL;
+delete process.env.OLLAMA_HOST;
+const undiscovered = await listOllamaModels({ force: true });
+assert.equal(undiscovered.ok, false, "no daemon anywhere in this sandbox");
+if (!undiscovered.ok) {
+  assert.match(undiscovered.detail ?? "", /host\.docker\.internal/, "probes the container address too");
+  assert.match(undiscovered.error, /127\.0\.0\.1:11434/, "names what it tried");
+}
+ok("with nothing configured it probes loopback and the container addresses");
 
 mcp.close();
 await new Promise((r) => setTimeout(r, 50));

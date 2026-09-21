@@ -17,7 +17,7 @@ export type Route = "local-first" | "local" | "cloud-first" | "cloud";
 export type Provider = "local" | "cloud";
 
 export type CompleteOk = { ok: true; text: string; provider: Provider; model: string };
-export type CompleteErr = { ok: false; error: string; hint?: string };
+export type CompleteErr = { ok: false; error: string; hint?: string; detail?: string };
 export type CompleteResult = CompleteOk | CompleteErr;
 
 const DEFAULT_CLOUD_MODEL = "gemini-3.7-flash";
@@ -79,7 +79,7 @@ async function completeLocal(
   opts: { json?: boolean; temperature?: number },
 ): Promise<CompleteResult> {
   const res = await ollamaChat({ system, user, maxTokens, temperature: opts.temperature, json: opts.json });
-  if (!res.ok) return { ok: false, error: res.error, hint: res.hint };
+  if (!res.ok) return { ok: false, error: res.error, hint: res.hint, detail: res.detail };
   return { ok: true, text: res.text, provider: "local", model: res.model };
 }
 
@@ -131,6 +131,7 @@ export async function complete(
     r === "local" ? ["local"] : r === "cloud" ? ["cloud"] : r === "cloud-first" ? ["cloud", "local"] : ["local", "cloud"];
 
   const failures: string[] = [];
+  const details: string[] = [];
   let hint: string | undefined;
 
   for (const leg of legs) {
@@ -139,14 +140,17 @@ export async function complete(
         ? await completeLocal(system, user, maxTokens, opts)
         : await completeCloud(system, user, maxTokens, opts);
     if (res.ok) return res;
-    failures.push(`${leg}: ${res.error}`);
+    failures.push(res.error);
+    if (res.detail) details.push(`${leg}: ${res.detail}`);
     hint = hint ?? res.hint;
   }
 
+  // The headline has to fit in a dialogue box. Plumbing goes in detail.
   return {
     ok: false,
-    error: `No model plane answered (route=${r}). ${failures.join(" | ")}`,
+    error: failures[0] ?? `No model answered (route=${r})`,
     hint: hint ?? "Open the Workshop bench to see which plane is down.",
+    detail: [`route=${r}`, ...failures.slice(1), ...details].join(" | ") || undefined,
   };
 }
 

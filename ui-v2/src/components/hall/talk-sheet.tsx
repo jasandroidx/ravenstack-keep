@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { talkInHall } from "@/lib/keep/server";
@@ -15,24 +15,28 @@ export function TalkSheet({
   onTable?: () => void;
 }) {
   const { user } = useCurrentUserState();
-  const [line, setLine] = useState(npc.greeting);
+  // A conversation, not a single replaced line — you can read back what the
+  // seat already told you instead of losing it on the next question.
+  type Turn = { who: "agent" | "you" | "error"; text: string; meta?: string; hint?: string };
+  const [turns, setTurns] = useState<Turn[]>([{ who: "agent", text: npc.greeting }]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  // Which plane answered, and whether it saw the box. Canned action replies
-  // clear it so a scripted line is never mistaken for a live one.
-  const [source, setSource] = useState<string | null>(null);
+  const logRef = useRef<HTMLDivElement>(null);
+
+  // Keep the newest turn in view as the exchange grows.
+  useEffect(() => {
+    logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: "smooth" });
+  }, [turns, busy]);
+
+  const say = (t: Turn) => setTurns((prev) => [...prev, t]);
 
   function runAction(action: HallAction) {
     if (action.href === "/table") {
       onTable?.();
       return;
     }
-    if (action.reply) {
-      setLine(action.reply);
-      setError(null);
-      setSource(null);
-    }
+    // A scripted line is marked as scripted, so it is never read as live.
+    if (action.reply) say({ who: "agent", text: action.reply, meta: "scripted" });
   }
 
   async function send() {
@@ -41,26 +45,30 @@ export function TalkSheet({
     if (!user) {
       // Silent return here is what made dialogue feel broken rather than gated.
       const msg = "Sign in to talk, or set VITE_AUTH_ENABLED=false for local dev.";
-      setError(msg);
+      say({ who: "error", text: msg });
       toast.error(msg);
       return;
     }
+    say({ who: "you", text: q });
+    setInput("");
     setBusy(true);
-    setError(null);
     try {
       const res = await talkInHall({ data: { agent: npc.id, message: q } });
       if (!res.ok) {
-        setError(res.error);
+        // Headline only — the plumbing stays in the console, not in the hall.
+        if (res.detail) console.warn("[hall]", res.detail);
+        say({ who: "error", text: res.error, hint: res.hint });
         toast.error(res.error);
         return;
       }
-      setLine(res.reply);
-      setSource(`${res.model} · ${res.sawBox ? "live box" : "no live reading"}`);
-      setInput("");
+      say({
+        who: "agent",
+        text: res.reply,
+        meta: `${res.model} · ${res.sawBox ? "live box" : "no live reading"}`,
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "The seat did not answer.";
-      setError(msg);
-      setSource(null);
+      say({ who: "error", text: msg });
       toast.error(msg);
     } finally {
       setBusy(false);
@@ -95,13 +103,34 @@ export function TalkSheet({
               />
             ) : null}
             <div className="min-w-0 flex-1">
-            <p className="min-h-[4.5rem] max-h-32 overflow-y-auto pr-8 text-[15px] leading-relaxed text-[#e8ecf1] md:min-h-[5rem] md:text-base">
-              {line}
-            </p>
-            {error ? <p className="mt-2 text-sm text-[#ff3b3b]">{error}</p> : null}
-            {source ? (
-              <p className="mt-2 text-[11px] uppercase tracking-[0.15em] text-[#2de2e6]/70">{source}</p>
-            ) : null}
+            <div
+              ref={logRef}
+              className="min-h-[4.5rem] max-h-40 space-y-2.5 overflow-y-auto pr-8 text-[15px] leading-relaxed md:min-h-[5rem] md:text-base"
+            >
+              {turns.map((t, i) => (
+                <div key={i}>
+                  {t.who === "you" ? (
+                    <p className="text-[#2de2e6]">
+                      <span className="mr-2 text-[11px] uppercase tracking-[0.18em] text-[#2de2e6]/60">You</span>
+                      {t.text}
+                    </p>
+                  ) : t.who === "error" ? (
+                    <>
+                      <p className="text-sm text-[#ff3b3b]">{t.text}</p>
+                      {t.hint ? <p className="mt-1 text-xs text-[#9aa3b2]">{t.hint}</p> : null}
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[#e8ecf1]">{t.text}</p>
+                      {t.meta ? (
+                        <p className="mt-1 text-[11px] uppercase tracking-[0.15em] text-[#2de2e6]/60">{t.meta}</p>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+              ))}
+              {busy ? <p className="text-sm italic text-[#9aa3b2]">{npc.name} is thinking…</p> : null}
+            </div>
 
             <div className="mt-3 flex flex-wrap gap-2">
               {npc.actions.map((action) =>
