@@ -37,6 +37,7 @@ export function FastMCPGatewayStreamer() {
   useEffect(() => {
     if (!isStreaming) return;
     const timer = setInterval(() => {
+      if (document.hidden) return;
       void fetchGatewayLogs();
     }, 4000);
     return () => clearInterval(timer);

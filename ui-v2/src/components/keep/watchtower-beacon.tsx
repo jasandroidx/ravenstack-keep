@@ -33,7 +33,10 @@ export function WatchtowerBeacon({ compact = false }: { compact?: boolean }) {
 
   useEffect(() => {
     load();
-    const t = setInterval(load, 60000);
+    const t = setInterval(() => {
+      if (document.hidden) return;
+      load();
+    }, 60000);
     return () => clearInterval(t);
   }, [load]);
 

@@ -24,6 +24,7 @@ export function FastMCPStatusBadge() {
   useEffect(() => {
     void checkBridge();
     const interval = setInterval(() => {
+      if (document.hidden) return;
       void checkBridge();
     }, 20000);
     return () => clearInterval(interval);
