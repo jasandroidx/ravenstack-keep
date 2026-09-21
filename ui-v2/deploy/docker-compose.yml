@@ -11,12 +11,24 @@ services:
       - ../.env
     environment:
       VITE_AUTH_ENABLED: "false"
-      # Local-first. From inside the container, localhost is the container —
-      # reach the host's Ollama and MCP bridge explicitly.
-      OLLAMA_BASE_URL: http://host.docker.internal:11434
-      MCP_BASE_URL: http://host.docker.internal:8100/mcp
       KEEP_MODEL_ROUTE: local-first
-      # KEEP_PULSE_URL: http://host.docker.internal:8088/status.json
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      # Ollama and the MCP bridge are NOT set here on purpose.
+      #
+      # The bridge listens on 127.0.0.1:8100 only (deliberate — the public plane
+      # is Tailscale, and the public URL is treated as a secret). From a
+      # bridge-networked container that address is the container itself, and
+      # host.docker.internal resolves to the docker gateway, which a
+      # loopback-bound service refuses. Either would fail silently.
+      #
+      # Pick one before setting them:
+      #   a) run this container with network_mode: host, then the code defaults
+      #      (127.0.0.1:11434 and 127.0.0.1:8100/mcp) work as-is. Note this drops
+      #      the ports: mapping below, so bind the app to loopback yourself.
+      #   b) put this container on the same docker network as the service and
+      #      use its service name.
+      #   c) front the bridge with a loopback-to-bridge proxy.
+      #
+      # Real tailnet addresses belong in ../.env, which is gitignored.
+      # This repo is public — never paste a tailnet IP or Funnel URL here.
+      # KEEP_PULSE_URL: http://<same-network-host>:8088/status.json
     restart: unless-stopped

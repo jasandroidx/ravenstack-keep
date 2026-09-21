@@ -16,17 +16,43 @@ import { errorText, isAbortError, isConnectionError } from "./net";
 const DEFAULT_BASE = "http://127.0.0.1:11434";
 const DEFAULT_TIMEOUT_MS = 120_000;
 
-/** Tried in order when KEEP_LOCAL_MODEL is unset. Instruct/chat tags only. */
+/**
+ * Tried in order when KEEP_LOCAL_MODEL is unset.
+ *
+ * Ordered for what the Keep actually asks of a model: in-character replies and
+ * strict JSON for Clawforge and the Round Table. A small fast general tag beats
+ * a big coder-tuned one here, so the 30b sits below the 4b on purpose — pin it
+ * with KEEP_LOCAL_MODEL if you want it. Generic families follow so this list
+ * still resolves on a box with a different inventory.
+ */
 const PREFERRED = [
-  "qwen2.5:14b",
-  "qwen2.5:7b",
-  "llama3.1:8b",
+  "qwen3:4b",
+  "qwen3-4b-64k",
+  "gemma4",
+  "phi4-mini",
+  "qwen3:8b",
+  "qwen3-coder:30b",
+  "qwen3:1.7b",
+  "qwen2.5",
   "llama3.1",
   "llama3.2",
   "mistral",
-  "phi3",
-  "gemma2",
+  "gemma3",
 ];
+
+/**
+ * Never auto-pick these.
+ *
+ * A `-cloud` tag routes to Ollama Cloud — that is spend, and local-first says
+ * paid tiers only when the operator is explicit. Embedding models cannot chat
+ * at all and would fail with a confusing error. Both are still reachable by
+ * pinning KEEP_LOCAL_MODEL.
+ */
+const EXCLUDE_AUTO = /(?:^|[:-])cloud\b|embed|bge-|all-minilm|reranker/i;
+
+export function autoSelectable(tag: string): boolean {
+  return !EXCLUDE_AUTO.test(tag);
+}
 
 export type OllamaModel = {
   name: string;
@@ -126,7 +152,12 @@ export async function listOllamaModels(
   }
 }
 
-/** Exact tag, then bare-name match (llama3.1 → llama3.1:8b), then preference order. */
+/**
+ * Exact tag, then bare-name match (llama3.1 → llama3.1:8b), then preference order.
+ *
+ * An explicit KEEP_LOCAL_MODEL always wins, including a cloud or embed tag —
+ * that is the operator being explicit. Automatic selection never reaches for one.
+ */
 export function pickModel(installed: string[], preferred?: string): string | null {
   if (installed.length === 0) return null;
   const bare = (t: string) => t.split(":")[0];
@@ -139,13 +170,16 @@ export function pickModel(installed: string[], preferred?: string): string | nul
     if (byBase) return byBase;
   }
 
+  const auto = installed.filter(autoSelectable);
+
   for (const p of PREFERRED) {
-    const exact = installed.find((m) => m === p);
+    const exact = auto.find((m) => m === p);
     if (exact) return exact;
-    const byBase = installed.find((m) => bare(m) === bare(p));
+    const byBase = auto.find((m) => bare(m) === bare(p));
     if (byBase) return byBase;
   }
-  return installed[0];
+  // Nothing preferred is installed — take any chattable tag before giving up.
+  return auto[0] ?? null;
 }
 
 export async function resolveLocalModel(): Promise<
@@ -156,11 +190,16 @@ export async function resolveLocalModel(): Promise<
   const installed = listed.models.map((m) => m.name);
   const model = pickModel(installed, env("KEEP_LOCAL_MODEL"));
   if (!model) {
+    const onlyExcluded = installed.length > 0;
     return {
       ok: false,
       base: listed.base,
-      error: `Ollama is up at ${listed.base} but has no models installed`,
-      hint: "Pull one, e.g. `ollama pull llama3.1:8b`.",
+      error: onlyExcluded
+        ? `Ollama is up at ${listed.base} but every installed model is cloud-routed or embedding-only: ${installed.join(", ")}`
+        : `Ollama is up at ${listed.base} but has no models installed`,
+      hint: onlyExcluded
+        ? "Pull a local chat model, e.g. `ollama pull qwen3:4b`, or pin one with KEEP_LOCAL_MODEL."
+        : "Pull one, e.g. `ollama pull qwen3:4b`.",
     };
   }
   return { ok: true, model, base: listed.base, installed };

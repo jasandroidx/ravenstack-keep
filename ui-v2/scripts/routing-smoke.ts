@@ -78,7 +78,7 @@ process.env.KEEP_ALLOW_CLOUD = "0";
 delete process.env.KEEP_LOCAL_MODEL;
 delete process.env.KEEP_MODEL_ROUTE;
 
-const { listOllamaModels, ollamaBaseUrl, ollamaChat, pickModel, resolveLocalModel } = await import("../src/lib/keep/ollama.ts");
+const { autoSelectable, listOllamaModels, ollamaBaseUrl, ollamaChat, pickModel, resolveLocalModel } = await import("../src/lib/keep/ollama.ts");
 const { mcpBaseUrl, mcpCallTool, mcpHealth, mcpListTools, redact } = await import("../src/lib/keep/mcp.ts");
 const { complete, routingStatus } = await import("../src/lib/keep/router.ts");
 
@@ -98,6 +98,30 @@ assert.equal(pickModel(["nomic-embed-text:latest", "llama3.1:8b"]), "llama3.1:8b
 assert.equal(pickModel(["llama3.1:8b"], "llama3.1"), "llama3.1:8b", "bare name matches a tagged install");
 assert.equal(pickModel([], "llama3.1"), null);
 ok("model preference: chat tag over embed, bare name matches tag, empty is null");
+
+// The Hetzner box's real inventory as of 2026-09-21. qwen3-coder:30b sorts
+// first from /api/tags, and gpt-oss:20b-cloud is paid routing — neither may win
+// automatic selection.
+const BOX = ["qwen3-coder:30b", "qwen3-4b-64k:latest", "qwen3:4b", "gpt-oss:20b-cloud", "gemma4:latest", "phi4-mini:latest", "qwen3:1.7b"];
+assert.equal(pickModel(BOX), "qwen3:4b", "picks the fast general chat tag, not the 30b coder");
+assert.notEqual(pickModel(BOX), "gpt-oss:20b-cloud");
+ok("box inventory resolves to qwen3:4b, never the 30b coder");
+
+assert.equal(autoSelectable("gpt-oss:20b-cloud"), false, "cloud-routed tag is paid");
+assert.equal(autoSelectable("nomic-embed-text:latest"), false);
+assert.equal(autoSelectable("bge-m3:latest"), false);
+assert.equal(autoSelectable("qwen3:4b"), true);
+assert.equal(autoSelectable("gemma4:latest"), true);
+ok("cloud and embedding tags are excluded from automatic selection");
+
+// Operator being explicit still wins — that is the local-first rule, not a ban.
+assert.equal(pickModel(BOX, "gpt-oss:20b-cloud"), "gpt-oss:20b-cloud");
+assert.equal(pickModel(BOX, "qwen3-coder"), "qwen3-coder:30b", "bare name pins the 30b");
+ok("KEEP_LOCAL_MODEL can still pin a cloud or coder tag explicitly");
+
+// An embed-only box must say so instead of trying to chat with an embedder.
+assert.equal(pickModel(["nomic-embed-text:latest", "gpt-oss:20b-cloud"]), null);
+ok("a box with only cloud/embed tags yields no automatic pick");
 
 const resolved = await resolveLocalModel();
 assert.ok(resolved.ok && resolved.model === "llama3.1:8b");
