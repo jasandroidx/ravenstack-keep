@@ -1,5 +1,16 @@
 # AGENTS.md — Ravenstack Keep
 
+## Non-negotiable rules
+
+- Hetzner-owned Keep; survive without Grok VM.
+- Build order: A0 inventory → A1 shift board + rooms (NO AI) → A2 async phi4-mini bubbles.
+- Ollama speech later: http://172.18.0.1:11434 — never localhost.
+- Never Funnel. Never invent bot work. Never block UI on model calls.
+- No gemma4/14B for bubbles. No secrets in free-model context.
+- Smallest reversible change. Evidence before claims. Ask before gateway/Ollama restarts.
+
+---
+
 > **MANDATORY FIRST STEP FOR ANY AGENT/LLM/TOOL** touching this repo: load and obey
 > `/root/obsidian_vault/Ravenstack/RAVENSTACK-ORACLE.md` +
 > `/root/obsidian_vault/Ravenstack/RAVENSTACK-ARCHITECTURE.md`. These rules supersede
