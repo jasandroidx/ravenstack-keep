@@ -72,7 +72,8 @@ export function WatchtowerBeacon({ compact = false }: { compact?: boolean }) {
         <button
           type="button"
           onClick={load}
-          className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#9aa3b2] hover:text-[#e8ecf1]"
+          aria-label="Re-read stack health beacon status"
+          className="rounded-sm font-mono text-[10px] uppercase tracking-[0.16em] text-[#9aa3b2] hover:text-[#e8ecf1] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#2de2e6]"
         >
           Re-read
         </button>
