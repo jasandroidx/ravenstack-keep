@@ -34,7 +34,6 @@ export function WatchtowerBeacon({ compact = false }: { compact?: boolean }) {
   useEffect(() => {
     load();
     const t = setInterval(() => {
-      // ⚡ Bolt: Pause polling when tab is hidden to save battery and network requests
       if (document.hidden) return;
       load();
     }, 60000);

@@ -249,7 +249,6 @@ export function KeepHall() {
         });
     load();
     const t = setInterval(() => {
-      // ⚡ Bolt: Pause polling when tab is hidden to save battery and network requests
       if (document.hidden) return;
       load();
     }, 90000);
