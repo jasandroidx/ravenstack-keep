@@ -317,7 +317,21 @@ export function KeepHall() {
     }
     function onKey(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement | null)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      // Inside an input field (TalkSheet chat), pass keys through so typing
+      // works normally — but still let Escape leave the modal.
+      if (tag === "INPUT" || tag === "TEXTAREA") {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          (e.target as HTMLElement)?.blur();
+          if (talk || tableOpen || wardrobeOpen) {
+            hallAudio.playInteract();
+            setTalk(null);
+            setTableOpen(false);
+            setWardrobeOpen(false);
+          }
+        }
+        return;
+      }
       if (talk || tableOpen || wardrobeOpen) {
         if (e.key === "Escape") {
           hallAudio.playInteract();
