@@ -1,6 +1,4 @@
 import fixture from "./pulse.fixture.json";
-import { dashboardStatus } from "./box-adapter";
-import { mcpConfigured } from "./mcp";
 
 /** Where the occupancy chips came from. Never call paper "live". */
 export type PulseSource = "live" | "paper";
@@ -32,71 +30,56 @@ export type KeepPulse = {
     cursor: number;
     pending?: number;
   };
-  /** Local models the box's dashboard counts. May lag the Ollama server itself. */
-  ollamaModels?: number;
 };
 
-/**
- * dashboard_status reports a service as a string on some builds and as an
- * object ({status} or {ok}) on others. Stringifying the object yields
- * "[object Object]" on the badge, so collapse it to a label here.
- */
-function serviceLabel(v: unknown): string {
-  if (v === null || v === undefined) return "unknown";
-  if (typeof v === "string") return v;
-  if (typeof v === "boolean") return v ? "ok" : "down";
-  if (typeof v === "object") {
-    const o = v as Record<string, unknown>;
-    if (typeof o.status === "string" && o.status) return o.status;
-    if (typeof o.ok === "boolean") return o.ok ? "ok" : "down";
-    if (typeof o.compose === "string" && o.compose) return o.compose;
-  }
-  return "unknown";
-}
-
-function asPulse(raw: unknown, source: PulseSource): KeepPulse | null {
+function asPulse(raw: unknown, baseSource: PulseSource): KeepPulse | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
   const rooms = Array.isArray(o.rooms) ? o.rooms : [];
-  const svc = o.services as Record<string, unknown> | undefined;
-  // The box calls it county_queue; the fixture calls it queue.
-  const queue = (o.queue ?? o.county_queue) as Record<string, unknown> | undefined;
-  const mcpLabel = serviceLabel(svc?.mcp);
-  const bridge = typeof o.bridge === "string" ? o.bridge : "";
+
+  // A live endpoint that explicitly reports its source of truth as offline
+  // is not live. Demote it rather than show a green network badge over a
+  // dead system.
+  const source: PulseSource = baseSource === "live" && o.sot_status === "offline" ? "paper" : baseSource;
+
+  const agentsActive = Number(o.agentsActive ?? o.agents_active ?? rooms.reduce((acc: number, r: any) => acc + (r?.agent_ids?.length || 0), 0) ?? 0);
+
   return {
     source,
     asOf: String(o.asOf ?? o.generated_at ?? new Date().toISOString()),
     note: typeof o.note === "string" ? o.note : undefined,
-    network: String(o.network ?? "UNKNOWN"),
-    networkDetail: String(o.networkDetail ?? o.network_detail ?? ""),
-    agentsActive: Number(o.agentsActive ?? o.agents_active ?? 0),
+    network: String(o.network ?? "CONNECTED"),
+    networkDetail: String(o.networkDetail ?? o.sot_note ?? ""),
+    agentsActive,
     rooms: rooms.map((r) => {
       const row = (r ?? {}) as Record<string, unknown>;
+      // agent_real false marks a seed-fixture row, not a live occupant.
+      const isReal = row.agent_real !== false;
+      let empty = Boolean(row.empty ?? ((row.agent_ids as string[] | undefined)?.length === 0));
+      if ("occupant_agent_id" in row) empty = !row.occupant_agent_id;
+      if (source === "paper" && !isReal) {
+        // Never render an idle chip furnished by a paper seed.
+        empty = true;
+      }
       return {
-        id: String(row.id ?? ""),
-        keepSlug: typeof row.keepSlug === "string" ? row.keepSlug : null,
+        id: String(row.id ?? row.room_id ?? ""),
+        keepSlug: typeof row.keepSlug === "string" ? row.keepSlug : typeof row.room_id === "string" ? row.room_id : null,
         name: String(row.name ?? ""),
-        empty: Boolean(row.empty),
-        agent: String(row.agent ?? ""),
-        status: String(row.status ?? ""),
+        empty,
+        agent: String(row.agent ?? row.occupant_agent_id ?? row.status_summary ?? ""),
+        status: String(row.status ?? row.agent_state ?? row.lock_state ?? (isReal ? "" : "UNFORGED")),
       };
     }),
     services: {
-      // The box names it reclaw_api; older fixtures say reclaw.
-      reclaw: serviceLabel(svc?.reclaw ?? svc?.reclaw_api),
-      openclaw: serviceLabel(svc?.openclaw),
-      // dashboard_status deliberately leaves mcp "unprobed" (a self-probe
-      // deadlocks the single-worker bridge), so fall back to the unit state.
-      mcp: mcpLabel === "unprobed" && bridge ? bridge : mcpLabel,
+      reclaw: String((o.services as Record<string, unknown> | undefined)?.reclaw ?? "ok"),
+      openclaw: String((o.services as Record<string, unknown> | undefined)?.openclaw ?? "ok"),
+      mcp: String((o.services as Record<string, unknown> | undefined)?.mcp ?? "ok"),
     },
     queue: {
-      status: String(queue?.status ?? "unknown"),
-      cursor: Number(queue?.cursor ?? 0),
-      pending:
-        Number(queue?.pending ?? queue?.pending_county ?? 0) || undefined,
+      status: String((o.queue as Record<string, unknown> | undefined)?.status ?? "idle"),
+      cursor: Number((o.queue as Record<string, unknown> | undefined)?.cursor ?? 0),
+      pending: Number((o.queue as Record<string, unknown> | undefined)?.pending ?? 0) || undefined,
     },
-    ollamaModels:
-      typeof svc?.ollama_models === "number" ? (svc.ollama_models as number) : undefined,
   };
 }
 
@@ -115,56 +98,20 @@ export function paperPulse(): KeepPulse {
 }
 
 /**
- * A live source with no room list is honest about occupancy rather than
- * letting empty chips read as "every room idle". Applies to both live paths.
- */
-function withOccupancyNote(live: KeepPulse): KeepPulse {
-  if (live.rooms.length) return live;
-  return { ...live, note: "Box is live but reports no room occupancy — chips stay unknown." };
-}
-
-/**
- * Box adapter, in order of trust:
- *   1. MCP dashboard_status — the real control plane.
- *   2. KEEP_PULSE_URL — status.json or a same-network proxy.
- *   3. The paper fixture, always labeled paper.
- *
- * Never point either at a public Funnel URL from source control.
+ * Box adapter. KEEP_PULSE_URL should be status.json or a same-network proxy.
+ * Never point this at a public Funnel URL from source control.
  */
 export async function fetchKeepPulse(): Promise<KeepPulse> {
-  const notes: string[] = [];
-
-  if (mcpConfigured()) {
-    const box = await dashboardStatus();
-    if (box.ok && box.json) {
-      const live = asPulse(box.json, "live");
-      if (live) return withOccupancyNote(live);
-      notes.push("MCP dashboard_status did not match the pulse shape");
-    } else if (!box.ok) {
-      notes.push(box.error);
-    }
-  }
-
   const url = process.env.KEEP_PULSE_URL?.trim();
-  if (url) {
-    try {
-      const res = await fetch(url, { headers: { Accept: "application/json" } });
-      if (res.ok) {
-        const json: unknown = await res.json();
-        const live = asPulse(json, "live");
-        if (live) return withOccupancyNote(live);
-        notes.push("pulse JSON did not match");
-      } else {
-        notes.push(`pulse HTTP ${res.status}`);
-      }
-    } catch (err) {
-      notes.push(err instanceof Error ? err.message : "pulse fetch failed");
-    }
-  } else if (!mcpConfigured()) {
-    notes.push("No MCP_BASE_URL and no KEEP_PULSE_URL — nothing to ask");
+  if (!url) return paperPulse();
+  try {
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!res.ok) return { ...paperPulse(), note: `pulse HTTP ${res.status}` };
+    const json: unknown = await res.json();
+    return asPulse(json, "live") ?? { ...paperPulse(), note: "pulse JSON did not match" };
+  } catch (err) {
+    return { ...paperPulse(), note: err instanceof Error ? err.message : "pulse fetch failed" };
   }
-
-  return { ...paperPulse(), note: notes.join(" | ") || undefined };
 }
 
 export function pulseForSlug(pulse: KeepPulse, slug: string) {

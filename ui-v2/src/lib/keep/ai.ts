@@ -1,6 +1,6 @@
+import { GoogleGenAI } from "@google/genai";
 import type { DraftSpec, TableResult } from "./types";
 import { KNOWLEDGE, ROOMS, SPECS } from "./catalog";
-import { complete, getGenAI } from "./router";
 
 const FORTRESS_BRIEF = `You are inside Ravenstack Keep, Jason Boyd's personal AI fortress (ReClaw / OpenClaw on Hetzner + Tailscale).
 
@@ -13,15 +13,98 @@ Hard rules:
 - Prefer MCP over shell. Distill before save.
 - Human remains the final gate.
 
-Live rooms: Raziel (Great Hall, live), Clawforge (Alchemy Lab, approved/live room).
-Unforged with specs: Oracle (Library), Corvid (Roost), Sentinel (Watchtower), Valerie / Mechanic (Workshop).
-Unforged without full specs: Ops Warden (Armory), Flipper (Yard).
+Room status (generated from the Ledger, never write this by hand):
+${ROOMS.map((r) => `- ${r.name} (${r.occupant}): ${r.lock}`).join("\n")}
 
 Existing specs (do not duplicate their purpose):
 ${Object.values(SPECS)
   .map((s) => `- ${s.name} (${s.status}): ${s.purpose}`)
   .join("\n")}
 `;
+
+let genAiClient: GoogleGenAI | null = null;
+function getGenAI(): GoogleGenAI {
+  if (!genAiClient) {
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
+    genAiClient = new GoogleGenAI({
+      apiKey: apiKey || undefined,
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        },
+      },
+    });
+  }
+  return genAiClient;
+}
+
+/** Local-first per the Keep's own cost model: Ollama on the box before any paid call. */
+async function completeOllama(system: string, user: string, maxTokens: number) {
+  const base = (process.env.OLLAMA_URL?.trim() || "http://127.0.0.1:11434").replace(/\/$/, "");
+  const model = process.env.KEEP_TALK_MODEL?.trim() || "qwen3:1.7b";
+  try {
+    const res = await fetch(`${base}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      // CPU-bound local inference: normal case is 10-30s, generous headroom
+      // for a cold model load or a second request queued behind one already running.
+      signal: AbortSignal.timeout(90000),
+      body: JSON.stringify({
+        model,
+        think: false,
+        stream: false,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        options: { num_predict: maxTokens },
+      }),
+    });
+    if (!res.ok) return { ok: false as const, error: `Ollama HTTP ${res.status}` };
+    const data = (await res.json()) as { message?: { content?: string } };
+    const text = data.message?.content?.trim() ?? "";
+    if (!text) return { ok: false as const, error: "Empty model response from Ollama" };
+    return { ok: true as const, text };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false as const, error: `Ollama unreachable: ${message}` };
+  }
+}
+
+async function completeGemini(system: string, user: string, maxTokens: number) {
+  try {
+    const ai = getGenAI();
+    const response = await ai.models.generateContent({
+      model: "gemini-3.7-flash",
+      contents: user,
+      config: {
+        systemInstruction: system,
+        maxOutputTokens: maxTokens,
+        temperature: 0.4,
+      },
+    });
+
+    const text = response.text?.trim() ?? "";
+    if (!text) {
+      return { ok: false as const, error: "Empty model response from Gemini" };
+    }
+    return { ok: true as const, text };
+  } catch (err: unknown) {
+    console.error("[Gemini API Error]", err);
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false as const, error: `Gemini API error: ${message}` };
+  }
+}
+
+/** Local (Ollama) first; escalate to Gemini only if local fails and a key is configured. */
+async function complete(system: string, user: string, maxTokens = 1800) {
+  const local = await completeOllama(system, user, maxTokens);
+  if (local.ok) return local;
+
+  const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY);
+  if (!hasGeminiKey) return local;
+  return completeGemini(system, user, maxTokens);
+}
 
 function extractJson<T>(text: string): T | null {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -59,7 +142,7 @@ You are Clawforge. Interrogate the idea, then draft ONE Agent Spec. Return JSON 
 }
 Never set status to approved or live. Default model_tier is local. knowledge_indexes must not include general.`;
 
-  const result = await complete(system, `Forge a draft Spec for this idea:\n\n${idea}`, 2000, { json: true });
+  const result = await complete(system, `Forge a draft Spec for this idea:\n\n${idea}`, 2000);
   if (!result.ok) return result;
   const spec = extractJson<DraftSpec>(result.text);
   if (!spec?.purpose || !spec.kill_condition) {
@@ -85,14 +168,14 @@ You chair the Round Table. Subscription seats only. Produce JSON:
 }
 Push back if the question is too cheap for the table.`;
 
-  const result = await complete(system, question, 1600, { json: true });
+  const result = await complete(system, question, 1600);
   if (!result.ok) return result;
   const table = extractJson<TableResult>(result.text);
   if (!table?.chair) return { ok: false as const, error: "The table did not return a usable finding." };
   return { ok: true as const, table };
 }
 
-export async function askOracle(question: string, boxExcerpt?: string) {
+export async function askOracle(question: string) {
   const hits = KNOWLEDGE.filter((d) => {
     const hay = `${d.title} ${d.body}`.toLowerCase();
     return question
@@ -101,59 +184,54 @@ export async function askOracle(question: string, boxExcerpt?: string) {
       .filter((t) => t.length > 2)
       .some((t) => hay.includes(t));
   }).slice(0, 5);
-  const local = (hits.length ? hits : KNOWLEDGE.slice(0, 3)).map((d) => `### ${d.title}\n${d.body}`);
-  // Box knowledge is the vault SOT, so it goes first when MCP answered.
-  const pack = (boxExcerpt ? [`### Vault (via MCP)\n${boxExcerpt}`, ...local] : local).join("\n\n");
+
+  // Retrieval missed. Do NOT substitute arbitrary documents and cite them —
+  // that hands the operator receipts for sources the question never matched.
+  // Answer against nothing, cite nothing, and report that plainly so the
+  // caller can quarantine anything the model asserts anyway.
+  const retrieved = hits.length > 0;
+  const pack = retrieved ? hits.map((d) => `### ${d.title}\n${d.body}`).join("\n\n") : "";
 
   const system = `${FORTRESS_BRIEF}
 
-You are Oracle. Answer only from the provided vault excerpts. Cite titles. If the excerpts do not contain the answer, say not-in-knowledge. Do not invent paths or numbers.`;
+You are Oracle. Answer only from the provided vault excerpts. Cite titles. If the excerpts do not contain the answer, say not-in-knowledge. Do not invent paths or numbers.${
+    retrieved
+      ? ""
+      : "\n\nNo vault excerpt matched this question. You have no evidence. Reply with not-in-knowledge and nothing else — do not answer from general knowledge."
+  }`;
 
-  const result = await complete(system, `Question: ${question}\n\nVault excerpts:\n${pack}`, 1200);
+  const result = await complete(
+    system,
+    `Question: ${question}\n\nVault excerpts:\n${retrieved ? pack : "(none matched)"}`,
+    1200,
+  );
   if (!result.ok) return result;
-  const citations = (hits.length ? hits : KNOWLEDGE.slice(0, 3)).map((d) => d.title);
   return {
     ok: true as const,
     answer: result.text,
-    citations: boxExcerpt ? ["Vault (via MCP)", ...citations] : citations,
-    provider: result.provider,
-    model: result.model,
+    citations: hits.map((d) => d.title),
+    retrieved,
+    evidence: pack,
   };
 }
 
-export async function inspectConcern(
-  kind: "sentinel" | "mechanic",
-  concern: string,
-  boxState?: string,
-) {
+export async function inspectConcern(kind: "sentinel" | "mechanic", concern: string) {
   const rooms = ROOMS.map((r) => `${r.name}: ${r.lock} / ${r.occupant}`).join("; ");
   const persona =
     kind === "sentinel"
       ? `You are Sentinel in the Watchtower. Score the concern against 2026 red flags (session-only audit, manual metadata, platform-native isolation, plain env credentials, paid-first routing) and harness rules (isolation, ephemeral FS, least privilege, rollback). Findings first. No secrets.`
       : `You are Valerie, Fortress Mechanic. Diagnose OpenClaw / skill / MCP / model-routing issues. Name the plane first (gateway, MCP, skill, model). Numbered checklist, never execute. No secrets. Never discuss county pipelines.`;
 
-  // Her persona says she cannot see the box from here. When MCP answers, she
-  // can — so hand her the real reading and tell her to use it.
-  const live = boxState
-    ? `\n\nLIVE BOX STATE (from MCP stack_health, read just now — trust this over any assumption):\n${boxState}`
-    : `\n\nNo live box reading is available this turn. Say so plainly rather than guessing at service state.`;
-
   const result = await complete(
-    `${FORTRESS_BRIEF}\n\n${persona}\nCurrent room locks: ${rooms}${live}`,
+    `${FORTRESS_BRIEF}\n\n${persona}\nCurrent room locks: ${rooms}`,
     concern,
     1400,
   );
   if (!result.ok) return result;
-  return {
-    ok: true as const,
-    text: result.text,
-    provider: result.provider,
-    model: result.model,
-    sawBox: Boolean(boxState),
-  };
+  return { ok: true as const, text: result.text };
 }
 
-export async function talkHall(agent: string, message: string, boxState?: string) {
+export async function talkHall(agent: string, message: string) {
   const persona: Record<string, string> = {
     raziel:
       "You are Raziel, Sovereign Arch-Orchestrator of Ravenstack Keep. Calm, brief, operational. You decompose work and enforce human gates. Never spend. Never invent live status.",
@@ -164,14 +242,9 @@ export async function talkHall(agent: string, message: string, boxState?: string
     corvid:
       "You are Corvid. Short cited digests only. Vault first. Mark unknowns. No rumor. No invented numbers.",
   };
-  const live = boxState
-    ? `\n\nLIVE FORTRESS STATE (read just now — quote it rather than guessing):\n${boxState}`
-    : `\n\nNo live fortress reading this turn. If asked about live status, say you cannot see the box right now.`;
-
   const system = `${FORTRESS_BRIEF}
 
 ${persona[agent] ?? persona.raziel}
-${live}
 
 Reply in 2-6 short sentences, in character. No markdown headings.`;
   return complete(system, message, 500);
@@ -225,12 +298,13 @@ export async function generatePortraitImage(input: {
 }) {
   const pixelThemePrompt = `Masterpiece 16-bit and 32-bit dark cyber-arcane pixel art portrait of ${input.subjectName}, ${input.arcaneTitle}. ${input.customModifier ? `Character theme and custom modifiers: ${input.customModifier}.` : "High sovereign noble of the obsidian Keep."} Dark gothic obsidian stone masonry background, rich hand-crafted pixel dithering, dramatic chiaroscuro torchlight, glowing cyan (#2de2e6) and magenta (#ff2a6d) neon rim-lighting. Authentic retro pixel art style, no flat vectors, no vector shapes.`;
 
-  const ai = await getGenAI();
+  const ai = getGenAI();
+  const errors: string[] = [];
 
   // 1. Photo-to-Pixel Transformation via Native Nano Banana (Multimodal Image Editing)
   if (input.photoBase64) {
     const cleanBase64 = input.photoBase64.replace(/^data:[^;]+;base64,/, "");
-    const mimeType = input.mimeType || "image/png";
+    const mimeType = input.mimeType || "image/jpeg";
 
     const transformPrompt = `Transform the subject in this provided photo into a masterpiece 16-bit and 32-bit dark cyber-arcane retro pixel art portrait of ${input.subjectName}, ${input.arcaneTitle}.
 ${input.customModifier ? `Incorporate custom modifier: ${input.customModifier}.` : "Regal sovereign noble of Ravenstack Keep."}
@@ -274,7 +348,9 @@ CRITICAL RULES:
           }
         }
       } catch (nanoErr: unknown) {
-        console.warn(`[Nano Banana ${modelName} Photo Transform Attempt Failed]`, nanoErr);
+        const msg = nanoErr instanceof Error ? nanoErr.message : String(nanoErr);
+        console.warn(`[Nano Banana ${modelName} Photo Transform Attempt Failed]`, msg);
+        errors.push(`${modelName} (photo-transform): ${msg}`);
       }
     }
   }
@@ -303,7 +379,9 @@ CRITICAL RULES:
         }
       }
     } catch (nanoErr: unknown) {
-      console.warn(`[Nano Banana ${modelName} Text-to-Pixel Attempt Failed]`, nanoErr);
+      const msg = nanoErr instanceof Error ? nanoErr.message : String(nanoErr);
+      console.warn(`[Nano Banana ${modelName} Text-to-Pixel Attempt Failed]`, msg);
+      errors.push(`${modelName} (text-pixel): ${msg}`);
     }
   }
 
@@ -333,7 +411,9 @@ CRITICAL RULES:
         error?: { message?: string; code?: number; status?: string };
       };
 
-      if (data.predictions && data.predictions.length > 0) {
+      if (data.error) {
+        errors.push(`Imagen 3 (${data.error.code || res.status}): ${data.error.message}`);
+      } else if (data.predictions && data.predictions.length > 0) {
         const first = data.predictions[0];
         const base64Bytes = first.bytesBase64Encoded || first.image?.imageBytes;
         if (base64Bytes) {
@@ -346,13 +426,98 @@ CRITICAL RULES:
         }
       }
     } catch (restErr: unknown) {
-      console.warn("[Imagen 3 REST fallback exception]", restErr);
+      const msg = restErr instanceof Error ? restErr.message : String(restErr);
+      console.warn("[Imagen 3 REST fallback exception]", msg);
+      errors.push(`Imagen 3 REST: ${msg}`);
     }
   }
 
+  const detailedError = errors.length > 0
+    ? errors.join(" | ")
+    : "Image generation model returned no pixel data.";
+
   return {
     ok: false as const,
-    error: "Nano Banana / Imagen 3 image generation failed to return pixel art data. Please check your API quota or model configuration.",
+    error: `Model Generation Failure: ${detailedError}`,
   };
+}
+
+export async function diagnoseMechanicWorkbench(input: {
+  concern: string;
+  contextLogs?: string;
+}) {
+  const system = `You are Valerie, the Chief Mechanic of Ravenstack Keep. You are a gritty, no-nonsense, highly skilled shop mechanic and master Linux systems administrator. You speak with direct, pragmatic, dry shop humor—no corporate fluff, no academic jargon.
+
+STACK KNOWLEDGE BASE:
+- Host: Hetzner Dedicated VPS (Ubuntu 24.04, Stack Root: /root/ReClaw-2.0).
+- OpenClaw Gateway: Docker container 'openclaw:2026.7.1' binding to ws://127.0.0.1:18789.
+- FastMCP Bridge: Port :8100 proxied over Tailscale Funnel (hostname supplied at runtime; never guess or state it).
+- ReClaw API: Port :8000. ReClaw Dashboard: Port :8081. Local Ollama: Port :11434 (gemma4).
+- File Ownership Rule: Configs modified as root MUST be restored to uid 1000 (chown -R 1000:1000).
+
+DIAGNOSTIC PROTOCOL (LAYERED TROUBLESHOOTING):
+- Layer 0-2 (Networking & Ports): Control UI (:18789) reachability, loopback bindings, and Tailscale serve/funnel proxy status.
+- Layer 3 (Config & State): Environment variables, volume mounts, and file permissions.
+- Layer 4 (Logs & Memory): Docker container logs, OOM/memory pressure, and hanging sub-prompts.
+- Layer 5 (FastMCP & Multi-Agent): Tool socket drops, agent routing timeouts, and SQLite locks.
+- Secondary Domain (Physical Shop): Diagnostic help for automotive (e.g. Chevy Silverado circuits/sensors), small engines, diesel machinery, and electronics pinouts using live web search.
+
+ENGINEERING RULES:
+- Smallest Reversible Fix: Never suggest deleting volumes or rebuilding entire stacks if a 1-line command or config edit solves it.
+- Single-Block Execution: Consolidate terminal fixes into a single copy-paste bash block using safe heredocs or chained commands.
+
+OUTPUT FORMAT:
+1. Root Cause Analysis: 1–2 sharp, candid sentences diagnosing the problem.
+2. Executable Solution: Single copy-paste terminal command block or numbered physical steps.
+3. Verification: How to verify the fix succeeded.
+4. Source Links: Clickable markdown links if external documentation or schematics were referenced.`;
+
+  try {
+    const ai = getGenAI();
+    const contents = input.contextLogs
+      ? `DIAGNOSTIC INQUIRY: ${input.concern}\n\nRAW DOCKER/SYSTEM LOGS OR CONTEXT:\n\`\`\`\n${input.contextLogs}\n\`\`\``
+      : input.concern;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.7-flash",
+      contents,
+      config: {
+        systemInstruction: system,
+        tools: [{ googleSearch: {} }],
+        temperature: 0.3,
+      },
+    });
+
+    const text = response.text?.trim() ?? "";
+    if (!text) {
+      return { ok: false as const, error: "Valerie returned an empty diagnostic response." };
+    }
+
+    const candidate = response.candidates?.[0];
+    const groundingMetadata = candidate?.groundingMetadata;
+    const sources: Array<{ title: string; url: string }> = [];
+
+    if (groundingMetadata?.groundingChunks) {
+      for (const chunk of groundingMetadata.groundingChunks) {
+        if (chunk.web?.uri) {
+          sources.push({
+            title: chunk.web.title || new URL(chunk.web.uri).hostname,
+            url: chunk.web.uri,
+          });
+        }
+      }
+    }
+
+    return {
+      ok: true as const,
+      text,
+      sources,
+      groundingSearchQueries: (groundingMetadata?.webSearchQueries as string[]) ?? [],
+    };
+  } catch (err: unknown) {
+    console.error("[Valerie Workbench Error]", err);
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false as const, error: `Mechanic diagnosis failed: ${message}` };
+  }
 }
 

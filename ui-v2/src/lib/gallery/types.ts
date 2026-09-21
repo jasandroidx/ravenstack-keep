@@ -1,6 +1,16 @@
-export interface PortraitItem {
+/**
+ * The Grand Gallery.
+ *
+ * These shapes were reconstructed from their call sites — the module was built
+ * in AI Studio and never reached the repo, while portrait-studio-modal.tsx and
+ * the commissionPortrait server function (since deleted, recoverable at 6743ca1)
+ * did. Field names and optionality match that code exactly.
+ */
+
+export type PortraitItem = {
+  /** Portrait id or legend slot label; both call sites assign from server rows. */
   id: string | number;
-  slotNumber: number; // 1 - 8
+  slotNumber: number;
   subjectName: string;
   arcaneTitle: string;
   customModifier?: string;
@@ -9,23 +19,32 @@ export interface PortraitItem {
   thumbnailUrl?: string;
   lore: string;
   createdAt: string;
+  /** Set when lore was re-rolled after creation. */
   updatedAt?: string;
+  /**
+   * Marks a portrait the slot grid renders as "★ Legend" instead of the
+   * subject's name. Read by the modal, never written by the server — it is a
+   * display flag, so it stays optional rather than being invented as a column.
+   */
   isLegendary?: boolean;
-}
+};
 
-export interface CommissionRequest {
+/** A commission sent to the studio. The photo, when given, is a data: URL. */
+export type CommissionRequest = {
   slotNumber: number;
   subjectName: string;
   arcaneTitle: string;
   customModifier?: string;
   trivia?: string;
   uploadedPhotoDataUrl?: string;
-}
+};
 
-export interface LoreRerollRequest {
-  id: string | number;
+/** Re-roll the lore for a portrait without regenerating its image. */
+export type LoreRerollRequest = {
+  /** Portrait id — present when rerolling an existing wall frame. */
+  id?: string | number;
   subjectName: string;
   arcaneTitle: string;
   customModifier?: string;
   trivia?: string;
-}
+};

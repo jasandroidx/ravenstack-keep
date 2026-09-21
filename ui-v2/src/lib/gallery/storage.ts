@@ -1,10 +1,27 @@
 import type { PortraitItem } from "./types";
 import { DEFAULT_LEGEND_AVATARS } from "./pixel-generator";
 
-const STORAGE_KEY = "ravenstack_gallery_portraits_v1";
-const AVATAR_KEY = "ravenstack_player_avatar_custom";
+/**
+ * Per-viewer portrait cache.
+ *
+ * The commission already writes to gallery_portraits server-side; this is the
+ * local mirror so a freshly forged portrait appears on the wall without a
+ * round trip. Browser storage can throw outright (private windows, blocked
+ * site data), so every access is guarded and a failure is silent — a portrait
+ * that cannot be cached is not an error worth interrupting the operator for.
+ *
+ * Empty frames stay empty: an untouched cache reads as `[]`, and the wall shows
+ * what has been commissioned, not what could be. The three sovereign legend
+ * frames are preserved as data (see DEFAULT_PORTRAITS) for the gallery-hall
+ * view that seeds them, but the plain wall never invents commissions.
+ */
 
-const DEFAULT_PORTRAITS: PortraitItem[] = [
+const KEY = "ravenstack.gallery.portraits";
+const AVATAR_KEY = "ravenstack_player_avatar_custom";
+const MAX = 32;
+
+/** The three sovereign frames (Boyd, Valerie, Raziel), for views that seed them. */
+export const DEFAULT_PORTRAITS: PortraitItem[] = [
   {
     id: "legend-boydimus",
     slotNumber: 1,
@@ -46,73 +63,83 @@ const DEFAULT_PORTRAITS: PortraitItem[] = [
   },
 ];
 
+function readCache(): PortraitItem[] {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as PortraitItem[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeCache(list: PortraitItem[]): void {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(list));
+  } catch {
+    /* Storage unavailable or full. The server copy is the real record. */
+  }
+  window.dispatchEvent(new CustomEvent("GALLERY_UPDATED", { detail: list }));
+}
+
+/** Empty wall, newest first. The plain gallery wall's read. */
+export function loadLocalGalleryPortraits(): PortraitItem[] {
+  return readCache();
+}
+
+/**
+ * Gallery-hall read: legend frames seed the wall when nothing has been
+ * commissioned yet, slot 1 leftmost as forged.
+ */
 export function getLocalGalleryPortraits(): PortraitItem[] {
-  if (typeof window === "undefined") return DEFAULT_PORTRAITS;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_PORTRAITS));
-      return DEFAULT_PORTRAITS;
-    }
-    const parsed = JSON.parse(raw) as PortraitItem[];
-    return parsed;
-  } catch (err) {
-    console.error("Error reading gallery storage:", err);
-    return DEFAULT_PORTRAITS;
-  }
+  const cached = readCache();
+  return cached.length ? cached : DEFAULT_PORTRAITS;
 }
 
+/** Newest first; one portrait per slot, the latest commission winning. */
 export function saveLocalGalleryPortrait(portrait: PortraitItem): PortraitItem[] {
-  if (typeof window === "undefined") return [];
-  const current = getLocalGalleryPortraits();
-  // Filter out any existing item in the same slot
-  const updated = current.filter((p) => p.slotNumber !== portrait.slotNumber);
-  updated.push(portrait);
-  updated.sort((a, b) => a.slotNumber - b.slotNumber);
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    window.dispatchEvent(new CustomEvent("GALLERY_UPDATED", { detail: updated }));
-  } catch (err) {
-    console.error("Error saving gallery portrait:", err);
-  }
-  return updated;
+  const kept = readCache().filter(
+    (p) => p.id !== portrait.id && p.slotNumber !== portrait.slotNumber,
+  );
+  const next = [portrait, ...kept].slice(0, MAX);
+  writeCache(next);
+  return next;
 }
 
-export function removeLocalGalleryPortrait(slotNumber: number): PortraitItem[] {
-  if (typeof window === "undefined") return [];
-  const current = getLocalGalleryPortraits();
-  const updated = current.filter((p) => p.slotNumber !== slotNumber);
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    window.dispatchEvent(new CustomEvent("GALLERY_UPDATED", { detail: updated }));
-  } catch (err) {
-    console.error("Error removing gallery portrait:", err);
-  }
-  return updated;
+/** Remove by slot number (gallery-hall) or by portrait id (wall), per call site. */
+export function removeLocalGalleryPortrait(key: string | number): PortraitItem[] {
+  const kept =
+    typeof key === "number"
+      ? readCache().filter((p) => p.slotNumber !== key)
+      : readCache().filter((p) => p.id !== key);
+  writeCache(kept);
+  return kept;
 }
 
+/** Restore the wall to the three sovereign frames only. */
 export function clearAllCustomPortraits(): PortraitItem[] {
-  if (typeof window === "undefined") return [];
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_PORTRAITS));
-    window.dispatchEvent(new CustomEvent("GALLERY_UPDATED", { detail: DEFAULT_PORTRAITS }));
-  } catch (err) {
-    console.error("Error resetting gallery:", err);
-  }
+  writeCache(DEFAULT_PORTRAITS);
   return DEFAULT_PORTRAITS;
 }
 
 export function getCustomPlayerAvatar(): string | null {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(AVATAR_KEY);
+  try {
+    return localStorage.getItem(AVATAR_KEY);
+  } catch {
+    return null;
+  }
 }
 
 export function setCustomPlayerAvatar(imageUrl: string | null): void {
-  if (typeof window === "undefined") return;
-  if (!imageUrl) {
-    window.localStorage.removeItem(AVATAR_KEY);
-  } else {
-    window.localStorage.setItem(AVATAR_KEY, imageUrl);
+  try {
+    if (!imageUrl) {
+      localStorage.removeItem(AVATAR_KEY);
+    } else {
+      localStorage.setItem(AVATAR_KEY, imageUrl);
+    }
+  } catch {
+    /* Storage unavailable. Non-fatal — avatar is a display nicety. */
   }
   window.dispatchEvent(new CustomEvent("AVATAR_UPDATED", { detail: imageUrl }));
 }

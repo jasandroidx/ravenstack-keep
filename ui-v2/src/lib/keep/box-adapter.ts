@@ -7,6 +7,12 @@
  *
  * Reads are free. Gated tools require an explicit confirm from a human-gated
  * caller — never defaulted in this file.
+ *
+ * Suggested first binds (Raziel's test):
+ * 1. dashboard_status  → KeepPulse
+ * 2. pending_gates     → war-table chip
+ * 3. stack_health      → Sentinel / Mechanic diagnose
+ * 4. query_knowledge   → Oracle (cited only)
  */
 
 import { mcpCallTool, mcpListTools, type McpFailure } from "./mcp";

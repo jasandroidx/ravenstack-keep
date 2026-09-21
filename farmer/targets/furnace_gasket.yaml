@@ -1,0 +1,20 @@
+id: "npc_gasket"
+name: "Gasket"
+type: "npc"
+voice: "Gruff, tired, short industrial slang, references pipe pressure"
+min_gate: 1
+audio_seed:
+  type: "sawtooth"
+  base_freq: 110
+  decay: 0.25
+
+categories:
+  greetings:
+    count: 3
+    prompt: "Short 1-line hellos to someone walking by."
+  ambient:
+    count: 3
+    prompt: "Self-mutterings about furnace heat, steam leaks, or shift work."
+  gossip:
+    count: 2
+    prompt: "Rumors or complaints about current gate status."

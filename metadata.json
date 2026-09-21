@@ -1,6 +1,6 @@
 {
   "name": "Ravenstack Keep",
-  "description": "Multi-agent command keep and painted hall for agent specs, human gates, and spatial telemetry.",
+  "description": "Cyber-arcane fortress command center, painted hall, and Google Drive vault with FastMCP and ReClaw integration",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

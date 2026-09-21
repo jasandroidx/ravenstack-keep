@@ -8,18 +8,20 @@
   },
   "scripts": {
     "dev": "vite dev --host 0.0.0.0 --port 3000",
-    "build": "vite build && npm run db:migrate",
+    "build": "vite build && npm run db:migrate && node scripts/copy-pglite-assets.mjs",
+    "build:box": "NITRO_PRESET=node-server vite build && node scripts/copy-pglite-assets.mjs",
     "db:migrate": "node scripts/migrate.mjs",
     "build:dev": "vite build --mode development",
     "preview": "vite preview --host 0.0.0.0 --port 3000",
     "typecheck": "tsc --noEmit",
-    "test": "node --test 'scripts/**/*.test.mjs'",
-    "test:routing": "bun scripts/routing-smoke.ts",
+    "test": "node --experimental-strip-types --test 'scripts/**/*.test.mjs' 'src/**/*.test.ts'",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "probe:bridge": "node --experimental-strip-types --no-warnings scripts/probe-bridge.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.4",
+    "@google/genai": "^0.2.0",
     "@hookform/resolvers": "^5.7.0",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",

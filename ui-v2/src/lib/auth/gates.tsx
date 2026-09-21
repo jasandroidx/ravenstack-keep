@@ -1,113 +1,88 @@
-import { useState, useRef, useEffect, type ReactNode } from "react";
-import { Navigate, Link } from "@tanstack/react-router";
-import { signOut, signIn } from "./client";
-import { GROK_PROVIDERS } from "./providers";
+import type { ReactNode } from "react";
+import { Navigate } from "@tanstack/react-router";
+import { authEnabled, signOut } from "./client";
 import { useCurrentUser, useCurrentUserState } from "./use-current-user";
 
+/**
+ * Auth state components — plain wrappers around `useCurrentUserState()`.
+ *
+ * Auth is ON by default (including the sandbox live preview, which does real
+ * sign-in). Visitors are signed out until they authenticate. The shared dev
+ * user only appears when auth is explicitly disabled (`VITE_AUTH_ENABLED=false`).
+ * While the session is still resolving, gates that care about signed-out state
+ * render nothing so there's no signed-out flash on hard reload.
+ */
+
+/** Where `RedirectToSignIn` sends signed-out visitors. Create this route. */
 export const SIGN_IN_PATH = "/login";
 
+/** Render children only when a user is present (real session, or the disabled-auth dev user). */
 export function SignedIn({ children }: { children: ReactNode }) {
   const { user } = useCurrentUserState();
   return user ? <>{children}</> : null;
 }
 
+/**
+ * Render children only once we KNOW the visitor is signed out (`isPending` has
+ * cleared and there is no user). Hidden while the session is still loading.
+ */
 export function SignedOut({ children }: { children: ReactNode }) {
   const { user, isPending } = useCurrentUserState();
   if (isPending || user) return null;
   return <>{children}</>;
 }
 
+/**
+ * Client-side redirect to the sign-in route (TanStack `<Navigate>` — NOT a full
+ * `window.location` reload). A hard navigation re-bootstraps the SPA and re-runs
+ * session loading, which feels like a second "Loading…" on /login.
+ *
+ * Guard routes by waiting out `isPending` first (see `use-current-user`), then
+ * render this.
+ */
 export function RedirectToSignIn({ to = SIGN_IN_PATH }: { to?: string }) {
   return <Navigate to={to} />;
 }
 
+/**
+ * Minimal signed-in identity chip + sign-out. Restyle freely (see the
+ * `design-ui` skill). Sign-out is only shown when auth is enabled (the
+ * disabled-auth dev user has nothing to sign out of).
+ */
 export function UserButton() {
   const user = useCurrentUser();
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  if (!user) {
-    return (
-      <Link
-        to="/login"
-        className="inline-flex h-8 items-center rounded border border-line px-2.5 text-xs text-muted hover:border-line-strong hover:text-fg"
-      >
-        Sign in
-      </Link>
-    );
-  }
-
-  const label = user.displayName ?? user.primaryEmail ?? "Operator";
-  const initials = label.charAt(0).toUpperCase();
-
+  if (!user) return null;
+  const label = user.displayName ?? user.primaryEmail ?? "Account";
   return (
-    <div className="relative" ref={ref}>
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 rounded-md border border-line bg-surface/80 px-2.5 py-1 text-xs text-fg transition-colors hover:border-line-strong"
-      >
-        <span className="grid h-5 w-5 place-items-center rounded-full bg-accent/20 font-mono text-[10px] font-semibold text-accent">
-          {initials}
+    <div className="flex items-center gap-2">
+      {user.profileImageUrl ? (
+        <img
+          src={user.profileImageUrl}
+          alt=""
+          className="h-8 w-8 rounded-full object-cover"
+        />
+      ) : (
+        <span className="grid h-8 w-8 place-items-center rounded-full bg-black/10 text-sm font-medium dark:bg-white/20">
+          {label.charAt(0).toUpperCase()}
         </span>
-        <span className="max-w-[110px] truncate font-medium">{label}</span>
-        <span className="text-[10px] text-muted">▾</span>
-      </button>
-
-      {open && (
-        <div className="absolute right-0 mt-1.5 w-56 rounded-md border border-line bg-elevated p-2 shadow-panel z-50 animate-in fade-in zoom-in-95 duration-100">
-          <div className="border-b border-line px-2 pb-2">
-            <p className="font-medium text-xs text-fg">{label}</p>
-            <p className="text-[10px] text-muted truncate">{user.primaryEmail}</p>
-            {user.role && <p className="mt-0.5 text-[9px] text-accent/80 font-mono">{user.role}</p>}
-          </div>
-
-          <div className="py-1">
-            <p className="px-2 py-1 text-[9px] font-mono uppercase tracking-wider text-subtle">
-              Switch Identity
-            </p>
-            {GROK_PROVIDERS.map((p) => (
-              <button
-                key={p.providerId}
-                type="button"
-                onClick={() => {
-                  void signIn(p.providerId);
-                  setOpen(false);
-                }}
-                className={`w-full rounded px-2 py-1 text-left text-xs transition-colors hover:bg-surface ${
-                  user.id === p.providerId || (user.id === "dev-user" && p.providerId === "keeper-jason")
-                    ? "font-semibold text-accent"
-                    : "text-muted hover:text-fg"
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="border-t border-line pt-1">
-            <button
-              type="button"
-              onClick={() => {
-                void signOut();
-                setOpen(false);
-              }}
-              className="w-full rounded px-2 py-1 text-left text-xs text-danger/90 hover:bg-surface hover:text-danger"
-            >
-              Sign out
-            </button>
-          </div>
-        </div>
+      )}
+      <span className="text-sm font-medium">{label}</span>
+      {user.isDevFallback && (
+        <span
+          className="rounded-sm border border-[#ff2a6d]/60 bg-[#ff2a6d]/10 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-[#ff2a6d]"
+          title="VITE_AUTH_ENABLED=false — no session, shared identity for every visitor"
+        >
+          Dev build · no auth
+        </span>
+      )}
+      {authEnabled && (
+        <button
+          type="button"
+          onClick={() => void signOut()}
+          className="cursor-pointer text-sm underline-offset-4 opacity-70 hover:underline"
+        >
+          Sign out
+        </button>
       )}
     </div>
   );

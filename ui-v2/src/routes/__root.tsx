@@ -1,6 +1,8 @@
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
+import { queryClient } from "@/lib/query-client";
 import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
 
@@ -11,7 +13,20 @@ const xBanner = host
   ? `https://og.grok.me/v1/banner.png?host=${encodeURIComponent(host)}&title=${encodeURIComponent(APP_NAME)}&color=0B0B0A`
   : undefined;
 
+function NotFound() {
+  return (
+    <main className="p-8">
+      <p className="text-[11px] uppercase tracking-[0.22em] text-subtle">Outlands</p>
+      <h1 className="mt-2 font-display text-3xl">This path is not in the keep.</h1>
+      <a href="/" className="mt-4 inline-block text-sm text-accent hover:underline">
+        Back to the Great Hall
+      </a>
+    </main>
+  );
+}
+
 export const Route = createRootRoute({
+  notFoundComponent: NotFound,
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -64,16 +79,18 @@ export const Route = createRootRoute({
       </head>
       <body>
         <PreviewHostBridge />
-        <AuthProvider>
-          <Outlet />
-          <Toaster
-            theme="dark"
-            position="bottom-right"
-            toastOptions={{
-              className: "bg-elevated text-fg border-line",
-            }}
-          />
-        </AuthProvider>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <Outlet />
+            <Toaster
+              theme="dark"
+              position="bottom-right"
+              toastOptions={{
+                className: "bg-elevated text-fg border-line",
+              }}
+            />
+          </AuthProvider>
+        </QueryClientProvider>
         <Scripts />
       </body>
     </html>

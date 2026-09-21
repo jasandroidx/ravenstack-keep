@@ -14,6 +14,7 @@ State: SQLite under mcp/data/keep.db. Specs: repo agents/*.agent-spec.json.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -90,8 +91,9 @@ SEED_ROOMS: list[dict[str, Any]] = [
         "y": 0,
         "status": "Active",
         "lock_state": "UNFORGED",
-        "notes": "Knowledge / Oracle — sealed until unlock_room",
+        "notes": "Knowledge stacks: Oracle (read/RAG) + Scribe (write/distill)",
         "occupant_agent_id": "oracle",
+        "co_occupants": ["scribe"],
     },
     {
         "room_id": "armory",
@@ -155,12 +157,24 @@ def _err(message: str, code: str = "error", **extra: Any) -> str:
     return json.dumps(body, indent=2)
 
 
-def _connect() -> sqlite3.Connection:
+@contextlib.contextmanager
+def _connect():
+    """`sqlite3.Connection.__exit__` only commits/rolls back — it never
+    closes the fd. Every `with _connect() as conn:` call site (server.py,
+    gates.py, openclaw_sync.py, http_api.py) was leaking one fd per call,
+    which is what exhausted the process's file-descriptor limit."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def init_db() -> None:
@@ -176,6 +190,7 @@ def init_db() -> None:
               status TEXT NOT NULL DEFAULT 'Active',
               lock_state TEXT NOT NULL DEFAULT 'live',
               occupant_agent_id TEXT,
+              co_occupants TEXT,
               notes TEXT,
               status_summary TEXT,
               updated_at TEXT NOT NULL
@@ -200,16 +215,25 @@ def init_db() -> None:
             );
             """
         )
+        # Migrate older rooms tables
+        room_cols = {
+            r[1] for r in conn.execute("PRAGMA table_info(rooms)").fetchall()
+        }
+        if "co_occupants" not in room_cols:
+            conn.execute("ALTER TABLE rooms ADD COLUMN co_occupants TEXT")
+
         n = conn.execute("SELECT COUNT(*) AS c FROM rooms").fetchone()["c"]
         if n == 0:
             now = _utc_now()
             for r in SEED_ROOMS:
+                co = r.get("co_occupants")
+                co_json = json.dumps(co) if co else None
                 conn.execute(
                     """
                     INSERT INTO rooms (
                       room_id, name, x, y, status, lock_state,
-                      occupant_agent_id, notes, status_summary, updated_at
-                    ) VALUES (?,?,?,?,?,?,?,?,?,?)
+                      occupant_agent_id, co_occupants, notes, status_summary, updated_at
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
                     """,
                     (
                         r["room_id"],
@@ -219,6 +243,7 @@ def init_db() -> None:
                         r["status"],
                         r["lock_state"],
                         r["occupant_agent_id"],
+                        co_json,
                         r["notes"],
                         r["notes"],
                         now,
@@ -236,9 +261,63 @@ def init_db() -> None:
                        OR occupant_agent_id = 'raziel')
                 """
             )
+            # Library: Oracle primary + Scribe co-resident
+            conn.execute(
+                """
+                UPDATE rooms
+                SET occupant_agent_id = COALESCE(NULLIF(occupant_agent_id, ''), 'oracle'),
+                    co_occupants = ?,
+                    notes = 'Knowledge stacks: Oracle (read/RAG) + Scribe (write/distill)'
+                WHERE room_id = 'library'
+                """,
+                (json.dumps(["scribe"]),),
+            )
+        # Presence columns for visual command layer (idempotent)
+        cols = {
+            r[1]
+            for r in conn.execute("PRAGMA table_info(agent_status)").fetchall()
+        }
+        if "room_id" not in cols:
+            conn.execute("ALTER TABLE agent_status ADD COLUMN room_id TEXT")
+        if "sprite_hint" not in cols:
+            conn.execute("ALTER TABLE agent_status ADD COLUMN sprite_hint TEXT")
+
+
+def _parse_co_occupants(raw: Any) -> list[str]:
+    if not raw:
+        return []
+    if isinstance(raw, list):
+        return [str(x) for x in raw if x]
+    try:
+        data = json.loads(raw) if isinstance(raw, str) else raw
+        if isinstance(data, list):
+            return [str(x) for x in data if x]
+    except (json.JSONDecodeError, TypeError):
+        pass
+    return []
+
+
+def _room_agent_ids(row: sqlite3.Row) -> list[str]:
+    """Primary occupant + co_occupants (Library: oracle + scribe)."""
+    keys = row.keys()
+    ids: list[str] = []
+    primary = row["occupant_agent_id"]
+    if primary:
+        ids.append(str(primary))
+    if "co_occupants" in keys:
+        for a in _parse_co_occupants(row["co_occupants"]):
+            if a not in ids:
+                ids.append(a)
+    return ids
 
 
 def _row_room(row: sqlite3.Row) -> dict[str, Any]:
+    keys = row.keys()
+    co = (
+        _parse_co_occupants(row["co_occupants"])
+        if "co_occupants" in keys
+        else []
+    )
     return {
         "room_id": row["room_id"],
         "name": row["name"],
@@ -248,6 +327,8 @@ def _row_room(row: sqlite3.Row) -> dict[str, Any]:
         "status": row["status"],
         "lock_state": row["lock_state"],
         "occupant_agent_id": row["occupant_agent_id"],
+        "co_occupants": co,
+        "agent_ids": _room_agent_ids(row),
         "notes": row["notes"],
         "status_summary": row["status_summary"] or row["notes"] or "",
         "updated_at": row["updated_at"],
@@ -283,6 +364,8 @@ def _list_agent_specs() -> dict[str, Path]:
     return out
 
 
+_cached_validator: Any = None
+
 def _load_spec(agent_id: str) -> tuple[Optional[dict[str, Any]], Optional[Path], Optional[str]]:
     """Return (spec_dict, path, error_message)."""
     specs = _list_agent_specs()
@@ -299,9 +382,13 @@ def _load_spec(agent_id: str) -> tuple[Optional[dict[str, Any]], Optional[Path],
     except (OSError, json.JSONDecodeError) as e:
         return None, path, f"Failed to read spec: {e}"
     if jsonschema is not None and SCHEMA_PATH.is_file():
+        global _cached_validator
         try:
-            schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
-            jsonschema.validate(data, schema)
+            if _cached_validator is None:
+                schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+                Validator = jsonschema.validators.validator_for(schema)
+                _cached_validator = Validator(schema)
+            _cached_validator.validate(data)
         except Exception as e:  # noqa: BLE001 — surface as tool error
             return None, path, f"Spec failed schema validation: {e}"
     return data, path, None
@@ -378,6 +465,7 @@ def _rooms_on_cells(
 def _live_agents(conn: sqlite3.Connection) -> dict[str, dict[str, Any]]:
     out: dict[str, dict[str, Any]] = {}
     for row in conn.execute("SELECT * FROM agent_status"):
+        keys = row.keys()
         out[row["agent_id"]] = {
             "agent_id": row["agent_id"],
             "state": row["state"],
@@ -386,8 +474,18 @@ def _live_agents(conn: sqlite3.Connection) -> dict[str, dict[str, Any]]:
             "session_id": row["session_id"],
             "detail": row["detail"],
             "updated_at": row["updated_at"],
+            "room_id": row["room_id"] if "room_id" in keys else None,
+            "sprite_hint": row["sprite_hint"] if "sprite_hint" in keys else None,
         }
     return out
+
+
+def _agent_home_room(conn: sqlite3.Connection, agent_id: str) -> Optional[str]:
+    row = conn.execute(
+        "SELECT room_id FROM rooms WHERE occupant_agent_id = ? LIMIT 1",
+        (agent_id,),
+    ).fetchone()
+    return row["room_id"] if row else None
 
 
 def _resolve_vault() -> Optional[Path]:
@@ -471,8 +569,13 @@ def report_agent_status(
     confidence: Optional[float] = None,
     session_id: Optional[str] = None,
     detail: Optional[str] = None,
+    room_id: Optional[str] = None,
+    sprite_hint: Optional[str] = None,
 ) -> str:
-    """Publish live agent status for the Keep UI (Phase-1 write)."""
+    """Publish live agent status for the Keep UI (Phase-1 write).
+
+    Optional room_id / sprite_hint feed visual presence (item 1).
+    """
     try:
         init_db()
         agent_id = agent_id.strip()
@@ -484,7 +587,6 @@ def report_agent_status(
                 code="invalid_input",
             )
         if not _agent_known(agent_id):
-            # Allow first report only if a Spec exists
             return _err(
                 f"Unknown agent_id '{agent_id}' — must match agents/*.agent-spec.json",
                 code="unknown_agent",
@@ -492,19 +594,41 @@ def report_agent_status(
         if confidence is not None and not (0.0 <= float(confidence) <= 1.0):
             return _err("confidence must be between 0.0 and 1.0", code="invalid_input")
         now = _utc_now()
+        # Only set room_id when caller passes it — OpenClaw sync must not
+        # stomp presence walks back to home.
+        explicit_room = (room_id or "").strip() or None
+        explicit_sprite = (sprite_hint or "").strip() or None
         with _connect() as conn:
+            home = _agent_home_room(conn, agent_id)
+            if explicit_room and not _find_room(conn, explicit_room):
+                return _err(
+                    f"Unknown room_id '{explicit_room}'",
+                    code="unknown_room",
+                )
+            # Preserve existing presence when not explicitly updated
+            prev = conn.execute(
+                "SELECT room_id, sprite_hint FROM agent_status WHERE agent_id = ?",
+                (agent_id,),
+            ).fetchone()
+            prev_room = prev["room_id"] if prev else None
+            prev_sprite = prev["sprite_hint"] if prev else None
+            rid = explicit_room or prev_room or home
+            spr = explicit_sprite or prev_sprite
             conn.execute(
                 """
                 INSERT INTO agent_status (
-                  agent_id, state, task, confidence, session_id, detail, updated_at
-                ) VALUES (?,?,?,?,?,?,?)
+                  agent_id, state, task, confidence, session_id, detail,
+                  updated_at, room_id, sprite_hint
+                ) VALUES (?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(agent_id) DO UPDATE SET
                   state=excluded.state,
                   task=excluded.task,
                   confidence=excluded.confidence,
                   session_id=excluded.session_id,
                   detail=excluded.detail,
-                  updated_at=excluded.updated_at
+                  updated_at=excluded.updated_at,
+                  room_id=excluded.room_id,
+                  sprite_hint=excluded.sprite_hint
                 """,
                 (
                     agent_id,
@@ -514,37 +638,155 @@ def report_agent_status(
                     session_id,
                     (detail or "")[:500] or None,
                     now,
+                    rid,
+                    spr,
                 ),
             )
-            # Light write: mirror occupant onto spatial room when we can map it
-            # (Clawforge → Alchemy Lab, Oracle → Library are seeded occupants.)
             with_occ = conn.execute(
                 "SELECT room_id FROM rooms WHERE occupant_agent_id = ?",
                 (agent_id,),
             ).fetchone()
-            if with_occ:
+            # Prefer presence room for summary; fall back to home occupant row
+            target_room = rid or (with_occ["room_id"] if with_occ else None)
+            if target_room:
                 conn.execute(
                     """
                     UPDATE rooms SET status_summary = ?, updated_at = ?
                     WHERE room_id = ?
                     """,
-                    ((task or state)[:200], now, with_occ["room_id"]),
+                    ((task or state)[:200], now, target_room),
                 )
+                if explicit_room:
+                    conn.execute(
+                        """
+                        UPDATE rooms SET occupant_agent_id = ?
+                        WHERE room_id = ?
+                          AND (occupant_agent_id IS NULL OR occupant_agent_id = '')
+                        """,
+                        (agent_id, explicit_room),
+                    )
                 if state == "retired":
                     conn.execute(
                         "UPDATE rooms SET occupant_agent_id = NULL WHERE room_id = ?",
-                        (with_occ["room_id"],),
+                        (target_room,),
                     )
         return _ok(
             {
                 "ok": True,
                 "agent_id": agent_id,
                 "state": state,
+                "room_id": rid,
                 "updated_at": now,
             }
         )
     except Exception as e:  # noqa: BLE001
         return _err(str(e), code="internal_error")
+
+
+@mcp.tool()
+def report_presence(
+    room_id: str,
+    state: str,
+    task_summary: Optional[str] = None,
+    sprite_hint: Optional[str] = None,
+    agent_id: Optional[str] = None,
+    confidence: Optional[float] = None,
+    session_id: Optional[str] = None,
+) -> str:
+    """Publish spatial presence for the visual Keep (feeds agent sprites).
+
+    Maps to agent_status + room status_summary. Does not invent work —
+    caller must only report real activity. If agent_id omitted, uses
+    current occupant of the room.
+    """
+    try:
+        init_db()
+        room_id = room_id.strip()
+        if not room_id:
+            return _err("room_id is required", code="invalid_input")
+        if state not in AGENT_STATES:
+            return _err(
+                f"state must be one of {sorted(AGENT_STATES)}",
+                code="invalid_input",
+            )
+        with _connect() as conn:
+            room = _find_room(conn, room_id)
+            if not room:
+                return _err(f"Unknown room '{room_id}'", code="unknown_room")
+            rid = room["room_id"]
+            aid = (agent_id or room["occupant_agent_id"] or "").strip()
+            if not aid:
+                return _err(
+                    "No agent_id and room has no occupant",
+                    code="no_agent",
+                )
+            if not _agent_known(aid):
+                return _err(
+                    f"Unknown agent_id '{aid}'",
+                    code="unknown_agent",
+                )
+        # Delegate to report_agent_status for single write path
+        return report_agent_status(
+            agent_id=aid,
+            state=state,
+            task=task_summary,
+            confidence=confidence,
+            session_id=session_id,
+            detail=f"presence:{rid}",
+            room_id=rid,
+            sprite_hint=sprite_hint,
+        )
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+@mcp.tool()
+def list_agent_specs(status: Optional[str] = None) -> str:
+    """List Agent Specs on disk (id, status, room, path)."""
+    try:
+        specs = _list_agent_specs()
+        out = []
+        for aid, path in sorted(specs.items()):
+            data, _, err = _load_spec(aid)
+            if err or not data:
+                out.append(
+                    {
+                        "agent_id": aid,
+                        "status": "invalid",
+                        "error": err,
+                        "source_path": str(path),
+                    }
+                )
+                continue
+            st = data.get("status")
+            if status and st != status:
+                continue
+            room = None
+            if isinstance(data.get("room"), dict):
+                room = data["room"].get("room_id")
+            room = room or data.get("room_id")
+            try:
+                rel = str(path.relative_to(REPO_ROOT))
+            except ValueError:
+                rel = str(path)
+            out.append(
+                {
+                    "agent_id": data.get("id", aid),
+                    "status": st,
+                    "name": data.get("name") or data.get("display_name"),
+                    "room_id": room,
+                    "source_path": rel,
+                }
+            )
+        return _ok({"specs": out, "count": len(out)})
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+@mcp.tool()
+def get_room(room_id: str) -> str:
+    """Alias for get_room_status — single room detail for UI / agents."""
+    return get_room_status(room_id)
 
 
 @mcp.tool()
@@ -993,19 +1235,29 @@ def get_occupancy_summary() -> str:
     try:
         init_db()
         with _connect() as conn:
-            rooms = [
-                _row_room(r)
-                for r in conn.execute("SELECT * FROM rooms").fetchall()
+            # Performance Optimization:
+            # Instead of pulling all room rows into memory, constructing dictionaries via _row_room,
+            # and iterating over them in Python to count statuses, lock_states, and restricted rooms,
+            # we execute direct SQL aggregate queries to push computation to SQLite.
+            # Expected Performance Impact: Reduces CPU and memory allocation overhead from O(N) row hydration to O(1) SQL aggregates.
+            room_count = conn.execute("SELECT COUNT(*) FROM rooms").fetchone()[0]
+            by_status = dict(
+                conn.execute(
+                    "SELECT status, COUNT(*) FROM rooms GROUP BY status"
+                ).fetchall()
+            )
+            by_lock = dict(
+                conn.execute(
+                    "SELECT lock_state, COUNT(*) FROM rooms GROUP BY lock_state"
+                ).fetchall()
+            )
+            restricted = [
+                row["name"]
+                for row in conn.execute(
+                    "SELECT name FROM rooms WHERE status = 'Restricted' OR lock_state = 'locked'"
+                ).fetchall()
             ]
             agents = list(_live_agents(conn).values())
-        by_status: dict[str, int] = {}
-        by_lock: dict[str, int] = {}
-        restricted = []
-        for r in rooms:
-            by_status[r["status"]] = by_status.get(r["status"], 0) + 1
-            by_lock[r["lock_state"]] = by_lock.get(r["lock_state"], 0) + 1
-            if r["status"] == "Restricted" or r["lock_state"] == "locked":
-                restricted.append(r["name"])
         active_agents = [
             a for a in agents if a["state"] not in ("retired", "idle")
         ]
@@ -1014,12 +1266,86 @@ def get_occupancy_summary() -> str:
                 "agent_count": len(agents),
                 "active_agent_count": len(active_agents),
                 "agents": agents,
-                "room_count": len(rooms),
+                "room_count": room_count,
                 "rooms_by_status": by_status,
                 "rooms_by_lock_state": by_lock,
                 "restricted_rooms": restricted,
                 "generated_at": _utc_now(),
             }
+        )
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+# ---------------------------------------------------------------------------
+# Arcane Library Spatial Context Compactor
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+def trigger_spatial_compaction(
+    room_name: str,
+    current_token_count: int,
+    max_tokens: int,
+    context_snippet: Optional[str] = None,
+    force: bool = False,
+) -> str:
+    """Compact context when near capacity, biased to Keep room coordinates.
+
+    Archives low spatial-relevance material, writes Obsidian note + vector row.
+    Default threshold 85% of max_tokens unless force=true.
+    """
+    try:
+        from context_compactor import default_compactor
+
+        ctx = context_snippet or ""
+        if not ctx.strip() and not force:
+            return _err(
+                "context_snippet required unless testing with empty+force",
+                code="invalid_input",
+            )
+        result = default_compactor().compact(
+            room_name=room_name,
+            current_token_count=int(current_token_count),
+            max_tokens=int(max_tokens),
+            context=ctx,
+            force=bool(force),
+            source="mcp:trigger_spatial_compaction",
+        )
+        # Don't dump full context_after to MCP clients by default (huge)
+        if "context_after" in result and len(result.get("context_after") or "") > 2000:
+            result = dict(result)
+            result["context_after_preview"] = (result.pop("context_after") or "")[:1500]
+        return _ok(result)
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+@mcp.tool()
+def get_compaction_history(room_name: Optional[str] = None, limit: int = 20) -> str:
+    """List recent Arcane Library compaction events."""
+    try:
+        from context_compactor import default_compactor
+
+        return _ok(default_compactor().history(room_name=room_name, limit=limit))
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+@mcp.tool()
+def query_spatial_memory(
+    query: str,
+    room_name: Optional[str] = None,
+    top_k: int = 5,
+) -> str:
+    """Vector search over compacted memory, spatially biased to a Keep room."""
+    try:
+        from context_compactor import default_compactor
+
+        return _ok(
+            default_compactor().query_spatial_memory(
+                query=query, room_name=room_name, top_k=top_k
+            )
         )
     except Exception as e:  # noqa: BLE001
         return _err(str(e), code="internal_error")
@@ -1078,6 +1404,276 @@ def unlock_room(room_id: str, confirm: bool = False) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Keep ops — shift board, bubbles, vault notes, lane diagnostics, spec upsert
+# ---------------------------------------------------------------------------
+
+
+def _fmt_markdown_board(rooms: list[dict[str, Any]], duty: list[dict[str, Any]]) -> str:
+    lines = ["# Keep Shift Board"]
+    lines.append("")
+    lines.append("## Duty")
+    for row in duty:
+        lines.append(
+            f"- {row.get('name')} ({row.get('agent_id')}) — {row.get('status')} "
+            f"· {row.get('room_name') or '—'} · last work: {row.get('last_real_work') or '—'}"
+        )
+    lines.append("")
+    lines.append("## Workplaces")
+    for room in rooms:
+        lines.append(
+            f"- {room.get('name')} ({room.get('kind')}) — light={room.get('light')} "
+            f"· {room.get('detail') or ''}"
+        )
+    return "\n".join(lines)
+
+
+def _note_slug(title: str) -> str:
+    slug = re.sub(r"[^a-z0-9-]+", "-", title.lower()).strip("-")
+    return slug[:48] or "note"
+
+
+def _resolve_vault_root() -> Optional[Path]:
+    return _resolve_vault()
+
+
+@mcp.tool()
+def get_shift_board(refresh: bool = True, format: str = "json") -> str:
+    """Current Keep shift board: duty roster + workplace rooms (NO AI)."""
+    try:
+        import duty as d
+
+        fmt = (format or "json").lower()
+        if fmt not in ("json", "markdown"):
+            return _err("format must be 'json' or 'markdown'", code="invalid_input")
+        if refresh:
+            payload = d.compose_duty_payload()
+        else:
+            duty_data = d.read_keep_duty() or {}
+            rooms_data = d.read_keep_rooms() or {}
+            payload = {
+                "schema": "keep-boards.v1",
+                "generated_at": duty_data.get("generated_at") or rooms_data.get("generated_at"),
+                "source": "cached",
+                "rooms": rooms_data.get("rooms") or [],
+                "duty": duty_data.get("agents") or [],
+            }
+        if fmt == "markdown":
+            return _ok(
+                {
+                    "ok": True,
+                    "generated_at": payload.get("generated_at"),
+                    "source": payload.get("source"),
+                    "markdown": _fmt_markdown_board(payload["rooms"], payload["duty"]),
+                }
+            )
+        payload["ok"] = True
+        return _ok(payload)
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+@mcp.tool()
+def get_duty_roster(format: str = "json") -> str:
+    """Per-agent duty rows from the last shift-board snapshot (leave/busy/idle)."""
+    try:
+        import duty as d
+
+        fmt = (format or "json").lower()
+        if fmt not in ("json", "markdown"):
+            return _err("format must be 'json' or 'markdown'", code="invalid_input")
+        data = d.read_keep_duty() or {}
+        if fmt == "markdown":
+            lines = [
+                f"- {r.get('name')} ({r.get('agent_id')}) — {r.get('status')}"
+                for r in (data.get("agents") or [])
+            ]
+            return _ok(
+                {
+                    "ok": True,
+                    "generated_at": data.get("generated_at"),
+                    "markdown": "\n".join(lines) if lines else "No duty snapshot yet.",
+                }
+            )
+        return _ok({"ok": True, "generated_at": data.get("generated_at"), "duty": data.get("agents") or [], "total": len(data.get("agents") or [])})
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+@mcp.tool()
+def get_rooms_snapshot(format: str = "json") -> str:
+    """Workplace room lights from the last shift-board snapshot (no signal = dark)."""
+    try:
+        import duty as d
+
+        fmt = (format or "json").lower()
+        if fmt not in ("json", "markdown"):
+            return _err("format must be 'json' or 'markdown'", code="invalid_input")
+        data = d.read_keep_rooms() or {}
+        rooms = data.get("rooms") or []
+        if fmt == "markdown":
+            lines = [
+                f"- {r.get('name')} ({r.get('kind')}) — light={r.get('light')} · {r.get('detail') or ''}"
+                for r in rooms
+            ]
+            return _ok(
+                {
+                    "ok": True,
+                    "generated_at": data.get("generated_at"),
+                    "markdown": "\n".join(lines) if lines else "No rooms snapshot yet.",
+                }
+            )
+        return _ok({"ok": True, "generated_at": data.get("generated_at"), "rooms": rooms, "total": len(rooms)})
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+@mcp.tool(
+    annotations={"readOnlyHint": True, "openWorldHint": False},
+)
+def get_bubbles(
+    room_id: Optional[str] = None, limit: int = 20, format: str = "json"
+) -> str:
+    """Read async Keep speech bubbles, optionally filtered to one room."""
+    try:
+        import bubbles as b
+
+        return _ok(b.get_bubbles(room_id=room_id, limit=limit, format=format))
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+@mcp.tool(
+    annotations={"destructiveHint": False, "idempotentHint": False},
+)
+def publish_bubble(
+    agent_id: str,
+    room_id: str,
+    text: str,
+    model: str = "phi4-mini",
+    confirm: bool = False,
+    max_bubbles: int = 50,
+) -> str:
+    """GATED: store a pre-generated bubble (text produced elsewhere). No LLM call."""
+    try:
+        import bubbles as b
+
+        return _ok(
+            b.publish_bubble(
+                agent_id=agent_id,
+                room_id=room_id,
+                text=text,
+                model=model,
+                confirm=confirm,
+                max_bubbles=max_bubbles,
+            )
+        )
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+@mcp.tool(
+    annotations={"destructiveHint": False, "idempotentHint": False},
+)
+def write_room_note(
+    agent_id: str,
+    room_id: str,
+    title: str,
+    content: str,
+    confirm: bool = False,
+) -> str:
+    """GATED: land a distilled note into the vault (Ravenstack/keep-notes/<room>)."""
+    try:
+        if confirm is not True:
+            return _err(
+                "write_room_note requires confirm=true and explicit human intent.",
+                code="confirm_required",
+                action="write_room_note",
+            )
+        agent_id = agent_id.strip()
+        room_id = room_id.strip()
+        title = (title or "").strip()
+        content = (content or "").strip()
+        if not agent_id or not room_id or not title or not content:
+            return _err(
+                "agent_id, room_id, title, and content are all required.",
+                code="invalid_input",
+            )
+        if not _agent_known(agent_id):
+            return _err(f"No Agent Spec for '{agent_id}'.", code="unknown_agent")
+        with _connect() as conn:
+            room = _find_room(conn, room_id)
+        if not room:
+            return _err(f"Unknown room '{room_id}'.", code="not_found")
+        vault = _resolve_vault_root()
+        if vault is None:
+            return _err(
+                "No vault mounted (OBSIDIAN_VAULT unset). Read-only scope checks still work.",
+                code="vault_unavailable",
+            )
+        target_dir = vault / "Ravenstack" / "keep-notes" / room["room_id"]
+        target_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        filename = f"{_note_slug(title)}-{ts.replace(':', '')}.md"
+        target = target_dir / filename
+        note = (
+            f"---\nagent_id: {agent_id}\nroom_id: {room['room_id']}\n"
+            f"source: keep-mcp:write_room_note\ncreated: {ts}\n---\n\n"
+            f"# {title}\n\n{content}\n"
+        )
+        target.write_text(note, encoding="utf-8")
+        return _ok(
+            {
+                "ok": True,
+                "room_id": room["room_id"],
+                "title": title,
+                "path": str(target),
+                "created": ts,
+            }
+        )
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+@mcp.tool(
+    annotations={"readOnlyHint": True, "openWorldHint": True},
+)
+def get_routing_status() -> str:
+    """Read-only lane report: endpoint latencies, fallback state, VM pin."""
+    try:
+        import routing_status as r
+
+        return _ok(r.routing_status())
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+@mcp.tool(
+    annotations={"destructiveHint": False, "idempotentHint": False},
+)
+def upsert_agent_spec(agent_id: str, body: str, confirm: bool = False) -> str:
+    """GATED: write a schema-valid Agent Spec as draft (promote via approve_spec)."""
+    try:
+        import gates as g
+
+        return _ok(g.upsert_agent_spec(agent_id, body, confirm=confirm))
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+@mcp.tool(
+    annotations={"destructiveHint": True, "idempotentHint": False},
+)
+def lock_room(room_id: str, confirm: bool = False) -> str:
+    """GATED: set room lock_state → locked (symmetric to unlock_room)."""
+    try:
+        import gates as g
+
+        return _ok(g.lock_room(room_id, confirm=confirm))
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+# ---------------------------------------------------------------------------
 # Health (for streamable-http ops)
 # ---------------------------------------------------------------------------
 
@@ -1117,17 +1713,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-# ---------------------------------------------------------------------------
-# Manual smoke examples (python -c / REPL after init_db):
-#
-#   init_db()
-#   print(get_castle_map())
-#   print(get_path("Great Hall", "Vault"))
-#   print(rooms_within_distance("Great Hall", 2))
-#   print(list_rooms())
-#   print(get_agent_spec("oracle"))
-#   print(report_agent_status("oracle", "answering", task="smoke"))
-#   print(get_cost_summary(agent_id="oracle"))
-# ---------------------------------------------------------------------------

@@ -1,0 +1,23 @@
+import { useState, useEffect } from "react";
+
+export function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    // Instantly update if the value is empty to prevent lag on clears and navigating
+    if (!value) {
+      setDebouncedValue(value);
+      return;
+    }
+
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
