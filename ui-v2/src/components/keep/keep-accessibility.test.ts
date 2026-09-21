@@ -31,4 +31,22 @@ describe("Keep components accessibility test", () => {
       "WatchtowerBeacon Re-read button should have focus-visible styling"
     );
   });
+
+  test("FastMCPStatusBadge has accessible button with aria-label, aria-busy, and focus-visible styling", () => {
+    const filePath = path.join(process.cwd(), "src/components/keep/fastmcp-status-badge.tsx");
+    const content = fs.readFileSync(filePath, "utf-8");
+
+    assert.ok(
+      content.includes("aria-label={buttonLabel}"),
+      "FastMCPStatusBadge button should have dynamic aria-label"
+    );
+    assert.ok(
+      content.includes("aria-busy={probing}"),
+      "FastMCPStatusBadge button should communicate busy state via aria-busy"
+    );
+    assert.ok(
+      content.includes("focus-visible:ring-1"),
+      "FastMCPStatusBadge button should have focus-visible styling"
+    );
+  });
 });
