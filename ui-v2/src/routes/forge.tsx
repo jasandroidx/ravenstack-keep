@@ -15,6 +15,9 @@ function ForgePage() {
   const [idea, setIdea] = useState("");
   const [busy, setBusy] = useState(false);
   const [latest, setLatest] = useState<DraftSpec | null>(null);
+  // A toast disappears; a failed call must not vanish leaving the last
+  // draft on screen looking current.
+  const [problem, setProblem] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<SavedDraft[]>([]);
 
   function refresh() {
@@ -30,9 +33,11 @@ function ForgePage() {
   async function onForge(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
+    setProblem(null);
     try {
       const result = await runForge({ data: idea });
       if (!result.ok) {
+        setProblem(result.error);
         toast.error(result.error);
         return;
       }
@@ -41,7 +46,9 @@ function ForgePage() {
       refresh();
       toast.success("Draft Spec on the anvil. Not live.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Forge failed");
+      const msg = err instanceof Error ? err.message : "Forge failed";
+      setProblem(msg);
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -79,6 +86,12 @@ function ForgePage() {
               </div>
             </form>
           </SignInGate>
+
+          {problem ? (
+            <p className="mt-4 rounded-lg border border-[#ff2a6d]/50 bg-[#ff2a6d]/5 px-4 py-3 text-sm text-[#ff2a6d]">
+              {problem}
+            </p>
+          ) : null}
 
           {latest ? <DraftView spec={latest} /> : null}
 

@@ -19,19 +19,26 @@ function SentinelPage() {
   );
   const [busy, setBusy] = useState(false);
   const [finding, setFinding] = useState<string | null>(null);
+  // A toast disappears; a failed call must not vanish leaving the last
+  // finding on screen looking current.
+  const [problem, setProblem] = useState<string | null>(null);
 
   async function onInspect(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
+    setProblem(null);
     try {
       const out = await runInspection({ data: { kind: "sentinel", concern } });
       if (!out.ok) {
+        setProblem(out.error);
         toast.error(out.error);
         return;
       }
       setFinding(out.text);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Inspection failed");
+      const msg = err instanceof Error ? err.message : "Inspection failed";
+      setProblem(msg);
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -115,6 +122,12 @@ function SentinelPage() {
           </div>
         </SignInGate>
       </form>
+
+      {problem ? (
+        <p className="mt-8 rounded-lg border border-[#ff2a6d]/50 bg-[#ff2a6d]/5 px-4 py-3 text-sm text-[#ff2a6d]">
+          {problem}
+        </p>
+      ) : null}
 
       {finding ? (
         <article className="mt-8 whitespace-pre-wrap rounded-xl border border-line bg-surface p-6 text-muted">

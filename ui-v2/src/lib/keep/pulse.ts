@@ -32,6 +32,24 @@ export type KeepPulse = {
   };
 };
 
+/**
+ * A real dashboard_status payload can report a service as an object
+ * ({status} / {ok}) instead of a string — String(obj) then renders
+ * "[object Object]" on the badge. Collapse it to a label instead.
+ */
+function serviceLabel(v: unknown, fallback: string): string {
+  if (v === null || v === undefined) return fallback;
+  if (typeof v === "string") return v;
+  if (typeof v === "boolean") return v ? "ok" : "down";
+  if (typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    if (typeof o.status === "string" && o.status) return o.status;
+    if (typeof o.ok === "boolean") return o.ok ? "ok" : "down";
+    if (typeof o.compose === "string" && o.compose) return o.compose;
+  }
+  return fallback;
+}
+
 function asPulse(raw: unknown, baseSource: PulseSource): KeepPulse | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
@@ -71,14 +89,33 @@ function asPulse(raw: unknown, baseSource: PulseSource): KeepPulse | null {
       };
     }),
     services: {
-      reclaw: String((o.services as Record<string, unknown> | undefined)?.reclaw ?? "ok"),
-      openclaw: String((o.services as Record<string, unknown> | undefined)?.openclaw ?? "ok"),
-      mcp: String((o.services as Record<string, unknown> | undefined)?.mcp ?? "ok"),
+      // Some payloads name it reclaw_api rather than reclaw.
+      reclaw: serviceLabel(
+        (o.services as Record<string, unknown> | undefined)?.reclaw ??
+          (o.services as Record<string, unknown> | undefined)?.reclaw_api,
+        "ok",
+      ),
+      openclaw: serviceLabel((o.services as Record<string, unknown> | undefined)?.openclaw, "ok"),
+      mcp: serviceLabel((o.services as Record<string, unknown> | undefined)?.mcp, "ok"),
     },
     queue: {
-      status: String((o.queue as Record<string, unknown> | undefined)?.status ?? "idle"),
-      cursor: Number((o.queue as Record<string, unknown> | undefined)?.cursor ?? 0),
-      pending: Number((o.queue as Record<string, unknown> | undefined)?.pending ?? 0) || undefined,
+      // Some payloads name it county_queue rather than queue.
+      status: String(
+        (o.queue as Record<string, unknown> | undefined)?.status ??
+          (o.county_queue as Record<string, unknown> | undefined)?.status ??
+          "idle",
+      ),
+      cursor: Number(
+        (o.queue as Record<string, unknown> | undefined)?.cursor ??
+          (o.county_queue as Record<string, unknown> | undefined)?.cursor ??
+          0,
+      ),
+      pending:
+        Number(
+          (o.queue as Record<string, unknown> | undefined)?.pending ??
+            (o.county_queue as Record<string, unknown> | undefined)?.pending_county ??
+            0,
+        ) || undefined,
     },
   };
 }
