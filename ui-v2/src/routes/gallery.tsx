@@ -45,11 +45,23 @@ function GalleryPage() {
             >
               {p ? (
                 <>
-                  <img
-                    src={p.imageUrl}
-                    alt={`${p.subjectName}, ${p.arcaneTitle}`}
-                    className="h-full w-full object-cover"
-                  />
+                  {p.imageUrl ? (
+                    <img
+                      src={p.imageUrl}
+                      alt={`${p.subjectName}, ${p.arcaneTitle}`}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    // Chronicled locally, no pixel-art image -- no cloud key
+                    // configured, and there is no local model that does image
+                    // generation in this stack. Say so instead of a broken <img>.
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-elevated px-3 text-center text-subtle">
+                      <span className="font-mono text-[10px] uppercase tracking-[0.16em]">
+                        Chronicled, unlit
+                      </span>
+                      <span className="text-[11px]">No local image model</span>
+                    </div>
+                  )}
                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#0b0e14] to-transparent p-3">
                     <p className="font-display text-lg leading-tight text-fg">{p.subjectName}</p>
                     <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#ffc857]">
