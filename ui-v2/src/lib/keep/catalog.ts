@@ -117,22 +117,6 @@ export const ROOMS: Room[] = [
     image: "/workshop.jpg",
   },
   {
-    slug: "gallery",
-    name: "The Grand Gallery",
-    wing: "Art & Lore",
-    occupant: "Maestro Ross",
-    role: "Royal Cyber-Artisan & Chronicler",
-    lock: "live",
-    specStatus: "live",
-    purpose:
-      "Commission masterwork 16-bit cyber-arcane portraits and weave permanent historical chronicles for Keep sovereigns and kin.",
-    kill: "Retire only by explicit operator decision.",
-    modelDefault: "local",
-    col: 3,
-    row: 1,
-    href: "/gallery",
-  },
-  {
     slug: "yard",
     name: "Yard",
     wing: "Commerce",
@@ -454,56 +438,11 @@ export const SPECS: Record<string, AgentSpec> = {
     ],
     notes: "Drafted in Grok Build 2026-08-19 from operator request. status=draft until approval.",
   },
-  maestro: {
-    id: "maestro",
-    name: "Maestro Ross",
-    status: "live",
-    character:
-      "Royal Cyber-Artisan and Chronicler of Ravenstack Keep. Armed with glowing neon cyber-goggles, afro silhouette, and pressurized spray-paint canisters. Believes in happy little runtime anomalies and turning operator selfies into eternal cyber-arcane portraits.",
-    roomName: "The Grand Gallery",
-    roomId: "gallery",
-    lock: "live",
-    purpose:
-      "Commission masterwork 16-bit cyber-arcane portraits and weave permanent historical chronicles for Keep sovereigns and kin.",
-    modelDefault: "local",
-    allowedTiers: ["local", "escalate"],
-    localHint: "gemma4",
-    escalateWhen: "Free cloud for high-density generative portrait art.",
-    godMode: "Never automatic.",
-    tools: [
-      { name: "synthesize_portrait", source: "keep-studio", access: "write", notes: "16-bit pixel art synthesis." },
-      { name: "inscribe_chronicle", source: "keep-chronicler", access: "write", notes: "Historical lore weaving." },
-    ],
-    existingSkills: [{ name: "pixel-arcane-engine", notes: "Locked palette: void, cyan neon, magenta glow." }],
-    forgeSkills: [],
-    indexes: ["gallery", "lore"],
-    vaultGlobs: ["Ravenstack/gallery/**/*.md"],
-    knowledgeNotes: "Chronicles and portrait metadata.",
-    onDemand: true,
-    cron: null,
-    triggerNotes: "Driven by operator commissions.",
-    handoffsOut: [
-      { target: "oracle", when: "Historical lore verification against the Obsidian vault." },
-    ],
-    handoffsIn: [{ target: "maestro", when: "Operator visits the Grand Gallery or commissions a portrait." }],
-    gates: ["Overwriting hung legendary portrait slots."],
-    kill: "Retire only by explicit operator decision.",
-    success: [
-      "Generates masterwork 16/32-bit dithered portraits preserving facial geometry.",
-      "Inscribes deadpan, epic dark cyber-arcane chronicles matching Keep lore.",
-    ],
-    examples: [
-      "Commission a portrait of Jason Boyd with cybernetic scrying cowl.",
-      "Inscribe the chronicle of the Great Hotdog Feasting during the Second Mesh Solstice.",
-    ],
-    notes: "Live royal artisan of The Grand Gallery.",
-  },
 };
 
 export const ROOM_TO_SPEC: Record<string, string> = {
   "great-hall": "raziel",
   "alchemy-lab": "clawforge",
-  gallery: "maestro",
   library: "oracle",
   roost: "corvid",
   watchtower: "sentinel",
@@ -689,4 +628,20 @@ export function roomCounts() {
     locked: ROOMS.filter((r) => r.lock === "locked").length,
     specs: Object.keys(SPECS).length,
   };
+}
+
+/**
+ * Raziel's "what's live" line, generated from ROOMS every time it's asked —
+ * never seeded prose. This is the one sentence that must never drift from
+ * the Ledger, so it is not allowed to be written by hand.
+ */
+export function liveStatusSummary(): string {
+  const live = ROOMS.filter((r) => r.lock === "live").map((r) => r.name);
+  const unforged = ROOMS.filter((r) => r.lock === "unforged").map((r) => r.name);
+  const list = (names: string[]) =>
+    names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+
+  const liveLine = live.length ? `${list(live)} ${live.length === 1 ? "is" : "are"} live.` : "Nothing is live yet.";
+  const unforgedLine = unforged.length ? ` ${list(unforged)} stay unforged until you sign a Spec.` : "";
+  return `${liveLine}${unforgedLine} I do not invent status.`;
 }

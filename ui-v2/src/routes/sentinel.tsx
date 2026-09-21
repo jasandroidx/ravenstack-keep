@@ -2,13 +2,13 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { KeepShell } from "@/components/keep/shell";
-import { ChatLog } from "@/components/keep/chat-log";
-import { errorTurn, type Turn } from "@/lib/keep/chat";
 import { SignInGate } from "@/components/keep/sign-in-gate";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ARCHITECTURE, SPECS } from "@/lib/keep/catalog";
 import { runInspection } from "@/lib/keep/server";
+import { FastMCPSentinelWorkbench } from "@/components/sentinel/fastmcp-sentinel-workbench";
+import { WatchtowerBeacon } from "@/components/keep/watchtower-beacon";
 
 export const Route = createFileRoute("/sentinel")({ component: SentinelPage });
 
@@ -18,25 +18,19 @@ function SentinelPage() {
     "Score the fortress against the 2026 red flags and say whether credential isolation is holding.",
   );
   const [busy, setBusy] = useState(false);
-  const [turns, setTurns] = useState<Turn[]>([]);
-  const say = (t: Turn) => setTurns((prev) => [...prev, t]);
+  const [finding, setFinding] = useState<string | null>(null);
 
   async function onInspect(e: React.FormEvent) {
     e.preventDefault();
-    const q = concern.trim();
-    if (!q) return;
-    say({ who: "you", text: q });
     setBusy(true);
     try {
       const out = await runInspection({ data: { kind: "sentinel", concern } });
       if (!out.ok) {
-        say(errorTurn(out, "Inspection failed"));
         toast.error(out.error);
         return;
       }
-      say({ who: "agent", text: out.text, meta: `${out.model} · ${out.sawBox ? "read live stack_health" : "no live box reading"}` });
+      setFinding(out.text);
     } catch (err) {
-      say(errorTurn(err, "Inspection failed"));
       toast.error(err instanceof Error ? err.message : "Inspection failed");
     } finally {
       setBusy(false);
@@ -57,6 +51,22 @@ function SentinelPage() {
       <Link to="/rooms/$slug" params={{ slug: "watchtower" }} className="mt-4 inline-block text-sm text-muted hover:text-fg">
         Full Agent Spec
       </Link>
+
+      {/* The beacon. What the tower can see, and the handoff to the bench. */}
+      <section className="mt-8">
+        <h2 className="font-display text-2xl">Beacon</h2>
+        <p className="mt-1 text-sm text-subtle">
+          Live stack state. The tower watches and names; the workshop repairs.
+        </p>
+        <div className="mt-4">
+          <WatchtowerBeacon />
+        </div>
+      </section>
+
+      {/* FastMCP Live Tool Execution Layer (Indiana Ledger & Oracle RAG) */}
+      <section className="mt-10">
+        <FastMCPSentinelWorkbench />
+      </section>
 
       <section className="mt-10">
         <h2 className="font-display text-2xl">Red flags</h2>
@@ -106,9 +116,9 @@ function SentinelPage() {
         </SignInGate>
       </form>
 
-      {turns.length || busy ? (
-        <article className="mt-8 rounded-xl border border-line bg-surface p-6">
-          <ChatLog turns={turns} busy={busy} thinkingLabel="Scoring against the red flags" />
+      {finding ? (
+        <article className="mt-8 whitespace-pre-wrap rounded-xl border border-line bg-surface p-6 text-muted">
+          {finding}
         </article>
       ) : null}
     </KeepShell>

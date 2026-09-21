@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/jasandroidx/ravenstack-keep/blob/ravenstack/schemas/keep-bubbles.schema.json",
+  "title": "Keep speech bubbles — keep-bubbles.json",
+  "description": "Async bubble cache written by the A2 worker (Hetzner Ollama phi4-mini, num_predict tiny). The UI reads this file only — it never awaits a generation to paint. Empty/absent means no bubble.",
+  "type": "object",
+  "required": ["schema", "generated_at", "bubbles"],
+  "properties": {
+    "schema": { "const": "keep-bubbles.v1" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "bubbles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["agent_id", "room_id", "text", "generated_at", "model"],
+        "properties": {
+          "agent_id": { "type": "string" },
+          "room_id": { "type": "string" },
+          "text": { "type": "string", "maxLength": 160 },
+          "generated_at": { "type": "string", "format": "date-time" },
+          "model": { "type": "string" }
+        }
+      }
+    }
+  }
+}

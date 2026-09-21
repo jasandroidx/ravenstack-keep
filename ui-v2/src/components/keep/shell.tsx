@@ -2,17 +2,20 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { PulseBadge } from "@/components/keep/pulse-badge";
+import { FastMCPStatusBadge } from "@/components/keep/fastmcp-status-badge";
 import { cn } from "@/lib/cn";
 
 const NAV = [
   { to: "/", label: "Keep" },
-  { to: "/gallery", label: "Gallery" },
   { to: "/forge", label: "Forge" },
+  { to: "/duty", label: "Board" },
   { to: "/table", label: "Table" },
   { to: "/oracle", label: "Oracle" },
+  { to: "/drive", label: "Drive" },
   { to: "/sentinel", label: "Sentinel" },
   { to: "/mechanic", label: "Mechanic" },
   { to: "/stack", label: "Stack" },
+  { to: "/quarantine", label: "Cell" },
 ];
 
 function AuthSlot() {
@@ -59,6 +62,7 @@ export function KeepShell({ children, bleed = false }: { children: React.ReactNo
             })}
           </nav>
           <div className="ml-auto flex items-center gap-3 text-sm">
+            <FastMCPStatusBadge />
             <PulseBadge />
             <AuthSlot />
           </div>

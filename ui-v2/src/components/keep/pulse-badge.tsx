@@ -1,26 +1,21 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { getKeepSnapshot } from "@/lib/keep/server";
-import type { KeepPulse } from "@/lib/keep/pulse";
 
 export function PulseBadge() {
-  const [pulse, setPulse] = useState<KeepPulse | null>(null);
+  // Shared query-client cache: a snapshot fetched on one route is still warm
+  // when the next route's PulseBadge mounts, so this never re-flashes to a
+  // loading state just because you navigated.
+  const { data, isLoading } = useQuery({
+    queryKey: ["keep-snapshot"],
+    queryFn: () => getKeepSnapshot(),
+  });
+  const pulse = data?.pulse ?? null;
 
-  useEffect(() => {
-    let alive = true;
-    getKeepSnapshot()
-      .then((snap) => {
-        if (alive) setPulse(snap.pulse);
-      })
-      .catch(() => {
-        if (alive) setPulse(null);
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
-
+  if (isLoading && !pulse) {
+    return <span className="hidden text-subtle sm:inline animate-pulse">checking…</span>;
+  }
   if (!pulse) {
-    return <span className="hidden text-subtle sm:inline">pulse…</span>;
+    return <span className="hidden text-subtle sm:inline">unavailable</span>;
   }
 
   const live = pulse.source === "live";

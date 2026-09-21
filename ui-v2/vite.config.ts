@@ -65,7 +65,7 @@ function authPopupPlugin(): Plugin {
           }
 
           const host = String(
-            req.headers["x-forwarded-host"] ?? req.headers.host ?? "localhost:3000",
+            req.headers["x-forwarded-host"] ?? req.headers.host ?? "localhost:8080",
           );
           const proto = String(
             req.headers["x-forwarded-proto"] ??
@@ -128,38 +128,60 @@ function authPopupPlugin(): Plugin {
 // The dev server starts once `src/router.tsx` and `src/routes/` exist — see
 // AGENTS.md § "First scaffold".
 export default defineConfig(({ command, mode }) => {
-  // Vite exposes only VITE_* to the client and leaves process.env untouched.
-  // Server functions (Ollama + MCP routing) read process.env, so merge the
-  // whole .env in here or they silently fall back to their defaults in dev.
-  for (const [k, v] of Object.entries(loadEnv(mode, process.cwd(), ""))) {
-    if (process.env[k] === undefined) process.env[k] = v;
+  // Vite reads .env but only exposes VITE_-prefixed vars, and only through
+  // import.meta.env. Server code here reads process.env — and Nitro, which
+  // would otherwise load .env, is only wired for `command === "build"` below.
+  // So in dev every server-side var (FASTMCP_*, GEMINI_API_KEY, KEEP_PULSE_URL,
+  // DATABASE_URL) was silently undefined no matter what .env said.
+  //
+  // Real shell environment wins over the file, so an inline
+  // `FOO=bar npm run dev` still overrides .env as expected.
+  const fileEnv = loadEnv(mode, process.cwd(), "");
+  for (const [key, value] of Object.entries(fileEnv)) {
+    if (process.env[key] === undefined) process.env[key] = value;
   }
 
+  // Tailscale serve forwards the MagicDNS hostname (Host: *.ts.net). Vite's
+  // DNS-rebinding guard would otherwise 403 the live Keep. Defaults to the
+  // tailnet hosts; set ALLOWED_HOSTS (comma-separated) in the box env to
+  // override.
+  const allowedHosts = process.env.ALLOWED_HOSTS
+    ? process.env.ALLOWED_HOSTS.split(",").map((h) => h.trim()).filter(Boolean)
+    : [
+        "openclaw.tail20a090.ts.net",
+        "grok-bot-vm-413820329-1.tail20a090.ts.net",
+        ".tail20a090.ts.net",
+      ];
+
   return {
-  server: {
-    host: "0.0.0.0",
-    port: 3000,
-    strictPort: true,
-  },
-  resolve: { tsconfigPaths: true },
-  plugins: [
-    pgliteBootstrapPlugin(),
-    // Before tanstackStart so /auth/popup never falls through to the SPA.
-    authPopupPlugin(),
-    tailwindcss(),
-    tanstackStart(),
-    ...(command === "build"
-      ? [
-          nitro({
-            preset: "vercel",
-            // Auto-registers server/middleware/* (the PWA install page +
-            // manifest + head-tag middleware). Nitro v3 defaults serverDir to
-            // false, so removing this silently unwires /?install=1 on deploys.
-            serverDir: false,
-          }),
-        ]
-      : []),
-    viteReact(),
-  ],
+    server: {
+      host: "0.0.0.0",
+      port: 3000,
+      strictPort: true,
+      allowedHosts,
+    },
+    resolve: { tsconfigPaths: true },
+    plugins: [
+      pgliteBootstrapPlugin(),
+      // Before tanstackStart so /auth/popup never falls through to the SPA.
+      authPopupPlugin(),
+      tailwindcss(),
+      tanstackStart(),
+      ...(command === "build"
+        ? [
+            nitro({
+              // "vercel" is the deploy target contract. Set NITRO_PRESET to a
+              // runtime preset (e.g. node-server) to build the runnable server
+              // the box serves directly instead.
+              preset: process.env.NITRO_PRESET || "vercel",
+              // Auto-registers server/middleware/* (the PWA install page +
+              // manifest + head-tag middleware). Nitro v3 defaults serverDir to
+              // false, so removing this silently unwires /?install=1 on deploys.
+              serverDir: false,
+            }),
+          ]
+        : []),
+      viteReact(),
+    ],
   };
 });

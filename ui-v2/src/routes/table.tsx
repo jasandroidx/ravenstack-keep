@@ -1,12 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ChatLog } from "@/components/keep/chat-log";
-import { errorTurn, type Turn } from "@/lib/keep/chat";
 import { KeepShell } from "@/components/keep/shell";
 import { SignInGate } from "@/components/keep/sign-in-gate";
 import { Button } from "@/components/ui/button";
 import { listTableSessions, parseTableRow, runTable } from "@/lib/keep/server";
+import { approveKeepGate, fetchKeepGates, type Gate } from "@/lib/keep/keep-gates";
 import type { TableResult } from "@/lib/keep/types";
 
 export const Route = createFileRoute("/table")({ component: TablePage });
@@ -20,33 +19,60 @@ const STARTERS = [
 function TablePage() {
   const [question, setQuestion] = useState(STARTERS[0]);
   const [busy, setBusy] = useState(false);
-  // Failures used to live only in a toast, so a dead call left the previous
-  // result on screen looking current. They stay put now, with their hint.
-  const [problem, setProblem] = useState<Turn | null>(null);
   const [result, setResult] = useState<TableResult | null>(null);
   const [history, setHistory] = useState<{ id: number; question: string; table: TableResult }[]>([]);
+  const [gates, setGates] = useState<Gate[]>([]);
+  const [gatesBusy, setGatesBusy] = useState(false);
 
   useEffect(() => {
     listTableSessions()
       .then((rows) => setHistory(rows.map(parseTableRow)))
       .catch(() => setHistory([]));
+    refreshGates();
   }, []);
+
+  async function refreshGates() {
+    try {
+      const res = await fetchKeepGates();
+      setGates(Array.isArray(res.gates) ? res.gates : []);
+    } catch {
+      setGates([]);
+    }
+  }
+
+  async function handleApprove(gate: Gate) {
+    const via = gate.gate_type === "unlock_room" ? "unlock this room" : "approve this spec";
+    if (!window.confirm(`Are you sure — ${via} for ${gate.subject_id}?\n\n${gate.summary}`)) return;
+    setGatesBusy(true);
+    try {
+      const out = await approveKeepGate({
+        data:
+          gate.gate_type === "unlock_room"
+            ? { roomId: gate.subject_id }
+            : { agentId: gate.subject_id },
+      });
+      if (!out.ok) toast.error(out.error);
+      else toast.success(gate.gate_type === "unlock_room" ? "Room unlocked." : "Spec approved.");
+      await refreshGates();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to approve gate");
+    } finally {
+      setGatesBusy(false);
+    }
+  }
 
   async function onConvene(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-    setProblem(null);
     try {
       const out = await runTable({ data: question });
       if (!out.ok) {
-        setProblem(errorTurn(out, "Table failed"));
         toast.error(out.error);
         return;
       }
       setResult(out.table);
       toast.success("The table has spoken. You still decide.");
     } catch (err) {
-      setProblem(errorTurn(err, "Table failed"));
       toast.error(err instanceof Error ? err.message : "Table failed");
     } finally {
       setBusy(false);
@@ -58,8 +84,50 @@ function TablePage() {
       <p className="text-[11px] uppercase tracking-[0.2em] text-subtle">Great Hall</p>
       <h1 className="mt-2 font-display text-4xl md:text-5xl">Round Table</h1>
       <p className="mt-3 max-w-2xl text-muted">
-        Hard questions only. Subscription seats. Gemini chairs. Daily build stays with you and the repo.
+        Hard questions only. Subscription seats. Grok chairs. Daily build stays with you and the repo.
       </p>
+
+      <section className="mt-10">
+        <h2 className="font-display text-2xl">Pending Approvals</h2>
+        <p className="mt-1 text-sm text-muted">
+          The Keep's own human gates (spec approvals, room unlocks). Human gates are permanent —
+          the API refuses these without <span className="font-mono">confirm: true</span>.
+        </p>
+        {gates.length === 0 ? (
+          <div className="mt-4 rounded-xl border border-line bg-surface p-6 text-center">
+            <p className="text-sm text-muted">No pending approvals.</p>
+          </div>
+        ) : (
+          <ul className="mt-4 space-y-3">
+            {gates.map((gate) => (
+              <li
+                key={gate.id}
+                className="flex flex-col justify-between gap-4 rounded-md border border-line bg-surface px-5 py-4 md:flex-row md:items-center"
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] uppercase tracking-wider text-subtle">
+                      [{gate.gate_type}]
+                    </span>
+                    <span className="text-sm font-semibold">{gate.subject_id}</span>
+                  </div>
+                  <p className="mt-1 text-sm text-muted">{gate.summary}</p>
+                </div>
+                <SignInGate prompt="Sign in to approve this gate.">
+                  <Button
+                    type="button"
+                    onClick={() => handleApprove(gate)}
+                    disabled={gatesBusy}
+                    className="shrink-0"
+                  >
+                    {gatesBusy ? "Processing…" : "Approve (confirm=true)"}
+                  </Button>
+                </SignInGate>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <form onSubmit={onConvene} className="mt-8">
         <SignInGate prompt="Sign in to convene the table. Findings stay with your account.">
@@ -93,7 +161,6 @@ function TablePage() {
             </div>
           </div>
         </SignInGate>
-        {problem ? <ChatLog turns={[problem]} className="mt-4" /> : null}
       </form>
 
       {result ? <Finding table={result} /> : null}

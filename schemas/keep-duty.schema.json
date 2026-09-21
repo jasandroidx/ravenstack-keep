@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/jasandroidx/ravenstack-keep/blob/ravenstack/schemas/keep-duty.schema.json",
+  "title": "Keep duty roster — keep-duty.json",
+  "description": "Per-agent duty row compiled from real signals (keep.db agent_status, OpenClaw session sync, reported presence). An agent with no fresh signal for quiet_leave_after is marked leave — never inferred busy.",
+  "type": "object",
+  "required": ["schema", "generated_at", "quiet_leave_after", "source", "agents"],
+  "properties": {
+    "schema": { "const": "keep-duty.v1" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "quiet_leave_after": { "type": "string", "pattern": "^P\\d+D$" },
+    "source": { "const": "live" },
+    "agents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["agent_id", "name", "room_id", "room_name", "status", "last_active", "last_real_work", "signal"],
+        "properties": {
+          "agent_id": { "type": "string" },
+          "name": { "type": "string" },
+          "room_id": { "type": ["string", "null"] },
+          "room_name": { "type": ["string", "null"] },
+          "status": { "type": "string", "enum": ["busy", "idle", "leave"] },
+          "last_active": { "type": ["string", "null"] },
+          "last_real_work": { "type": ["string", "null"] },
+          "signal": { "type": "string" }
+        }
+      }
+    }
+  }
+}

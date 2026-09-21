@@ -1,49 +1,15 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
-import { askOracle, conveneTable, forgeSpec, generatePortraitImage, generatePortraitLore, inspectConcern, talkHall } from "./ai";
+import { askOracle, conveneTable, diagnoseMechanicWorkbench, forgeSpec, generatePortraitImage, generatePortraitLore, inspectConcern, talkHall } from "./ai";
 import { ARCHITECTURE, KNOWLEDGE, ROOMS, SKILL_SURFACE, SPECS, getRoom, getSpecForRoom, roomCounts } from "./catalog";
 import { fetchKeepPulse } from "./pulse";
-import { boxToolsAvailable, queryKnowledge, stackHealth } from "./box-adapter";
-import { mcpConfigured, mcpHealth } from "./mcp";
-import { routingStatus } from "./router";
-import type { DraftSpec, TableResult } from "./types";
+import { executeFastMCPTool, type FastMCPToolCall } from "./fastmcp";
+import { noGates, parseGates } from "./gates";
+import { failing, parseStackHealth, unreadTower } from "./health";
+import { fetchDutyBoard } from "./duty";
 import type { CommissionRequest, LoreRerollRequest, PortraitItem } from "@/lib/gallery/types";
-
-/**
- * Live stack reading for Valerie / Sentinel. Returns undefined rather than a
- * placeholder when MCP is unavailable, so the persona says "I cannot see the
- * box" instead of narrating a fiction.
- */
-async function liveStackSummary(): Promise<string | undefined> {
-  if (!mcpConfigured()) return undefined;
-  const res = await stackHealth();
-  if (!res.ok) return undefined;
-  const body = res.text?.trim();
-  if (!body) return undefined;
-  // stack_health is already short prose; cap it so it cannot crowd the prompt.
-  return body.length > 2000 ? `${body.slice(0, 2000)}\n…(truncated)` : body;
-}
-
-/** Compact fortress state for hall dialogue. Paper is labeled as paper. */
-async function livePulseSummary(): Promise<string | undefined> {
-  const pulse = await fetchKeepPulse();
-  if (pulse.source !== "live") return undefined;
-  const parts = [
-    `network: ${pulse.network}`,
-    `reclaw: ${pulse.services.reclaw}`,
-    `openclaw: ${pulse.services.openclaw}`,
-    `mcp: ${pulse.services.mcp}`,
-    `queue: ${pulse.queue.status} (cursor ${pulse.queue.cursor})`,
-  ];
-  if (typeof pulse.ollamaModels === "number") parts.push(`local models: ${pulse.ollamaModels}`);
-  if (pulse.rooms.length) {
-    parts.push(`rooms: ${pulse.rooms.map((r) => `${r.name}=${r.status || (r.empty ? "empty" : "occupied")}`).join(", ")}`);
-  } else {
-    parts.push("room occupancy: not reported by the box");
-  }
-  return parts.join("\n");
-}
+import type { DraftSpec, TableResult } from "./types";
 
 export const getKeepSnapshot = createServerFn({ method: "GET" }).handler(async () => {
   const pulse = await fetchKeepPulse();
@@ -151,21 +117,31 @@ export const runOracle = createServerFn({ method: "POST" })
   .validator((question: string) => question.trim())
   .handler(async ({ context, data: question }) => {
     if (!question) return { ok: false as const, error: "Ask the vault something specific." };
-
-    // Vault SOT lives on the box. Catalog excerpts are the labeled fallback.
-    let boxExcerpt: string | undefined;
-    if (mcpConfigured()) {
-      const box = await queryKnowledge(question);
-      if (box.ok && box.text) boxExcerpt = box.text;
-    }
-
-    const result = await askOracle(question, boxExcerpt);
+    const result = await askOracle(question);
     if (!result.ok) return result;
     const sql = await getSql();
     await sql`
       insert into oracle_queries (user_id, question, answer)
       values (${context.userId}, ${question}, ${result.answer})
     `;
+
+    // Nothing in the vault matched. If the Oracle answered anyway instead of
+    // standing down, that is a claim made against no evidence — the cell's
+    // first automatic feed. "not-in-knowledge" is the correct answer and is
+    // not a fabrication.
+    if (!result.retrieved) {
+      const saidNothing = /not[- ]in[- ]knowledge/i.test(result.answer);
+      if (!saidNothing) {
+        await sql`
+          insert into quarantine_claims
+            (user_id, claim, model, room, prompt, evidence, detected_by)
+          values (
+            ${context.userId}, ${result.answer}, 'oracle', 'library',
+            ${question}, '', 'no_evidence'
+          )
+        `;
+      }
+    }
     return result;
   });
 
@@ -190,14 +166,37 @@ export const runInspection = createServerFn({ method: "POST" })
   }))
   .handler(async ({ context, data }) => {
     if (!data.concern) return { ok: false as const, error: "Name the concern." };
-    const boxState = await liveStackSummary();
-    const result = await inspectConcern(data.kind, data.concern, boxState);
+    const result = await inspectConcern(data.kind, data.concern);
     if (!result.ok) return result;
     const sql = await getSql();
     await sql`
       insert into inspections (user_id, kind, concern, result)
       values (${context.userId}, ${data.kind}, ${data.concern}, ${result.text})
     `;
+    return result;
+  });
+
+export const runMechanicDiagnosis = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: { concern: string; contextLogs?: string }) => ({
+    concern: input.concern.trim(),
+    contextLogs: input.contextLogs?.trim(),
+  }))
+  .handler(async ({ context, data }) => {
+    if (!data.concern && !data.contextLogs) {
+      return { ok: false as const, error: "Name the diagnostic concern or paste raw logs." };
+    }
+    const result = await diagnoseMechanicWorkbench(data);
+    if (!result.ok) return result;
+    const sql = await getSql();
+    try {
+      await sql`
+        insert into inspections (user_id, kind, concern, result)
+        values (${context.userId}, ${"mechanic"}, ${data.concern || "Terminal raw log diagnosis"}, ${result.text})
+      `;
+    } catch (dbErr) {
+      console.warn("DB insert error on mechanic diagnosis:", dbErr);
+    }
     return result;
   });
 
@@ -230,33 +229,9 @@ export const talkInHall = createServerFn({ method: "POST" })
     if (!data.message) return { ok: false as const, error: "Say something." };
     const allowed = new Set(["raziel", "oracle", "valerie", "corvid"]);
     if (!allowed.has(data.agent)) return { ok: false as const, error: "Unknown seat." };
-    const boxState = await livePulseSummary();
-    const result = await talkHall(data.agent, data.message, boxState);
+    const result = await talkHall(data.agent, data.message);
     if (!result.ok) return result;
-    return {
-      ok: true as const,
-      reply: result.text,
-      provider: result.provider,
-      model: result.model,
-      sawBox: Boolean(boxState),
-    };
-  });
-
-/**
- * Honest routing snapshot for Valerie's bench. Read-only, never returns a key.
- * This is the screen to open first when "nothing works".
- */
-export const getRoutingStatus = createServerFn({ method: "GET" })
-  .middleware([authMiddleware])
-  .handler(async () => {
-    const [models, mcp] = await Promise.all([routingStatus(), mcpHealth()]);
-    const binds = mcp.reachable ? await boxToolsAvailable() : null;
-    return {
-      models,
-      mcp,
-      binds: binds?.ok ? { present: binds.present, missing: binds.missing } : null,
-      bindsError: binds && !binds.ok ? binds.error : null,
-    };
+    return { ok: true as const, reply: result.text };
   });
 
 export type SavedDraft = {
@@ -294,6 +269,163 @@ export function parseTableRow(row: { id: number; question: string; result_json: 
     created_at: row.created_at,
   };
 }
+
+/**
+ * War table read. Fails closed: a dead bridge yields zero gates and an error
+ * string, never an example gate.
+ */
+export const getPendingGates = createServerFn({ method: "POST" }).handler(async () => {
+  const res = await executeFastMCPTool("pending_gates", {});
+  if (!res.ok || res.data == null) {
+    return noGates(res.error ?? "FastMCP bridge unreachable. No gates were retrieved.");
+  }
+  // The bridge returns MCP content envelopes; unwrap a JSON string payload.
+  let payload: unknown = res.data;
+  const envelope = payload as { result?: unknown; content?: Array<{ text?: string }> };
+  if (typeof envelope?.result === "string") {
+    try {
+      payload = JSON.parse(envelope.result);
+    } catch {
+      return noGates("pending_gates returned a result this build could not parse.");
+    }
+  } else if (Array.isArray(envelope?.content) && typeof envelope.content[0]?.text === "string") {
+    try {
+      payload = JSON.parse(envelope.content[0].text as string);
+    } catch {
+      return noGates("pending_gates returned content this build could not parse.");
+    }
+  }
+  return parseGates(payload);
+});
+
+/**
+ * Seal or refuse a gate. `confirm: true` is supplied by the caller and only
+ * ever originates from a deliberate two-step action at the war table — never
+ * from a render, an effect, or a retry.
+ */
+export const decideGate = createServerFn({ method: "POST" })
+  .validator((input: { tool: FastMCPToolCall["tool"]; args: Record<string, unknown> }) => input)
+  .handler(async ({ data }) => {
+    const allowed: FastMCPToolCall["tool"][] = [
+      "county_queue_approve",
+      "county_queue_reject",
+      "session_approve_capability",
+    ];
+    if (!allowed.includes(data.tool)) {
+      return { ok: false as const, error: `${data.tool} is not a gate decision tool.` };
+    }
+    if (data.args?.confirm !== true) {
+      return { ok: false as const, error: "Refused: gate decisions require confirm: true." };
+    }
+    const res = await executeFastMCPTool(data.tool, data.args);
+    return res.ok
+      ? { ok: true as const, source: res.source, latencyMs: res.latencyMs }
+      : { ok: false as const, error: res.error ?? "Gate decision failed." };
+  });
+
+/** The Quarantine Cell — claims a model asserted that its evidence did not support. */
+export const listQuarantine = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const sql = await getSql();
+    return sql<{
+      id: number;
+      claim: string;
+      model: string;
+      room: string;
+      prompt: string | null;
+      evidence: string;
+      detected_by: string;
+      consistency_score: number | null;
+      note: string | null;
+      status: string;
+      created_at: string;
+    }>`
+      select id, claim, model, room, prompt, evidence, detected_by,
+             consistency_score, note, status, created_at
+      from quarantine_claims
+      where user_id = ${context.userId}
+      order by id desc
+      limit 100
+    `;
+  });
+
+/**
+ * Commit a fabrication to the cell.
+ *
+ * `evidence` is stored verbatim, including when it is empty — an answer given
+ * against nothing is the strongest finding there is, and blanking it would
+ * lose that.
+ */
+export const logQuarantine = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(
+    (input: {
+      claim: string;
+      model?: string;
+      room?: string;
+      prompt?: string;
+      evidence?: string;
+      detectedBy?: "operator" | "no_evidence" | "hhem";
+      consistencyScore?: number | null;
+      note?: string;
+    }) => input,
+  )
+  .handler(async ({ data, context }) => {
+    const claim = data.claim?.trim();
+    if (!claim) return { ok: false as const, error: "A quarantine record needs the claim itself." };
+    const sql = await getSql();
+    const rows = await sql<{ id: number }>`
+      insert into quarantine_claims
+        (user_id, claim, model, room, prompt, evidence, detected_by, consistency_score, note)
+      values (
+        ${context.userId}, ${claim}, ${data.model ?? "unknown"}, ${data.room ?? "unknown"},
+        ${data.prompt ?? null}, ${data.evidence ?? ""}, ${data.detectedBy ?? "operator"},
+        ${data.consistencyScore ?? null}, ${data.note ?? null}
+      )
+      returning id
+    `;
+    return { ok: true as const, id: rows[0]?.id };
+  });
+
+/**
+ * Mark a record dismissed. It is never deleted — the cell is a record of what
+ * your models did, and a pile you can empty is not a record.
+ */
+export const dismissQuarantine = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: { id: number; note?: string }) => input)
+  .handler(async ({ data, context }) => {
+    const sql = await getSql();
+    await sql`
+      update quarantine_claims
+      set status = 'dismissed', note = coalesce(${data.note ?? null}, note)
+      where id = ${data.id} and user_id = ${context.userId}
+    `;
+    return { ok: true as const };
+  });
+
+/**
+ * Watchtower read. A bridge that does not answer leaves the beacon dark, not
+ * green — an unread tower is not a healthy one.
+ */
+export const getStackHealth = createServerFn({ method: "POST" }).handler(async () => {
+  const res = await executeFastMCPTool("stack_health", {});
+  if (!res.ok || res.data == null) {
+    return unreadTower(res.error ?? "FastMCP bridge unreachable. The tower was not read.");
+  }
+  const env = res.data as { result?: unknown; content?: Array<{ text?: string }> };
+  const text =
+    typeof env?.result === "string"
+      ? env.result
+      : typeof env?.content?.[0]?.text === "string"
+        ? (env.content[0].text as string)
+        : typeof res.data === "string"
+          ? (res.data as string)
+          : "";
+  if (!text) return unreadTower("stack_health returned a payload this build could not read.");
+  return parseStackHealth(text);
+});
 
 export const commissionPortrait = createServerFn({ method: "POST" })
   .validator((input: CommissionRequest) => input)
@@ -379,3 +511,48 @@ export const rerollPortraitLoreServer = createServerFn({ method: "POST" })
     return { ok: true as const, lore: loreRes.lore };
   });
 
+/**
+ * One read for everything the hall's greetings key off. Each field is
+ * independently nullable: a subsystem that could not be read stays null and
+ * the NPCs fall back to their written lines rather than narrating a night
+ * they cannot see.
+ */
+export const getHallState = createServerFn({ method: "POST" }).handler(async () => {
+  const [gates, health] = await Promise.all([getPendingGates(), getStackHealth()]);
+
+  let quarantineOpen: number | null = null;
+  let quarantineClaim: string | null = null;
+  try {
+    const sql = await getSql();
+    const rows = await sql<{ claim: string }>`
+      select claim from quarantine_claims where status = 'open' order by id desc limit 50
+    `;
+    quarantineOpen = rows.length;
+    quarantineClaim = rows[0]?.claim ?? null;
+  } catch {
+    /* Not signed in, or the table is unreadable. Stays null. */
+  }
+
+  return {
+    gatesPending: gates.ok ? gates.gates.length : null,
+    quarantineOpen,
+    quarantineClaim,
+    stackVerdict: health.ok ? health.verdict : null,
+    failingServices: health.ok ? failing(health).map((f) => f.name) : [],
+  };
+});
+
+export const callFastMCP = createServerFn({ method: "POST" })
+  .validator((input: { tool: FastMCPToolCall["tool"]; params?: Record<string, unknown> }) => input)
+  .handler(async ({ data }) => {
+    const result = await executeFastMCPTool(data.tool, data.params ?? {});
+    return result;
+  });
+
+/**
+ * Shift board read (workplace lights + duty roster). Fail-closed: a dead Keep
+ * HTTP API yields an error string, never an invented roster.
+ */
+export const getDutyBoard = createServerFn({ method: "GET" }).handler(
+  async (): Promise<import("./duty").DutyBoardRead> => fetchDutyBoard(),
+);

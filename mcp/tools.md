@@ -1,6 +1,8 @@
 # Keep MCP — Phase-1 tool contracts
 
-Five tools only. Names match [blueprint v0.2 §4.2](../RAVENSTACK-KEEP-BLUEPRINT-v0.2.md).  
+Phase-1 contracts only (names match [blueprint v0.2 §4.2](../RAVENSTACK-KEEP-BLUEPRINT-v0.2.md)).  
+The live server registers ~29 tools: Phase-1 + spatial telemetry + gates + shift board +
+bubbles + vault notes + lane diagnostics + spec upsert (see [README.md](./README.md#tools)).
 Transport: streamable-http. Auth: Tailscale-first (see [README.md](./README.md)).
 
 All tools are **synchronous request/response**. Errors use structured MCP errors with a short `message` and optional `code`.
@@ -186,15 +188,21 @@ If `format=markdown`, `spec` may be a string body of `agents/<id>.md` instead of
 
 ---
 
-## Explicitly deferred (not Phase 1)
+## Wired later (additive, not Phase 1)
 
-| Tool | Phase |
-|------|--------|
-| `get_room` / `list_agent_specs` | convenience aliases |
-| `propose_agent_spec` | Clawforge |
-| `approve_spec` | human gate |
-| `unlock_room` | progression |
-| any execute / install / spend tool | never without permanent human gate |
+| Tool | Kind | Notes |
+|------|------|-------|
+| `get_room` / `list_agent_specs` / `report_presence` | aliases / presence | spatial + sprite feed |
+| `get_castle_map` / `get_path` / `rooms_within_distance` / `get_adjacent_rooms` / `get_occupancy_summary` | spatial | castle grid + pathing for the Phaser UI |
+| `query_spatial_memory` / `trigger_spatial_compaction` / `get_compaction_history` | memory | compacted-context vector search, room-biased |
+| `list_pending_gates` / `approve_spec` / `unlock_room` / `lock_room` | **gated** | human gates, `confirm:true` required |
+| `get_shift_board` / `get_duty_roster` / `get_rooms_snapshot` | shift board | `duty.py`, zero AI, `format=json\|markdown` |
+| `get_bubbles` / `publish_bubble` | bubbles | A2 speech-bubble cache (`keep-bubbles.v1`); publish is **gated**, no LLM call |
+| `write_room_note` | vault write-back | **gated**, distills into `Ravenstack/keep-notes/<room>`, path-sanitized |
+| `get_routing_status` | diagnostics | read-only lane report (dialogue fallback vs VM, SLA ≤3 s) |
+| `upsert_agent_spec` | spec write | **gated**, draft-only (promote via `approve_spec`), schema-validated |
+| `propose_agent_spec` | Clawforge | still deferred; `upsert_agent_spec` is the gate-supervised seam |
+| any execute / install / spend tool | never | never without a permanent human gate |
 
 ---
 
