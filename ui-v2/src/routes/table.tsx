@@ -20,6 +20,9 @@ function TablePage() {
   const [question, setQuestion] = useState(STARTERS[0]);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<TableResult | null>(null);
+  // A toast disappears; a failed call must not vanish leaving the last
+  // finding on screen looking current.
+  const [problem, setProblem] = useState<string | null>(null);
   const [history, setHistory] = useState<{ id: number; question: string; table: TableResult }[]>([]);
   const [gates, setGates] = useState<Gate[]>([]);
   const [gatesBusy, setGatesBusy] = useState(false);
@@ -64,16 +67,20 @@ function TablePage() {
   async function onConvene(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
+    setProblem(null);
     try {
       const out = await runTable({ data: question });
       if (!out.ok) {
+        setProblem(out.error);
         toast.error(out.error);
         return;
       }
       setResult(out.table);
       toast.success("The table has spoken. You still decide.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Table failed");
+      const msg = err instanceof Error ? err.message : "Table failed";
+      setProblem(msg);
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -162,6 +169,12 @@ function TablePage() {
           </div>
         </SignInGate>
       </form>
+
+      {problem ? (
+        <p className="mt-8 rounded-lg border border-[#ff2a6d]/50 bg-[#ff2a6d]/5 px-4 py-3 text-sm text-[#ff2a6d]">
+          {problem}
+        </p>
+      ) : null}
 
       {result ? <Finding table={result} /> : null}
 

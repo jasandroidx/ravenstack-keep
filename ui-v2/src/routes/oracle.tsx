@@ -16,6 +16,9 @@ function OraclePage() {
   const [answer, setAnswer] = useState<string | null>(null);
   const [citations, setCitations] = useState<string[]>([]);
   const [retrieved, setRetrieved] = useState(true);
+  // A toast disappears; a failed call must not vanish leaving the last
+  // answer on screen looking current.
+  const [problem, setProblem] = useState<string | null>(null);
   const [customKnowledge, setCustomKnowledge] = useState<
     Array<{ id: string; scope: string; title: string; body: string; sourceUrl?: string }>
   >([]);
@@ -32,9 +35,11 @@ function OraclePage() {
   async function onAsk(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
+    setProblem(null);
     try {
       const out = await runOracle({ data: question });
       if (!out.ok) {
+        setProblem(out.error);
         toast.error(out.error);
         return;
       }
@@ -42,7 +47,9 @@ function OraclePage() {
       setCitations(out.citations);
       setRetrieved(out.retrieved);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Oracle failed");
+      const msg = err instanceof Error ? err.message : "Oracle failed";
+      setProblem(msg);
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -86,6 +93,12 @@ function OraclePage() {
           </div>
         </SignInGate>
       </form>
+
+      {problem ? (
+        <p className="mt-8 rounded-lg border border-[#ff2a6d]/50 bg-[#ff2a6d]/5 px-4 py-3 text-sm text-[#ff2a6d]">
+          {problem}
+        </p>
+      ) : null}
 
       {answer ? (
         <article
