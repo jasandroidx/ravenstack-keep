@@ -38,7 +38,9 @@ export function PortraitStudioModal({
   const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [progressStep, setProgressStep] = useState("Maestro Ross is forging pixels with Imagen 3...");
+  const [progressStep, setProgressStep] = useState(
+    "Maestro Ross is forging pixels with Imagen 3...",
+  );
   const [apiError, setApiError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -81,7 +83,9 @@ export function PortraitStudioModal({
           setPhotoDataUrl(rawDataUrl);
         }
         maestroAudio.playSprayCanSound();
-        toast.info(`Photo loaded & optimized (${w}×${h}px) for pixel transformation.`);
+        toast.info(
+          `Photo loaded & optimized (${w}×${h}px) for pixel transformation.`,
+        );
       };
       img.onerror = () => {
         setPhotoDataUrl(rawDataUrl);
@@ -124,7 +128,9 @@ export function PortraitStudioModal({
       return;
     }
     if (!arcaneTitle.trim()) {
-      toast.error("Please provide an Arcane Title (e.g. Sovereign of the West).");
+      toast.error(
+        "Please provide an Arcane Title (e.g. Sovereign of the West).",
+      );
       return;
     }
 
@@ -149,7 +155,10 @@ export function PortraitStudioModal({
       });
 
       if (!serverRes.ok || !serverRes.portrait?.imageUrl) {
-        const errMsg = !serverRes.ok && serverRes.error ? serverRes.error : "Nano Banana / Imagen 3 API error: No image returned.";
+        const errMsg =
+          !serverRes.ok && serverRes.error
+            ? serverRes.error
+            : "Nano Banana / Imagen 3 API error: No image returned.";
         setApiError(errMsg);
         toast.error(errMsg);
         return;
@@ -164,7 +173,9 @@ export function PortraitStudioModal({
       saveLocalGalleryPortrait(portraitResult);
       maestroAudio.playArcaneChime();
 
-      toast.success(`Portrait of ${subjectName} successfully forged with Nano Banana and mounted to Slot #${slotNumber}!`);
+      toast.success(
+        `Portrait of ${subjectName} successfully forged with Nano Banana and mounted to Slot #${slotNumber}!`,
+      );
       onComplete(portraitResult);
     } catch (err: unknown) {
       console.error("Studio error:", err);
@@ -197,7 +208,8 @@ export function PortraitStudioModal({
                 Maestro Ross's Portrait & Lore Studio
               </h2>
               <p className="text-xs text-[#9aa3b2]">
-                Image Generation (Nano Banana) · 16-Bit Cyber-Arcane Pixel Synthesis · Keep Chronicler
+                Image Generation (Nano Banana) · 16-Bit Cyber-Arcane Pixel
+                Synthesis · Keep Chronicler
               </p>
             </div>
           </div>
@@ -214,7 +226,10 @@ export function PortraitStudioModal({
         </div>
 
         {/* Studio Form */}
-        <form onSubmit={handlePaint} className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
+        <form
+          onSubmit={handlePaint}
+          className="p-6 space-y-6 max-h-[80vh] overflow-y-auto"
+        >
           {/* API Error Display Banner */}
           {apiError && (
             <div className="rounded-sm border-2 border-[#ff3b3b] bg-[#0b0e14] p-4 text-left shadow-[0_0_15px_rgba(255,59,59,0.3)]">
@@ -228,7 +243,9 @@ export function PortraitStudioModal({
                     {apiError}
                   </p>
                   <p className="mt-2 text-[11px] text-[#9aa3b2]">
-                    Please verify your API key quota or parameters. The studio refuses procedural canvas fallbacks to guarantee authentic Nano Banana pixel art synthesis.
+                    Please verify your API key quota or parameters. The studio
+                    refuses procedural canvas fallbacks to guarantee authentic
+                    Nano Banana pixel art synthesis.
                   </p>
                 </div>
               </div>
@@ -242,7 +259,9 @@ export function PortraitStudioModal({
             </label>
             <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
               {Array.from({ length: 8 }, (_, i) => i + 1).map((slot) => {
-                const occupied = existingPortraits.find((p) => p.slotNumber === slot);
+                const occupied = existingPortraits.find(
+                  (p) => p.slotNumber === slot,
+                );
                 const isSelected = slotNumber === slot;
                 return (
                   <button
@@ -258,13 +277,17 @@ export function PortraitStudioModal({
                       isSelected
                         ? "border-[#2de2e6] bg-[#2de2e6]/20 text-[#2de2e6] ring-1 ring-[#2de2e6]"
                         : occupied
-                        ? "border-[#3a3f4b] bg-[#0b0e14]/60 text-[#e8ecf1] hover:border-[#ffc857]"
-                        : "border-[#3a3f4b]/60 bg-[#0b0e14]/30 text-[#9aa3b2] hover:border-[#2de2e6]/50"
+                          ? "border-[#3a3f4b] bg-[#0b0e14]/60 text-[#e8ecf1] hover:border-[#ffc857]"
+                          : "border-[#3a3f4b]/60 bg-[#0b0e14]/30 text-[#9aa3b2] hover:border-[#2de2e6]/50",
                     )}
                   >
                     <span className="font-mono font-bold">#{slot}</span>
                     <span className="text-[9px] truncate max-w-full text-center mt-0.5">
-                      {occupied ? (occupied.isLegendary ? "★ Legend" : occupied.subjectName.slice(0, 6)) : "Empty"}
+                      {occupied
+                        ? occupied.isLegendary
+                          ? "★ Legend"
+                          : occupied.subjectName.slice(0, 6)
+                        : "Empty"}
                     </span>
                   </button>
                 );
@@ -272,7 +295,8 @@ export function PortraitStudioModal({
             </div>
             {existingPortraits.some((p) => p.slotNumber === slotNumber) && (
               <p className="mt-1 text-[11px] text-[#ffc857]">
-                ⚠️ Slot #{slotNumber} is currently occupied and will be replaced on commission.
+                ⚠️ Slot #{slotNumber} is currently occupied and will be replaced
+                on commission.
               </p>
             )}
           </div>
@@ -280,20 +304,29 @@ export function PortraitStudioModal({
           {/* Photo Upload Area */}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-[#9aa3b2] mb-2">
-              2. Upload Photo or Selfie (Optional — Facial Preservation Contract)
+              2. Upload Photo or Selfie (Optional — Facial Preservation
+              Contract)
             </label>
             <div
+              role="button"
+              tabIndex={0}
               onDragOver={onDragOver}
               onDragLeave={onDragLeave}
               onDrop={onDrop}
               onClick={() => fileInputRef.current?.click()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  fileInputRef.current?.click();
+                }
+              }}
               className={cn(
-                "relative flex flex-col items-center justify-center rounded-sm border-2 border-dashed p-4 transition-all cursor-pointer",
+                "relative flex flex-col items-center justify-center rounded-sm border-2 border-dashed p-4 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2de2e6]",
                 isDragging
                   ? "border-[#2de2e6] bg-[#2de2e6]/10"
                   : photoDataUrl
-                  ? "border-[#39ff14] bg-[#0b0e14]/80"
-                  : "border-[#3a3f4b] bg-[#0b0e14]/50 hover:border-[#2de2e6]/60"
+                    ? "border-[#39ff14] bg-[#0b0e14]/80"
+                    : "border-[#3a3f4b] bg-[#0b0e14]/50 hover:border-[#2de2e6]/60",
               )}
             >
               <input
@@ -319,7 +352,8 @@ export function PortraitStudioModal({
                       ✓ Photo Loaded for Imagen 3 Pixel Synthesis
                     </p>
                     <p className="text-xs text-[#9aa3b2] mt-0.5">
-                      Facial geometry and features will be preserved under the cyber-arcane palette.
+                      Facial geometry and features will be preserved under the
+                      cyber-arcane palette.
                     </p>
                     <button
                       type="button"
@@ -337,7 +371,8 @@ export function PortraitStudioModal({
                 <div className="text-center py-2">
                   <span className="text-3xl">📸</span>
                   <p className="mt-1 text-sm text-[#e8ecf1]">
-                    Drag and drop a photo here, or <span className="text-[#2de2e6] underline">browse</span>
+                    Drag and drop a photo here, or{" "}
+                    <span className="text-[#2de2e6] underline">browse</span>
                   </p>
                   <p className="text-xs text-[#9aa3b2] mt-0.5">
                     Supports selfies, friends, avatars (PNG, JPG, WebP)
@@ -392,7 +427,9 @@ export function PortraitStudioModal({
                   type="button"
                   disabled={busy}
                   onClick={() => {
-                    setCustomModifier((prev) => (prev ? `${prev}, ${tag}` : tag));
+                    setCustomModifier((prev) =>
+                      prev ? `${prev}, ${tag}` : tag,
+                    );
                     maestroAudio.playSprayCanSound();
                   }}
                   className="rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/60 px-2 py-0.5 text-[11px] text-[#9aa3b2] transition-colors hover:border-[#2de2e6] hover:text-[#2de2e6]"
@@ -414,7 +451,8 @@ export function PortraitStudioModal({
           {/* Real World Facts / Trivia / Inside Jokes */}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-[#9aa3b2] mb-1">
-              Real-World Facts / Trivia / Inside Jokes (Optional — Keep Lore Weaving)
+              Real-World Facts / Trivia / Inside Jokes (Optional — Keep Lore
+              Weaving)
             </label>
             <textarea
               rows={2}
@@ -425,7 +463,8 @@ export function PortraitStudioModal({
               className="w-full rounded-sm border border-[#3a3f4b] bg-[#0b0e14] px-3 py-2 text-sm text-[#e8ecf1] placeholder-[#9aa3b2]/50 focus:border-[#ffc857] focus:outline-none focus:ring-1 focus:ring-[#ffc857]"
             />
             <p className="mt-1 text-[11px] text-[#9aa3b2]">
-              The Keep Chronicler will translate your real-world facts into legendary cyber-arcane history.
+              The Keep Chronicler will translate your real-world facts into
+              legendary cyber-arcane history.
             </p>
           </div>
 
@@ -439,7 +478,8 @@ export function PortraitStudioModal({
                 {progressStep}
               </p>
               <p className="text-xs text-[#9aa3b2] mt-1.5 font-mono">
-                Model: Image Generation (Nano Banana / Gemini Flash Image) · High-Density 16/32-bit Chiaroscuro
+                Model: Image Generation (Nano Banana / Gemini Flash Image) ·
+                High-Density 16/32-bit Chiaroscuro
               </p>
             </div>
           )}
@@ -460,7 +500,9 @@ export function PortraitStudioModal({
               className="inline-flex items-center gap-2 rounded-sm bg-[#2de2e6] px-6 py-2.5 text-xs font-bold uppercase tracking-widest text-[#0b0e14] shadow-[0_0_15px_rgba(45,226,230,0.4)] transition-all hover:bg-[#2de2e6]/90 active:scale-95 disabled:opacity-50"
             >
               <span>🎨</span>
-              <span>{busy ? "Forging Pixels..." : "Forge & Mount Portrait"}</span>
+              <span>
+                {busy ? "Forging Pixels..." : "Forge & Mount Portrait"}
+              </span>
             </button>
           </div>
         </form>
