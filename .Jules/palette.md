@@ -5,3 +5,6 @@
 ## 2024-05-15 - [Add focus-visible styles for keyboard navigation]
 **Learning:** Found that our buttons in ui-v2 do not have clear `focus-visible` styles which hurts keyboard accessibility.
 **Action:** Adding explicit `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent` (or similar) to common buttons to improve accessibility when navigating via keyboard.
+## 2024-05-16 - File Upload Dropzone Accessibility
+**Learning:** Found that custom file upload drag-and-drop zones built with generic `div` elements and an `onClick` handler (to proxy the hidden file input) lacked keyboard support, preventing keyboard users from initiating an upload.
+**Action:** When implementing custom upload dropzones, explicitly add `role="button"`, `tabIndex={0}`, an `onKeyDown` handler (for "Enter" and " "), and `focus-visible` outline styling to the clickable container element.
