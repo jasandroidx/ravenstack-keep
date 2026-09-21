@@ -2,6 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { KeepShell } from "@/components/keep/shell";
+import { ChatLog } from "@/components/keep/chat-log";
+import { errorTurn, type Turn } from "@/lib/keep/chat";
 import { SignInGate } from "@/components/keep/sign-in-gate";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,19 +18,25 @@ function SentinelPage() {
     "Score the fortress against the 2026 red flags and say whether credential isolation is holding.",
   );
   const [busy, setBusy] = useState(false);
-  const [finding, setFinding] = useState<string | null>(null);
+  const [turns, setTurns] = useState<Turn[]>([]);
+  const say = (t: Turn) => setTurns((prev) => [...prev, t]);
 
   async function onInspect(e: React.FormEvent) {
     e.preventDefault();
+    const q = concern.trim();
+    if (!q) return;
+    say({ who: "you", text: q });
     setBusy(true);
     try {
       const out = await runInspection({ data: { kind: "sentinel", concern } });
       if (!out.ok) {
+        say(errorTurn(out, "Inspection failed"));
         toast.error(out.error);
         return;
       }
-      setFinding(out.text);
+      say({ who: "agent", text: out.text, meta: `${out.model} · ${out.sawBox ? "read live stack_health" : "no live box reading"}` });
     } catch (err) {
+      say(errorTurn(err, "Inspection failed"));
       toast.error(err instanceof Error ? err.message : "Inspection failed");
     } finally {
       setBusy(false);
@@ -98,9 +106,9 @@ function SentinelPage() {
         </SignInGate>
       </form>
 
-      {finding ? (
-        <article className="mt-8 whitespace-pre-wrap rounded-xl border border-line bg-surface p-6 text-muted">
-          {finding}
+      {turns.length || busy ? (
+        <article className="mt-8 rounded-xl border border-line bg-surface p-6">
+          <ChatLog turns={turns} busy={busy} thinkingLabel="Scoring against the red flags" />
         </article>
       ) : null}
     </KeepShell>

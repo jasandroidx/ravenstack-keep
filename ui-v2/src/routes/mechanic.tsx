@@ -2,6 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { KeepShell } from "@/components/keep/shell";
+import { ChatLog } from "@/components/keep/chat-log";
+import { errorTurn, type Turn } from "@/lib/keep/chat";
 import { RoutingPanel } from "@/components/keep/routing-panel";
 import { SignInGate } from "@/components/keep/sign-in-gate";
 import { Badge } from "@/components/ui/badge";
@@ -17,21 +19,29 @@ function MechanicPage() {
     "Diagnose why a stack health check that calls openclaw mcp list can deadlock a single-worker streamable-http MCP.",
   );
   const [busy, setBusy] = useState(false);
-  const [finding, setFinding] = useState<string | null>(null);
-  const [source, setSource] = useState<string | null>(null);
+  const [turns, setTurns] = useState<Turn[]>([]);
+  const say = (t: Turn) => setTurns((prev) => [...prev, t]);
 
   async function onDiagnose(e: React.FormEvent) {
     e.preventDefault();
+    const q = concern.trim();
+    if (!q) return;
+    say({ who: "you", text: q });
     setBusy(true);
     try {
       const out = await runInspection({ data: { kind: "mechanic", concern } });
       if (!out.ok) {
+        say(errorTurn(out, "Diagnosis failed"));
         toast.error(out.error);
         return;
       }
-      setFinding(out.text);
-      setSource(`${out.model} · ${out.sawBox ? "read live stack_health" : "no live box reading"}`);
+      say({
+        who: "agent",
+        text: out.text,
+        meta: `${out.model} · ${out.sawBox ? "read live stack_health" : "no live box reading"}`,
+      });
     } catch (err) {
+      say(errorTurn(err, "Diagnosis failed"));
       toast.error(err instanceof Error ? err.message : "Diagnosis failed");
     } finally {
       setBusy(false);
@@ -103,12 +113,9 @@ function MechanicPage() {
         </SignInGate>
       </form>
 
-      {finding ? (
+      {turns.length || busy ? (
         <article className="mt-8 rounded-xl border border-line bg-surface p-6">
-          <p className="whitespace-pre-wrap text-muted">{finding}</p>
-          {source ? (
-            <p className="mt-4 text-[11px] uppercase tracking-[0.15em] text-subtle">{source}</p>
-          ) : null}
+          <ChatLog turns={turns} busy={busy} thinkingLabel="Valerie is checking the planes" />
         </article>
       ) : null}
     </KeepShell>

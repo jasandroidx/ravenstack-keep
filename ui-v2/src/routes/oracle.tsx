@@ -2,6 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { KeepShell } from "@/components/keep/shell";
+import { ChatLog } from "@/components/keep/chat-log";
+import { errorTurn, type Turn } from "@/lib/keep/chat";
 import { SignInGate } from "@/components/keep/sign-in-gate";
 import { Button } from "@/components/ui/button";
 import { KNOWLEDGE } from "@/lib/keep/catalog";
@@ -12,21 +14,30 @@ export const Route = createFileRoute("/oracle")({ component: OraclePage });
 function OraclePage() {
   const [question, setQuestion] = useState("Where do agents save new Ravenstack knowledge?");
   const [busy, setBusy] = useState(false);
-  const [answer, setAnswer] = useState<string | null>(null);
-  const [citations, setCitations] = useState<string[]>([]);
+  const [turns, setTurns] = useState<Turn[]>([]);
+  const say = (t: Turn) => setTurns((prev) => [...prev, t]);
 
   async function onAsk(e: React.FormEvent) {
     e.preventDefault();
+    const q = question.trim();
+    if (!q) return;
+    say({ who: "you", text: q });
     setBusy(true);
     try {
-      const out = await runOracle({ data: question });
+      const out = await runOracle({ data: q });
       if (!out.ok) {
+        say(errorTurn(out, "Oracle failed"));
         toast.error(out.error);
         return;
       }
-      setAnswer(out.answer);
-      setCitations(out.citations);
+      say({
+        who: "agent",
+        text: out.answer,
+        footnote: out.citations.length ? `Cited: ${out.citations.join(" · ")}` : undefined,
+        meta: out.model ? `${out.model} · ${out.provider}` : undefined,
+      });
     } catch (err) {
+      say(errorTurn(err, "Oracle failed"));
       toast.error(err instanceof Error ? err.message : "Oracle failed");
     } finally {
       setBusy(false);
@@ -59,14 +70,9 @@ function OraclePage() {
         </SignInGate>
       </form>
 
-      {answer ? (
+      {turns.length || busy ? (
         <article className="mt-8 rounded-xl border border-line bg-surface p-6">
-          <p className="whitespace-pre-wrap text-muted">{answer}</p>
-          {citations.length ? (
-            <p className="mt-6 text-xs uppercase tracking-[0.14em] text-subtle">
-              Cited: {citations.join(" · ")}
-            </p>
-          ) : null}
+          <ChatLog turns={turns} busy={busy} thinkingLabel="Searching the vault" />
         </article>
       ) : null}
 

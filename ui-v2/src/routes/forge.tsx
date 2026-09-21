@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { ChatLog } from "@/components/keep/chat-log";
+import { errorTurn, type Turn } from "@/lib/keep/chat";
 import { KeepShell } from "@/components/keep/shell";
 import { SignInGate } from "@/components/keep/sign-in-gate";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +16,9 @@ export const Route = createFileRoute("/forge")({ component: ForgePage });
 function ForgePage() {
   const [idea, setIdea] = useState("");
   const [busy, setBusy] = useState(false);
+  // Failures used to live only in a toast, so a dead call left the previous
+  // result on screen looking current. They stay put now, with their hint.
+  const [problem, setProblem] = useState<Turn | null>(null);
   const [latest, setLatest] = useState<DraftSpec | null>(null);
   const [drafts, setDrafts] = useState<SavedDraft[]>([]);
 
@@ -30,9 +35,11 @@ function ForgePage() {
   async function onForge(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
+    setProblem(null);
     try {
       const result = await runForge({ data: idea });
       if (!result.ok) {
+        setProblem(errorTurn(result, "Forge failed"));
         toast.error(result.error);
         return;
       }
@@ -41,6 +48,7 @@ function ForgePage() {
       refresh();
       toast.success("Draft Spec on the anvil. Not live.");
     } catch (err) {
+      setProblem(errorTurn(err, "Forge failed"));
       toast.error(err instanceof Error ? err.message : "Forge failed");
     } finally {
       setBusy(false);
@@ -79,6 +87,7 @@ function ForgePage() {
               </div>
             </form>
           </SignInGate>
+          {problem ? <ChatLog turns={[problem]} className="mt-4" /> : null}
 
           {latest ? <DraftView spec={latest} /> : null}
 

@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { ChatLog } from "@/components/keep/chat-log";
+import { errorTurn, type Turn } from "@/lib/keep/chat";
 import { KeepShell } from "@/components/keep/shell";
 import { SignInGate } from "@/components/keep/sign-in-gate";
 import { Button } from "@/components/ui/button";
@@ -18,6 +20,9 @@ const STARTERS = [
 function TablePage() {
   const [question, setQuestion] = useState(STARTERS[0]);
   const [busy, setBusy] = useState(false);
+  // Failures used to live only in a toast, so a dead call left the previous
+  // result on screen looking current. They stay put now, with their hint.
+  const [problem, setProblem] = useState<Turn | null>(null);
   const [result, setResult] = useState<TableResult | null>(null);
   const [history, setHistory] = useState<{ id: number; question: string; table: TableResult }[]>([]);
 
@@ -30,15 +35,18 @@ function TablePage() {
   async function onConvene(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
+    setProblem(null);
     try {
       const out = await runTable({ data: question });
       if (!out.ok) {
+        setProblem(errorTurn(out, "Table failed"));
         toast.error(out.error);
         return;
       }
       setResult(out.table);
       toast.success("The table has spoken. You still decide.");
     } catch (err) {
+      setProblem(errorTurn(err, "Table failed"));
       toast.error(err instanceof Error ? err.message : "Table failed");
     } finally {
       setBusy(false);
@@ -85,6 +93,7 @@ function TablePage() {
             </div>
           </div>
         </SignInGate>
+        {problem ? <ChatLog turns={[problem]} className="mt-4" /> : null}
       </form>
 
       {result ? <Finding table={result} /> : null}
