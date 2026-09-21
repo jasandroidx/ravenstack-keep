@@ -461,6 +461,39 @@ async def compact_history_http(request: Request) -> JSONResponse:
     return _json(json.loads(raw))
 
 
+async def duty_board_http(request: Request) -> JSONResponse:
+    """Shift board read: workplace lights + duty roster, from real signals.
+
+    Never a model call. Recomputes from keep.db, ReClaw API, outbox and the
+    library inbox on each request, then persists keep-rooms.json /
+    keep-duty.json into the Keep data dir (durable snapshot for other clients).
+    """
+    try:
+        import duty
+
+        return _json(duty.compose_duty_payload())
+    except Exception as e:  # noqa: BLE001
+        return _err("duty_unavailable", str(e), status=500)
+
+
+async def rooms_state_http(request: Request) -> JSONResponse:
+    """Workplace lights only (gate, dock, auction pit, archive, watchtower)."""
+    try:
+        import duty
+
+        payload = duty.compose_duty_payload()
+        return _json(
+            {
+                "schema": "keep-rooms.v1",
+                "generated_at": payload.get("generated_at"),
+                "source": payload.get("source"),
+                "rooms": payload.get("rooms", []),
+            }
+        )
+    except Exception as e:  # noqa: BLE001
+        return _err("rooms_unavailable", str(e), status=500)
+
+
 async def spatial_memory_http(request: Request) -> JSONResponse:
     q = request.query_params.get("q") or request.query_params.get("query") or ""
     room = request.query_params.get("room_name") or request.query_params.get("room")
@@ -993,6 +1026,8 @@ routes = [
     Route("/api/health", health),
     Route("/health", health),
     Route("/api/castle-map", castle_map),
+    Route("/api/duty", duty_board_http),
+    Route("/api/rooms", rooms_state_http),
     Route("/api/gates", gates),
     Route("/api/occupancy", occupancy),
     Route("/api/sync-openclaw", sync_openclaw),

@@ -7,6 +7,7 @@ import { fetchKeepPulse } from "./pulse";
 import { executeFastMCPTool, type FastMCPToolCall } from "./fastmcp";
 import { noGates, parseGates } from "./gates";
 import { failing, parseStackHealth, unreadTower } from "./health";
+import { fetchDutyBoard } from "./duty";
 import type { CommissionRequest, LoreRerollRequest, PortraitItem } from "@/lib/gallery/types";
 import type { DraftSpec, TableResult } from "./types";
 
@@ -548,4 +549,10 @@ export const callFastMCP = createServerFn({ method: "POST" })
     return result;
   });
 
-
+/**
+ * Shift board read (workplace lights + duty roster). Fail-closed: a dead Keep
+ * HTTP API yields an error string, never an invented roster.
+ */
+export const getDutyBoard = createServerFn({ method: "GET" }).handler(
+  async (): Promise<import("./duty").DutyBoardRead> => fetchDutyBoard(),
+);
