@@ -1,3 +1,4 @@
+import { fetchNpcDialogue } from "@/lib/keep/ollama";
 /**
  * Reactive greetings.
  *
@@ -266,4 +267,21 @@ export function pickBark(npcId: string, state: HallState | null): string | null 
 /** Test seam. */
 export function resetBarkMemory(): void {
   spent.clear();
+}
+
+
+/**
+ * Async version of pickBark: attempts to fetch dynamic Ollama dialogue first.
+ * If Ollama is offline, slow, or fails, gracefully falls back to rule-based pickBark.
+ */
+export async function pickBarkAsync(
+  npcId: string,
+  state: HallState | null,
+  userQuery?: string
+): Promise<string | null> {
+  const dynamicReply = await fetchNpcDialogue(npcId, userQuery, state);
+  if (dynamicReply) {
+    return dynamicReply;
+  }
+  return pickBark(npcId, state);
 }

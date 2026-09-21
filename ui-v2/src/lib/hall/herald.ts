@@ -1,3 +1,4 @@
+import { fetchAmbientEvent } from "@/lib/keep/ollama";
 /**
  * Herald — ambient flavor ticker, not a status feed.
  *
@@ -70,4 +71,21 @@ export function pickHeraldLine(hour: number): HeraldLine | null {
 /** Test seam. */
 export function resetHeraldMemory(): void {
   spent.clear();
+}
+
+
+/**
+ * Async version of pickHeraldLine: attempts to fetch dynamic ambient event from Ollama.
+ * Falls back to static rule-based herald line if Ollama is unreachable.
+ */
+export async function pickHeraldLineAsync(hour: number): Promise<HeraldLine | null> {
+  const dynamicText = await fetchAmbientEvent();
+  if (dynamicText) {
+    return {
+      id: `ollama-${Date.now()}`,
+      category: "torchlight",
+      text: dynamicText,
+    };
+  }
+  return pickHeraldLine(hour);
 }

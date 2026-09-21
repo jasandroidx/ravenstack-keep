@@ -23,12 +23,12 @@ from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.responses import FileResponse, JSONResponse, Response
-from starlette.routing import Mount, Route
-from starlette.staticfiles import StaticFiles
+from starlette.routing import Route
 
 # Import Keep MCP store helpers (same package dir)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import server as keep  # noqa: E402
+import ollama_service  # noqa: E402
 
 REPO_ROOT = keep.REPO_ROOT
 UI_DIR = REPO_ROOT / "ui"
@@ -989,7 +989,44 @@ async def static_fallback(request: Request) -> Response:
     return _err("not_found", f"No file {rel}", status=404)
 
 
+
+async def dialogue_http(request: Request) -> JSONResponse:
+    body, err = await _body(request)
+    if err:
+        return err
+    assert body is not None
+    npc_id = str(body.get("npc_id") or body.get("npc") or "raziel").strip()
+    user_query = body.get("query") or body.get("user_query")
+    if user_query is not None:
+        user_query = str(user_query).strip()
+    keep_state = body.get("keep_state") or body.get("state")
+    if not isinstance(keep_state, dict):
+        keep_state = None
+    model = body.get("model")
+    if model is not None:
+        model = str(model).strip()
+
+    reply = ollama_service.generate_npc_dialogue(
+        npc_id=npc_id,
+        user_query=user_query,
+        keep_state=keep_state,
+        model=model,
+    )
+    if not reply:
+        return _json({"ok": False, "source": "fallback", "reply": None})
+    return _json({"ok": True, "source": "ollama", "npc_id": npc_id, "reply": reply})
+
+
+async def ambient_event_http(request: Request) -> JSONResponse:
+    model = request.query_params.get("model")
+    event = ollama_service.generate_ambient_event(model=model)
+    if not event:
+        return _json({"ok": False, "source": "fallback", "event": None})
+    return _json({"ok": True, "source": "ollama", "event": event})
+
 routes = [
+    Route("/api/dialogue", dialogue_http, methods=["POST"]),
+    Route("/api/ambient-event", ambient_event_http, methods=["GET", "POST"]),
     Route("/api/health", health),
     Route("/health", health),
     Route("/api/castle-map", castle_map),
