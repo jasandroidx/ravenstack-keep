@@ -19,7 +19,7 @@ export function FastMCPGatewayStreamer() {
       });
       setLastSyncResult(res);
       if (res.ok && Array.isArray(res.data)) {
-        setLogs(res.data as GatewayLogLine[]);
+        setLogs(res.data as unknown as GatewayLogLine[]);
       } else {
         // Bridge is down: clear the viewport rather than leave stale lines that
         // read as current gateway state.

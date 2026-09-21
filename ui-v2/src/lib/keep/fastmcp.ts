@@ -31,7 +31,9 @@ export interface FastMCPToolCall {
   params?: Record<string, unknown>;
 }
 
-export interface FastMCPToolResult<T = unknown> {
+export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+export interface FastMCPToolResult<T = JsonValue> {
   ok: boolean;
   source: "live_funnel" | "live_internal" | "unreachable";
   endpoint: string;
@@ -149,7 +151,7 @@ async function readMcpBody(res: Response): Promise<unknown> {
   }
 }
 
-export async function executeFastMCPTool<T = unknown>(
+export async function executeFastMCPTool<T = JsonValue>(
   tool: FastMCPToolCall["tool"],
   params: Record<string, unknown> = {},
 ): Promise<FastMCPToolResult<T>> {

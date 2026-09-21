@@ -7,7 +7,6 @@ import {
   MAP_W,
   PALETTE,
   PLAYER_SPAWN,
-  _SOLID,
   ZONES,
   RAVENLORD_SKINS,
   npcAtPoint,
@@ -107,7 +106,7 @@ export class HallScene extends Phaser.Scene {
   private daylight!: Phaser.GameObjects.Rectangle;
 
   /** Dynamic seals pressed into the Great Hall floor when gates are approved. */
-  private seals: Phaser.GameObjects.Circle[] = [];
+  private seals: Phaser.GameObjects.Arc[] = [];
 
   /** Iris look-at position eased toward the player. */
   private oracleIris!: Phaser.GameObjects.Arc;
