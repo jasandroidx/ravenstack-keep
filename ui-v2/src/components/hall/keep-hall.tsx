@@ -8,7 +8,7 @@ import type { KeepPulse } from "@/lib/keep/pulse";
 import { hallAudio } from "@/lib/hall/audio";
 import { pickHeraldLineAsync } from "@/lib/hall/herald";
 import { WarTablePanel } from "@/components/keep/war-table-panel";
-import { getHallState, listQuarantine } from "@/lib/keep/server";
+import { getHallState, getPendingGates, listQuarantine } from "@/lib/keep/server";
 import { pickBarkAsync, type HallState } from "@/lib/hall/barks";
 import { FastMCPStatusBadge } from "@/components/keep/fastmcp-status-badge";
 import { toast } from "sonner";
@@ -37,6 +37,7 @@ export function KeepHall() {
   const [wardrobeOpen, setWardrobeOpen] = useState(false);
   const [activeSkin, setActiveSkin] = useState("ravenlord");
   const [pulse, setPulse] = useState<KeepPulse | null>(null);
+  const [pendingGates, setPendingGates] = useState(0);
   const [audioMuted, setAudioMuted] = useState(false);
   const [heraldLine, setHeraldLine] = useState<string | null>(null);
 
@@ -49,6 +50,30 @@ export function KeepHall() {
       .catch(() => undefined);
     return () => {
       alive = false;
+    };
+  }, []);
+
+  // War table gate glow: amber only while the bridge reports a pending gate.
+  // Bridge unreachable is zero — never invent a chip. Polls on a slow cadence
+  // and skips hidden tabs; the seal handler below refetches straight after a
+  // decision so the glow clears the moment a gate resolves.
+  useEffect(() => {
+    let alive = true;
+    const load = () => {
+      getPendingGates()
+        .then((snap) => {
+          if (alive) setPendingGates(snap.gates.length);
+        })
+        .catch(() => undefined);
+    };
+    load();
+    const t = setInterval(() => {
+      if (document.hidden) return;
+      load();
+    }, 30000);
+    return () => {
+      alive = false;
+      clearInterval(t);
     };
   }, []);
 
@@ -317,7 +342,21 @@ export function KeepHall() {
     }
     function onKey(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement | null)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      // Inside an input field (TalkSheet chat), pass keys through so typing
+      // works normally — but still let Escape leave the modal.
+      if (tag === "INPUT" || tag === "TEXTAREA") {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          (e.target as HTMLElement)?.blur();
+          if (talk || tableOpen || wardrobeOpen) {
+            hallAudio.playInteract();
+            setTalk(null);
+            setTableOpen(false);
+            setWardrobeOpen(false);
+          }
+        }
+        return;
+      }
       if (talk || tableOpen || wardrobeOpen) {
         if (e.key === "Escape") {
           hallAudio.playInteract();
@@ -639,7 +678,7 @@ export function KeepHall() {
           <div className="mx-auto max-w-2xl">
             <div className="flex items-baseline justify-between border-b border-[#1e222b] pb-3">
               <div className="flex items-center gap-3">
-                <span className="h-3 w-3 rounded-full bg-[#2de2e6] animate-pulse" />
+                <span className={`h-3 w-3 rounded-full animate-pulse ${pendingGates > 0 ? "bg-[#ffc857]" : "bg-[#2de2e6]"}`} />
                 <h2 className="font-mono text-xl font-bold tracking-wider text-[#e8ecf1]">The War Table</h2>
               </div>
               <button
@@ -667,6 +706,9 @@ export function KeepHall() {
                   /* Storage blocked; the seal still lands for this session. */
                 }
                 sceneRef.current?.pressSeal(sealCount.current);
+                getPendingGates()
+                  .then((s) => setPendingGates(s.gates.length))
+                  .catch(() => undefined);
               }}
             />
 

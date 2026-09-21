@@ -32,10 +32,15 @@ export type KeepPulse = {
   };
 };
 
-function asPulse(raw: unknown, source: PulseSource): KeepPulse | null {
+function asPulse(raw: unknown, baseSource: PulseSource): KeepPulse | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
   const rooms = Array.isArray(o.rooms) ? o.rooms : [];
+
+  // A live endpoint that explicitly reports its source of truth as offline
+  // is not live. Demote it rather than show a green network badge over a
+  // dead system.
+  const source: PulseSource = baseSource === "live" && o.sot_status === "offline" ? "paper" : baseSource;
 
   const agentsActive = Number(o.agentsActive ?? o.agents_active ?? rooms.reduce((acc: number, r: any) => acc + (r?.agent_ids?.length || 0), 0) ?? 0);
 
@@ -48,13 +53,21 @@ function asPulse(raw: unknown, source: PulseSource): KeepPulse | null {
     agentsActive,
     rooms: rooms.map((r) => {
       const row = (r ?? {}) as Record<string, unknown>;
+      // agent_real false marks a seed-fixture row, not a live occupant.
+      const isReal = row.agent_real !== false;
+      let empty = Boolean(row.empty ?? ((row.agent_ids as string[] | undefined)?.length === 0));
+      if ("occupant_agent_id" in row) empty = !row.occupant_agent_id;
+      if (source === "paper" && !isReal) {
+        // Never render an idle chip furnished by a paper seed.
+        empty = true;
+      }
       return {
         id: String(row.id ?? row.room_id ?? ""),
         keepSlug: typeof row.keepSlug === "string" ? row.keepSlug : typeof row.room_id === "string" ? row.room_id : null,
         name: String(row.name ?? ""),
-        empty: Boolean(row.empty ?? ((row.agent_ids as string[] | undefined)?.length === 0)),
-        agent: String(row.agent ?? row.status_summary ?? ""),
-        status: String(row.status ?? row.lock_state ?? ""),
+        empty,
+        agent: String(row.agent ?? row.occupant_agent_id ?? row.status_summary ?? ""),
+        status: String(row.status ?? row.agent_state ?? row.lock_state ?? (isReal ? "" : "UNFORGED")),
       };
     }),
     services: {
