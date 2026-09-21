@@ -8,7 +8,7 @@ import type { KeepPulse } from "@/lib/keep/pulse";
 import { hallAudio } from "@/lib/hall/audio";
 import { pickHeraldLine } from "@/lib/hall/herald";
 import { WarTablePanel } from "@/components/keep/war-table-panel";
-import { getHallState, listQuarantine } from "@/lib/keep/server";
+import { getHallState, getPendingGates, listQuarantine } from "@/lib/keep/server";
 import { pickBark, type HallState } from "@/lib/hall/barks";
 import { FastMCPStatusBadge } from "@/components/keep/fastmcp-status-badge";
 import { toast } from "sonner";
@@ -37,6 +37,7 @@ export function KeepHall() {
   const [wardrobeOpen, setWardrobeOpen] = useState(false);
   const [activeSkin, setActiveSkin] = useState("ravenlord");
   const [pulse, setPulse] = useState<KeepPulse | null>(null);
+  const [pendingGates, setPendingGates] = useState(0);
   const [audioMuted, setAudioMuted] = useState(false);
   const [heraldLine, setHeraldLine] = useState<string | null>(null);
 
@@ -49,6 +50,30 @@ export function KeepHall() {
       .catch(() => undefined);
     return () => {
       alive = false;
+    };
+  }, []);
+
+  // War table gate glow: amber only while the bridge reports a pending gate.
+  // Bridge unreachable is zero — never invent a chip. Polls on a slow cadence
+  // and skips hidden tabs; the seal handler below refetches straight after a
+  // decision so the glow clears the moment a gate resolves.
+  useEffect(() => {
+    let alive = true;
+    const load = () => {
+      getPendingGates()
+        .then((snap) => {
+          if (alive) setPendingGates(snap.gates.length);
+        })
+        .catch(() => undefined);
+    };
+    load();
+    const t = setInterval(() => {
+      if (document.hidden) return;
+      load();
+    }, 30000);
+    return () => {
+      alive = false;
+      clearInterval(t);
     };
   }, []);
 
@@ -639,7 +664,7 @@ export function KeepHall() {
           <div className="mx-auto max-w-2xl">
             <div className="flex items-baseline justify-between border-b border-[#1e222b] pb-3">
               <div className="flex items-center gap-3">
-                <span className="h-3 w-3 rounded-full bg-[#2de2e6] animate-pulse" />
+                <span className={`h-3 w-3 rounded-full animate-pulse ${pendingGates > 0 ? "bg-[#ffc857]" : "bg-[#2de2e6]"}`} />
                 <h2 className="font-mono text-xl font-bold tracking-wider text-[#e8ecf1]">The War Table</h2>
               </div>
               <button
@@ -667,6 +692,9 @@ export function KeepHall() {
                   /* Storage blocked; the seal still lands for this session. */
                 }
                 sceneRef.current?.pressSeal(sealCount.current);
+                getPendingGates()
+                  .then((s) => setPendingGates(s.gates.length))
+                  .catch(() => undefined);
               }}
             />
 
