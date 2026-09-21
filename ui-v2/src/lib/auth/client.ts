@@ -102,7 +102,14 @@ export function setStoredSession(session: SessionData | null): void {
   notifyListeners();
 }
 
-export const authEnabled = true;
+/**
+ * The documented switch (see auth/middleware.ts): VITE_AUTH_ENABLED=false runs
+ * against the shared dev user. This was hardcoded true, so the flag did nothing
+ * and every gated screen — plus the hall talk box — stayed shut when signed
+ * out. The server side already falls back to DEV_USER_ID, so only the client
+ * was blocking.
+ */
+export const authEnabled = import.meta.env.VITE_AUTH_ENABLED !== "false";
 export { GROK_PROVIDERS };
 
 export function getBearerToken(): string | null {

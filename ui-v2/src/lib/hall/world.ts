@@ -4,10 +4,38 @@ export const MAP_W = 1792;
 export const MAP_H = 1008;
 export const MAP_SRC = "/hall/painted/keep-map.jpg";
 export const TALK_SRC = "/hall/painted/talk-scene.jpg";
-export const PLAYER_SRC = "/hall/sprites/operator-clone.png";
+/**
+ * 4x4 walk sheet, 40x56 per frame: row 0 down, row 1 left, row 2 right (the
+ * mirror of row 1), row 3 up — the order HallScene's animations expect.
+ *
+ * Was operator-clone.png, which is not a character sheet: its 16 cells are
+ * near-identical blobs on a baked-in opaque navy background, so the player
+ * rendered as a glowing rectangle that changed shape on every turn.
+ */
+export const PLAYER_SRC = "/hall/sprites/operator-v3.png";
+export const PLAYER_FRAME = { w: 40, h: 56 } as const;
 export const VALERIE_ACTOR = "/hall/sprites/valerie-hd2d.png";
 export const VALERIE_TALK = "/hall/painted/talk-valerie.jpg";
 export const VALERIE_PORTRAIT = "/hall/portraits/valerie.jpg";
+
+/**
+ * Map dimming, off by default — the operator picked the untouched painting in a
+ * side-by-side ladder. The earlier "lighting is awful" reading was the broken
+ * player sheet painting a lit rectangle over the room, not the map itself.
+ *
+ * Kept as a knob rather than deleted so it can be dialled later without
+ * re-deriving the maths. Phaser tints multiply, so mapTint scales the map's RGB
+ * without touching actors or UI; ambientAlpha lays flat dark on top. Both are
+ * skipped entirely at these defaults, so leaving them here costs nothing.
+ *
+ * Lower mapTint = darker. 0xffffff is the untouched painting.
+ * Shown and rejected: 0x9aa2ad/0.15, 0x7d8490/0.22, 0x59616e/0.32.
+ */
+export const LIGHTING = {
+  mapTint: 0xffffff,
+  ambientColor: 0x05070c,
+  ambientAlpha: 0,
+} as const;
 
 export const PALETTE = {
   bg: 0x0b0e14,

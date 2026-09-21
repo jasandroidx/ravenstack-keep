@@ -1,5 +1,5 @@
 import type { Plugin } from "vite";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
@@ -127,7 +127,15 @@ function authPopupPlugin(): Plugin {
 // opens a second dev-server port, which breaks the single-port preview.
 // The dev server starts once `src/router.tsx` and `src/routes/` exist — see
 // AGENTS.md § "First scaffold".
-export default defineConfig(({ command }) => ({
+export default defineConfig(({ command, mode }) => {
+  // Vite exposes only VITE_* to the client and leaves process.env untouched.
+  // Server functions (Ollama + MCP routing) read process.env, so merge the
+  // whole .env in here or they silently fall back to their defaults in dev.
+  for (const [k, v] of Object.entries(loadEnv(mode, process.cwd(), ""))) {
+    if (process.env[k] === undefined) process.env[k] = v;
+  }
+
+  return {
   server: {
     host: "0.0.0.0",
     port: 3000,
@@ -153,4 +161,5 @@ export default defineConfig(({ command }) => ({
       : []),
     viteReact(),
   ],
-}));
+  };
+});

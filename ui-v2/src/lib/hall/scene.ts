@@ -1,10 +1,12 @@
 import * as Phaser from "phaser";
 import {
   HALL_NPCS,
+  LIGHTING,
   MAP_H,
   MAP_SRC,
   MAP_W,
   PALETTE,
+  PLAYER_FRAME,
   PLAYER_SPAWN,
   PLAYER_SRC,
   npcAtPoint,
@@ -22,9 +24,9 @@ export type HallEvents = {
   onTable: () => void;
 };
 
-/** Map walker = Raziel crop, recolored. Cell 38×62 matches the map figure. */
-const OP_W = 38;
-const OP_H = 62;
+/** Walk-sheet cell. Must match the sheet or every frame slices mid-figure. */
+const OP_W = PLAYER_FRAME.w;
+const OP_H = PLAYER_FRAME.h;
 const NPC_W = 32;
 const NPC_H = 40;
 
@@ -63,7 +65,17 @@ export class HallScene extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor(PALETTE.bg);
-    this.add.image(0, 0, "keep-map").setOrigin(0, 0).setDisplaySize(MAP_W, MAP_H).setDepth(0);
+    const map = this.add.image(0, 0, "keep-map").setOrigin(0, 0).setDisplaySize(MAP_W, MAP_H).setDepth(0);
+    // Both dimming layers are skipped unless LIGHTING actually asks for them,
+    // so the default costs nothing and the painting renders untouched.
+    if (LIGHTING.mapTint !== 0xffffff) map.setTint(LIGHTING.mapTint);
+    if (LIGHTING.ambientAlpha > 0) {
+      // Above the map, below every actor — dims the room, not the cast.
+      this.add
+        .rectangle(0, 0, MAP_W, MAP_H, LIGHTING.ambientColor, LIGHTING.ambientAlpha)
+        .setOrigin(0, 0)
+        .setDepth(1);
+    }
     this.physics.world.setBounds(0, 0, MAP_W, MAP_H);
     this.cameras.main.setBounds(0, 0, MAP_W, MAP_H);
     this.cameras.main.centerOn(PLAYER_SPAWN.x, PLAYER_SPAWN.y);

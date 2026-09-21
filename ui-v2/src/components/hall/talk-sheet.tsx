@@ -37,7 +37,14 @@ export function TalkSheet({
 
   async function send() {
     const q = input.trim();
-    if (!q || !user) return;
+    if (!q) return;
+    if (!user) {
+      // Silent return here is what made dialogue feel broken rather than gated.
+      const msg = "Sign in to talk, or set VITE_AUTH_ENABLED=false for local dev.";
+      setError(msg);
+      toast.error(msg);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
