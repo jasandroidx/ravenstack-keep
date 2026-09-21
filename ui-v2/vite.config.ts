@@ -141,11 +141,24 @@ export default defineConfig(({ command, mode }) => {
     if (process.env[key] === undefined) process.env[key] = value;
   }
 
+  // Tailscale serve forwards the MagicDNS hostname (Host: *.ts.net). Vite's
+  // DNS-rebinding guard would otherwise 403 the live Keep. Defaults to the
+  // tailnet hosts; set ALLOWED_HOSTS (comma-separated) in the box env to
+  // override.
+  const allowedHosts = process.env.ALLOWED_HOSTS
+    ? process.env.ALLOWED_HOSTS.split(",").map((h) => h.trim()).filter(Boolean)
+    : [
+        "openclaw.tail20a090.ts.net",
+        "grok-bot-vm-413820329-1.tail20a090.ts.net",
+        ".tail20a090.ts.net",
+      ];
+
   return {
     server: {
       host: "0.0.0.0",
       port: 3000,
       strictPort: true,
+      allowedHosts,
     },
     resolve: { tsconfigPaths: true },
     plugins: [
@@ -157,7 +170,10 @@ export default defineConfig(({ command, mode }) => {
       ...(command === "build"
         ? [
             nitro({
-              preset: "vercel",
+              // "vercel" is the deploy target contract. Set NITRO_PRESET to a
+              // runtime preset (e.g. node-server) to build the runnable server
+              // the box serves directly instead.
+              preset: process.env.NITRO_PRESET || "vercel",
               // Auto-registers server/middleware/* (the PWA install page +
               // manifest + head-tag middleware). Nitro v3 defaults serverDir to
               // false, so removing this silently unwires /?install=1 on deploys.

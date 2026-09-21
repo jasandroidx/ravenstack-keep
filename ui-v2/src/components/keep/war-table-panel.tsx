@@ -164,7 +164,12 @@ export function WarTablePanel({ onSealed }: { onSealed?: () => void } = {}) {
         <span>
           {snap.gates.length} pending · read {new Date(snap.asOf).toLocaleTimeString()}
         </span>
-        <button type="button" onClick={load} className="hover:text-[#e8ecf1]">
+        <button
+          type="button"
+          onClick={load}
+          aria-label="Re-read war table pending gates"
+          className="rounded-sm hover:text-[#e8ecf1] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#2de2e6]"
+        >
           Re-read
         </button>
       </div>

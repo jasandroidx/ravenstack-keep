@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly run of the Keep Phrase Farmer
+
+[Timer]
+# Thursday ~02:15 box-local, spread up to 10 min so it never stampedes the lane.
+OnCalendar=Thu *-*-* 02:15:00
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

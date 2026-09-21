@@ -29,6 +29,7 @@ from starlette.staticfiles import StaticFiles
 # Import Keep MCP store helpers (same package dir)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import server as keep  # noqa: E402
+import ollama_service  # noqa: E402
 
 REPO_ROOT = keep.REPO_ROOT
 UI_DIR = REPO_ROOT / "ui"
@@ -459,6 +460,39 @@ async def compact_history_http(request: Request) -> JSONResponse:
         limit = 20
     raw = keep.get_compaction_history(room_name=room, limit=limit)
     return _json(json.loads(raw))
+
+
+async def duty_board_http(request: Request) -> JSONResponse:
+    """Shift board read: workplace lights + duty roster, from real signals.
+
+    Never a model call. Recomputes from keep.db, ReClaw API, outbox and the
+    library inbox on each request, then persists keep-rooms.json /
+    keep-duty.json into the Keep data dir (durable snapshot for other clients).
+    """
+    try:
+        import duty
+
+        return _json(duty.compose_duty_payload())
+    except Exception as e:  # noqa: BLE001
+        return _err("duty_unavailable", str(e), status=500)
+
+
+async def rooms_state_http(request: Request) -> JSONResponse:
+    """Workplace lights only (gate, dock, auction pit, archive, watchtower)."""
+    try:
+        import duty
+
+        payload = duty.compose_duty_payload()
+        return _json(
+            {
+                "schema": "keep-rooms.v1",
+                "generated_at": payload.get("generated_at"),
+                "source": payload.get("source"),
+                "rooms": payload.get("rooms", []),
+            }
+        )
+    except Exception as e:  # noqa: BLE001
+        return _err("rooms_unavailable", str(e), status=500)
 
 
 async def spatial_memory_http(request: Request) -> JSONResponse:
@@ -989,10 +1023,49 @@ async def static_fallback(request: Request) -> Response:
     return _err("not_found", f"No file {rel}", status=404)
 
 
+async def dialogue_http(request: Request) -> JSONResponse:
+    body, err = await _body(request)
+    if err:
+        return err
+    assert body is not None
+    npc_id = str(body.get("npc_id") or body.get("npc") or "raziel").strip()
+    user_query = body.get("query") or body.get("user_query")
+    if user_query is not None:
+        user_query = str(user_query).strip()
+    keep_state = body.get("keep_state") or body.get("state")
+    if not isinstance(keep_state, dict):
+        keep_state = None
+    model = body.get("model")
+    if model is not None:
+        model = str(model).strip()
+
+    reply = ollama_service.generate_npc_dialogue(
+        npc_id=npc_id,
+        user_query=user_query,
+        keep_state=keep_state,
+        model=model,
+    )
+    if not reply:
+        return _json({"ok": False, "source": "fallback", "reply": None})
+    return _json({"ok": True, "source": "ollama", "npc_id": npc_id, "reply": reply})
+
+
+async def ambient_event_http(request: Request) -> JSONResponse:
+    model = request.query_params.get("model")
+    event = ollama_service.generate_ambient_event(model=model)
+    if not event:
+        return _json({"ok": False, "source": "fallback", "event": None})
+    return _json({"ok": True, "source": "ollama", "event": event})
+
+
 routes = [
     Route("/api/health", health),
     Route("/health", health),
+    Route("/api/dialogue", dialogue_http, methods=["POST"]),
+    Route("/api/ambient-event", ambient_event_http, methods=["GET", "POST"]),
     Route("/api/castle-map", castle_map),
+    Route("/api/duty", duty_board_http),
+    Route("/api/rooms", rooms_state_http),
     Route("/api/gates", gates),
     Route("/api/occupancy", occupancy),
     Route("/api/sync-openclaw", sync_openclaw),

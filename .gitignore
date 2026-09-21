@@ -3,3 +3,8 @@ node_modules/
 dist/
 .env
 .env.local
+
+# Phrase Farmer generated pool
+public/data/phrases.json
+__pycache__/
+*.pyc

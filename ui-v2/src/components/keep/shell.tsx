@@ -8,6 +8,7 @@ import { cn } from "@/lib/cn";
 const NAV = [
   { to: "/", label: "Keep" },
   { to: "/forge", label: "Forge" },
+  { to: "/duty", label: "Board" },
   { to: "/table", label: "Table" },
   { to: "/oracle", label: "Oracle" },
   { to: "/drive", label: "Drive" },

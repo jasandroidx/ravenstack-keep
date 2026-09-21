@@ -6,10 +6,10 @@ import { RAVENLORD_SKINS, type HallNpc, type RavenlordSkin } from "@/lib/hall/wo
 import { getKeepSnapshot } from "@/lib/keep/server";
 import type { KeepPulse } from "@/lib/keep/pulse";
 import { hallAudio } from "@/lib/hall/audio";
-import { pickHeraldLine } from "@/lib/hall/herald";
+import { pickHeraldLineAsync } from "@/lib/hall/herald";
 import { WarTablePanel } from "@/components/keep/war-table-panel";
-import { getHallState, listQuarantine } from "@/lib/keep/server";
-import { pickBark, type HallState } from "@/lib/hall/barks";
+import { getHallState, getPendingGates, listQuarantine } from "@/lib/keep/server";
+import { pickBarkAsync, type HallState } from "@/lib/hall/barks";
 import { FastMCPStatusBadge } from "@/components/keep/fastmcp-status-badge";
 import { toast } from "sonner";
 
@@ -37,6 +37,7 @@ export function KeepHall() {
   const [wardrobeOpen, setWardrobeOpen] = useState(false);
   const [activeSkin, setActiveSkin] = useState("ravenlord");
   const [pulse, setPulse] = useState<KeepPulse | null>(null);
+  const [pendingGates, setPendingGates] = useState(0);
   const [audioMuted, setAudioMuted] = useState(false);
   const [heraldLine, setHeraldLine] = useState<string | null>(null);
 
@@ -52,16 +53,40 @@ export function KeepHall() {
     };
   }, []);
 
+  // War table gate glow: amber only while the bridge reports a pending gate.
+  // Bridge unreachable is zero — never invent a chip. Polls on a slow cadence
+  // and skips hidden tabs; the seal handler below refetches straight after a
+  // decision so the glow clears the moment a gate resolves.
+  useEffect(() => {
+    let alive = true;
+    const load = () => {
+      getPendingGates()
+        .then((snap) => {
+          if (alive) setPendingGates(snap.gates.length);
+        })
+        .catch(() => undefined);
+    };
+    load();
+    const t = setInterval(() => {
+      if (document.hidden) return;
+      load();
+    }, 30000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, []);
+
   // Herald: ambient flavor, not status. Fires on a randomized cadence so it
   // reads as something noticing the hall rather than a metronome. Paused
   // during any modal — a thought line under a dialogue box is just noise.
   useEffect(() => {
     let alive = true;
     let timer: ReturnType<typeof setTimeout>;
-    const tick = () => {
+    const tick = async () => {
       if (!alive) return;
       if (!(talk || tableOpen || wardrobeOpen)) {
-        const line = pickHeraldLine(new Date().getHours());
+        const line = await pickHeraldLineAsync(new Date().getHours());
         if (line) {
           setHeraldLine(line.text);
           if (line.category === "torchlight") sceneRef.current?.pulseTorch();
@@ -109,7 +134,7 @@ export function KeepHall() {
             setAtTable(table);
           },
           onTalk: (npc) => {
-            setBark(pickBark(npc.id, hallStateRef.current));
+            pickBarkAsync(npc.id, hallStateRef.current).then(setBark);
             setTalk(npc);
             setTableOpen(false);
           },
@@ -220,8 +245,8 @@ export function KeepHall() {
     const attempt = () => {
       if (!alive) return;
       const scene = sceneRef.current;
-      if (scene) scene.restoreSeals(sealCount.current);
-      else if (tries++ < 40) timer = setTimeout(attempt, 150);
+      if (scene?.ready) scene.restoreSeals(sealCount.current);
+      else if (tries++ < 80) timer = setTimeout(attempt, 150);
     };
     attempt();
     return () => {
@@ -248,7 +273,10 @@ export function KeepHall() {
              written greeting rather than narrating a night it cannot see. */
         });
     load();
-    const t = setInterval(load, 90000);
+    const t = setInterval(() => {
+      if (document.hidden) return;
+      load();
+    }, 90000);
     return () => {
       alive = false;
       clearInterval(t);
@@ -278,9 +306,9 @@ export function KeepHall() {
         const attempt = () => {
           if (!alive) return;
           const scene = sceneRef.current;
-          if (scene) {
+          if (scene?.ready) {
             applyTo(scene, claim);
-          } else if (tries++ < 40) {
+          } else if (tries++ < 80) {
             timer = setTimeout(attempt, 150);
           }
         };
@@ -314,7 +342,21 @@ export function KeepHall() {
     }
     function onKey(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement | null)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      // Inside an input field (TalkSheet chat), pass keys through so typing
+      // works normally — but still let Escape leave the modal.
+      if (tag === "INPUT" || tag === "TEXTAREA") {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          (e.target as HTMLElement)?.blur();
+          if (talk || tableOpen || wardrobeOpen) {
+            hallAudio.playInteract();
+            setTalk(null);
+            setTableOpen(false);
+            setWardrobeOpen(false);
+          }
+        }
+        return;
+      }
       if (talk || tableOpen || wardrobeOpen) {
         if (e.key === "Escape") {
           hallAudio.playInteract();
@@ -467,6 +509,12 @@ export function KeepHall() {
             >
               Table
             </Link>
+            <Link
+              to="/duty"
+              className="rounded-sm border border-[#ffc857]/40 bg-[#0b0e14]/85 px-3 py-2 font-mono text-xs uppercase tracking-[0.14em] text-[#ffc857] backdrop-blur-md transition hover:border-[#ffc857] hover:text-[#e8ecf1]"
+            >
+              Board
+            </Link>
           </div>
         </div>
       )}
@@ -496,7 +544,7 @@ export function KeepHall() {
               onClick={() => {
                 hallAudio.playInteract();
                 if (near) {
-                  setBark(pickBark(near.id, hallStateRef.current));
+                  pickBarkAsync(near.id, hallStateRef.current).then(setBark);
                   setTalk(near);
                 }
                 else setTableOpen(true);
@@ -630,7 +678,7 @@ export function KeepHall() {
           <div className="mx-auto max-w-2xl">
             <div className="flex items-baseline justify-between border-b border-[#1e222b] pb-3">
               <div className="flex items-center gap-3">
-                <span className="h-3 w-3 rounded-full bg-[#2de2e6] animate-pulse" />
+                <span className={`h-3 w-3 rounded-full animate-pulse ${pendingGates > 0 ? "bg-[#ffc857]" : "bg-[#2de2e6]"}`} />
                 <h2 className="font-mono text-xl font-bold tracking-wider text-[#e8ecf1]">The War Table</h2>
               </div>
               <button
@@ -658,6 +706,9 @@ export function KeepHall() {
                   /* Storage blocked; the seal still lands for this session. */
                 }
                 sceneRef.current?.pressSeal(sealCount.current);
+                getPendingGates()
+                  .then((s) => setPendingGates(s.gates.length))
+                  .catch(() => undefined);
               }}
             />
 
