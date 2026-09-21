@@ -146,6 +146,12 @@ export default defineConfig(({ command, mode }) => {
       host: "0.0.0.0",
       port: 3000,
       strictPort: true,
+      // Tailscale MagicDNS — unblock openclaw.tail20a090.ts.net (and siblings)
+      allowedHosts: [
+        "openclaw.tail20a090.ts.net",
+        "grok-bot-vm-413820329-1.tail20a090.ts.net",
+        ".tail20a090.ts.net",
+      ],
     },
     resolve: { tsconfigPaths: true },
     plugins: [
