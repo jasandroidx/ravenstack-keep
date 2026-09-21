@@ -51,15 +51,9 @@ export function GoogleDriveExplorer() {
   const [about, setAbout] = useState<DriveAbout | null>(null);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [breadcrumbs, setBreadcrumbs] = useState<FolderBreadcrumb[]>([{ id: "root", name: "My Drive" }]);
   const currentFolderId = breadcrumbs[breadcrumbs.length - 1]?.id || "root";
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearchQuery(searchQuery), 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
 
   // Selected file for preview / details
   const [selectedFile, setSelectedFile] = useState<DriveFile | null>(null);
@@ -109,7 +103,7 @@ export function GoogleDriveExplorer() {
       const [filesRes, aboutRes] = await Promise.all([
         listDriveFiles(token, {
           folderId: currentFolderId,
-          searchQuery: debouncedSearchQuery.trim() || undefined,
+          searchQuery: searchQuery.trim() || undefined,
           mimeCategory: activeCategory,
           includeTrashed: activeCategory === "trash",
         }),
@@ -127,7 +121,7 @@ export function GoogleDriveExplorer() {
     } finally {
       setLoading(false);
     }
-  }, [token, currentFolderId, debouncedSearchQuery, activeCategory]);
+  }, [token, currentFolderId, searchQuery, activeCategory]);
 
   useEffect(() => {
     if (isAuthenticated) {

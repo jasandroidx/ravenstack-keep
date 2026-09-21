@@ -1,3 +1,0 @@
-## 2026-09-13 - Debounce Search Inputs in Live API Calls
-**Learning:** Found an un-debounced search input in `DriveExplorer` which triggered an API call (`listDriveFiles`) to the Google Drive endpoint on every keystroke. This causes rapid, redundant API calls, potentially leading to rate limits or sluggish UI performance.
-**Action:** Always wrap search queries that immediately trigger network requests in a debounce (e.g., using `useEffect` with a timeout and a `debouncedSearchQuery` state or a debounced function) to throttle API calls during active typing.
