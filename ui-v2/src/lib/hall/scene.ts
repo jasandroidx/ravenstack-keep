@@ -373,9 +373,7 @@ export class HallScene extends Phaser.Scene {
       if (this.paused) return;
       const w = this.cameras.main.getWorldPoint(p.x, p.y);
       const hit = npcAtPoint(w.x, w.y);
-      const dToPx = w.x - this.player.x;
-      const dToPy = w.y - this.player.y;
-      const distToPlayer = Math.sqrt(dToPx * dToPx + dToPy * dToPy);
+      const distToPlayer = Math.hypot(w.x - this.player.x, w.y - this.player.y);
       if (hit && distToPlayer < 90) {
         if (hit.id === "oracle") {
           hallAudio.playOracleGaze();
@@ -957,7 +955,7 @@ export class HallScene extends Phaser.Scene {
       // Look-at: lean toward the operator, harder the closer they get.
       const dx = this.player.x - (this.oracleAnchor.x + driftX);
       const dy = this.player.y - (this.oracleAnchor.y + driftY);
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const dist = Math.hypot(dx, dy) || 1;
       const attention = Phaser.Math.Clamp(1 - (dist - 90) / 320, 0, 1);
       const leanX = (dx / dist) * 11 * attention;
       const leanY = (dy / dist) * 8 * attention;
@@ -1060,20 +1058,19 @@ export class HallScene extends Phaser.Scene {
     if (vx !== 0 || vy !== 0) {
       this.dest = null;
       this.reticle.setVisible(false);
-      const n = Math.sqrt(vx * vx + vy * vy) || 1;
+      const n = Math.hypot(vx, vy) || 1;
       vx = (vx / n) * speed;
       vy = (vy / n) * speed;
     } else if (this.dest) {
       const dx = this.dest.x - this.player.x;
       const dy = this.dest.y - this.player.y;
-      const distToDest = Math.sqrt(dx * dx + dy * dy);
-      if (distToDest < 8) {
+      if (Math.hypot(dx, dy) < 8) {
         this.dest = null;
         this.reticle.setVisible(false);
         vx = 0;
         vy = 0;
       } else {
-        const n = distToDest;
+        const n = Math.hypot(dx, dy);
         vx = (dx / n) * speed;
         vy = (dy / n) * speed;
       }
@@ -1103,7 +1100,7 @@ export class HallScene extends Phaser.Scene {
 
     // Anticipation and follow-through: a short stretch as the Ravenlord takes
     // off, a squash as he plants. Without these he slides rather than walks.
-    const isMoving = Math.sqrt(finalVx * finalVx + finalVy * finalVy) > 10;
+    const isMoving = Math.hypot(finalVx, finalVy) > 10;
     if (isMoving !== this.wasMoving) {
       this.squash(isMoving ? 0.94 : 1.07, isMoving ? 1.07 : 0.93);
       this.wasMoving = isMoving;
