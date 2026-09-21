@@ -505,7 +505,7 @@ export function KeepHall() {
               onClick={() => {
                 hallAudio.playInteract();
                 if (near) {
-                  setBark(pickBark(near.id, hallStateRef.current));
+                  pickBarkAsync(near.id, hallStateRef.current).then(setBark);
                   setTalk(near);
                 }
                 else setTableOpen(true);
