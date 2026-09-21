@@ -141,17 +141,24 @@ export default defineConfig(({ command, mode }) => {
     if (process.env[key] === undefined) process.env[key] = value;
   }
 
+  // Tailscale serve forwards the MagicDNS hostname (Host: *.ts.net). Vite's
+  // DNS-rebinding guard would otherwise 403 the live Keep. Defaults to the
+  // tailnet hosts; set ALLOWED_HOSTS (comma-separated) in the box env to
+  // override.
+  const allowedHosts = process.env.ALLOWED_HOSTS
+    ? process.env.ALLOWED_HOSTS.split(",").map((h) => h.trim()).filter(Boolean)
+    : [
+        "openclaw.tail20a090.ts.net",
+        "grok-bot-vm-413820329-1.tail20a090.ts.net",
+        ".tail20a090.ts.net",
+      ];
+
   return {
     server: {
       host: "0.0.0.0",
       port: 3000,
       strictPort: true,
-      // Tailscale MagicDNS — unblock openclaw.tail20a090.ts.net (and siblings)
-      allowedHosts: [
-        "openclaw.tail20a090.ts.net",
-        "grok-bot-vm-413820329-1.tail20a090.ts.net",
-        ".tail20a090.ts.net",
-      ],
+      allowedHosts,
     },
     resolve: { tsconfigPaths: true },
     plugins: [

@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DriveRouteImport } from './routes/drive'
+import { Route as DutyRouteImport } from './routes/duty'
 import { Route as ForgeRouteImport } from './routes/forge'
 import { Route as GalleryRouteImport } from './routes/gallery'
 import { Route as LoginRouteImport } from './routes/login'
@@ -33,6 +34,11 @@ const IndexRoute = IndexRouteImport.update({
 const DriveRoute = DriveRouteImport.update({
   id: '/drive',
   path: '/drive',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DutyRoute = DutyRouteImport.update({
+  id: '/duty',
+  path: '/duty',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ForgeRoute = ForgeRouteImport.update({
@@ -104,6 +110,7 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/drive': typeof DriveRoute
+  '/duty': typeof DutyRoute
   '/forge': typeof ForgeRoute
   '/gallery': typeof GalleryRoute
   '/login': typeof LoginRoute
@@ -121,6 +128,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/drive': typeof DriveRoute
+  '/duty': typeof DutyRoute
   '/forge': typeof ForgeRoute
   '/gallery': typeof GalleryRoute
   '/login': typeof LoginRoute
@@ -138,6 +146,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/drive': typeof DriveRoute
+  '/duty': typeof DutyRoute
   '/forge': typeof ForgeRoute
   '/gallery': typeof GalleryRoute
   '/login': typeof LoginRoute
@@ -157,6 +166,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/drive'
+    | '/duty'
     | '/forge'
     | '/gallery'
     | '/login'
@@ -174,6 +184,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/drive'
+    | '/duty'
     | '/forge'
     | '/gallery'
     | '/login'
@@ -190,6 +201,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/drive'
+    | '/duty'
     | '/forge'
     | '/gallery'
     | '/login'
@@ -208,6 +220,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DriveRoute: typeof DriveRoute
+  DutyRoute: typeof DutyRoute
   ForgeRoute: typeof ForgeRoute
   GalleryRoute: typeof GalleryRoute
   LoginRoute: typeof LoginRoute
@@ -235,6 +248,13 @@ declare module '@tanstack/react-router' {
       path: '/drive'
       fullPath: '/drive'
       preLoaderRoute: typeof DriveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/duty': {
+      id: '/duty'
+      path: '/duty'
+      fullPath: '/duty'
+      preLoaderRoute: typeof DutyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/forge': {
@@ -346,6 +366,7 @@ const RoomsRouteWithChildren = RoomsRoute._addFileChildren(RoomsRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DriveRoute: DriveRoute,
+  DutyRoute: DutyRoute,
   ForgeRoute: ForgeRoute,
   GalleryRoute: GalleryRoute,
   LoginRoute: LoginRoute,

@@ -467,6 +467,12 @@ export function KeepHall() {
             >
               Table
             </Link>
+            <Link
+              to="/duty"
+              className="rounded-sm border border-[#ffc857]/40 bg-[#0b0e14]/85 px-3 py-2 font-mono text-xs uppercase tracking-[0.14em] text-[#ffc857] backdrop-blur-md transition hover:border-[#ffc857] hover:text-[#e8ecf1]"
+            >
+              Board
+            </Link>
           </div>
         </div>
       )}
