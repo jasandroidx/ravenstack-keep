@@ -156,6 +156,21 @@ export default defineConfig(({ command, mode }) => {
       strictPort: true,
       allowedHosts,
     },
+    // Pre-bundle the heavy client deps when the dev server starts, so a fresh
+    // page load doesn't compile the whole graph on first request. Only
+    // client-visible packages go here — server-only deps must stay out.
+    optimizeDeps: {
+      include: [
+        "react",
+        "react-dom",
+        "react-dom/client",
+        "@tanstack/react-router",
+        "@tanstack/react-start",
+        "@tanstack/react-query",
+        "sonner",
+        "better-auth",
+      ],
+    },
     resolve: { tsconfigPaths: true },
     plugins: [
       pgliteBootstrapPlugin(),

@@ -220,8 +220,8 @@ export function KeepHall() {
     const attempt = () => {
       if (!alive) return;
       const scene = sceneRef.current;
-      if (scene) scene.restoreSeals(sealCount.current);
-      else if (tries++ < 40) timer = setTimeout(attempt, 150);
+      if (scene?.ready) scene.restoreSeals(sealCount.current);
+      else if (tries++ < 80) timer = setTimeout(attempt, 150);
     };
     attempt();
     return () => {
@@ -278,9 +278,9 @@ export function KeepHall() {
         const attempt = () => {
           if (!alive) return;
           const scene = sceneRef.current;
-          if (scene) {
+          if (scene?.ready) {
             applyTo(scene, claim);
-          } else if (tries++ < 40) {
+          } else if (tries++ < 80) {
             timer = setTimeout(attempt, 150);
           }
         };
