@@ -376,6 +376,187 @@ def _resolve_spatial_room(
     return None
 
 
+def lock_room(room_id: str, confirm: bool = False) -> dict[str, Any]:
+    """GATED: set room lock_state → locked (symmetric to unlock_room)."""
+    if confirm is not True:
+        return {
+            "ok": False,
+            "error": True,
+            "code": "confirm_required",
+            "message": "lock_room requires confirm=true and explicit human intent.",
+            "action": "lock_room",
+        }
+    room_id = room_id.strip()
+    init_gates_table()
+    with keep._connect() as conn:
+        row = keep._find_room(conn, room_id)
+        if not row:
+            return {
+                "ok": False,
+                "error": True,
+                "code": "not_found",
+                "message": f"Unknown room '{room_id}'",
+            }
+        rid = row["room_id"]
+        if row["lock_state"] == "locked":
+            resolve_matching("unlock_room", rid, "approved")
+            return {
+                "ok": True,
+                "room_id": rid,
+                "lock_state": "locked",
+                "note": "Already locked.",
+            }
+        now = keep._utc_now()
+        conn.execute(
+            """
+            UPDATE rooms
+            SET lock_state = 'locked',
+                status_summary = ?,
+                updated_at = ?
+            WHERE room_id = ?
+            """,
+            (f"locked by human gate @ {now}", now, rid),
+        )
+        updated = conn.execute(
+            "SELECT * FROM rooms WHERE room_id = ?", (rid,)
+        ).fetchone()
+
+    resolve_matching("unlock_room", rid, "approved")
+    return {
+        "ok": True,
+        "room_id": rid,
+        "name": updated["name"],
+        "lock_state": updated["lock_state"],
+        "updated_at": updated["updated_at"],
+    }
+
+
+_ID_PATTERN = r"^[a-z][a-z0-9-]{1,62}$"
+
+
+def upsert_agent_spec(
+    agent_id: str, body: str, confirm: bool = False, backup_name: Optional[str] = None
+) -> dict[str, Any]:
+    """GATED: write a schema-valid Agent Spec as draft. Never auto-approves."""
+    if confirm is not True:
+        return {
+            "ok": False,
+            "error": True,
+            "code": "confirm_required",
+            "message": "upsert_agent_spec requires confirm=true and explicit human intent.",
+            "action": "upsert_agent_spec",
+        }
+    agent_id = agent_id.strip()
+    import re
+
+    if not re.fullmatch(_ID_PATTERN, agent_id):
+        return {
+            "ok": False,
+            "error": True,
+            "code": "invalid_input",
+            "message": (
+                "agent_id must be kebab-case, ^[a-z][a-z0-9-]{1,62}$ "
+                "(mirrors agent-spec.schema.json id pattern)."
+            ),
+        }
+    try:
+        data = json.loads(body or "{}")
+    except json.JSONDecodeError:
+        return {
+            "ok": False,
+            "error": True,
+            "code": "invalid_input",
+            "message": "body is not valid JSON (a single Agent Spec object).",
+        }
+    if not isinstance(data, dict):
+        return {
+            "ok": False,
+            "error": True,
+            "code": "invalid_input",
+            "message": "body must be a JSON object (Agent Spec).",
+        }
+    if data.get("id") and data.get("id") != agent_id:
+        return {
+            "ok": False,
+            "error": True,
+            "code": "invalid_input",
+            "message": f"body.id '{data.get('id')}' does not match agent_id '{agent_id}'.",
+        }
+    prev_status = None
+    path = AGENTS_DIR / f"{agent_id}.agent-spec.json"
+    if path.is_file():
+        try:
+            prev = json.loads(path.read_text(encoding="utf-8"))
+            prev_status = prev.get("status")
+        except (OSError, json.JSONDecodeError):
+            prev_status = None
+
+    # Policy: never auto-approve. Approved/live only via the approve_spec gate.
+    requested_status = data.get("status")
+    if requested_status and requested_status != "draft":
+        return {
+            "ok": False,
+            "error": True,
+            "code": "confirm_required",
+            "message": (
+                f"status '{requested_status}' not allowed here — new specs land as "
+                "'draft'; promote with approve_spec (gated)."
+            ),
+        }
+    data["id"] = agent_id
+    data["status"] = prev_status if prev_status in ("draft", "approved", "live", "retired") else "draft"
+
+    schema_err = _validate_spec(data)
+    if schema_err:
+        return {
+            "ok": False,
+            "error": True,
+            "code": "invalid_spec",
+            "message": schema_err,
+        }
+
+    backup = None
+    if path.is_file():
+        backup = path.with_suffix(
+            path.suffix + f".bak-pre-upsert-{_utc_now().replace(':', '')}"
+        )
+        shutil.copy2(path, backup)
+    data["updated"] = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    tmp.replace(path)
+
+    return {
+        "ok": True,
+        "agent_id": agent_id,
+        "status": data["status"],
+        "source_path": str(path),
+        "backup": str(backup) if backup else None,
+        "note": (
+            "Written as draft. Promote with approve_spec (gated); room unlock is "
+            "a separate gate."
+        ),
+    }
+
+
+def _validate_spec(data: dict[str, Any]) -> Optional[str]:
+    """Validate against schemas/agent-spec.schema.json when jsonschema is present."""
+    if keep.jsonschema is None:
+        if not data.get("name") or not data.get("character"):
+            return "body must at least include name and character (jsonschema not installed)."
+        return None
+    schema_path = keep.SCHEMA_PATH
+    if not schema_path.is_file():
+        return None
+    try:
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        keep.jsonschema.validate(data, schema)
+        return None
+    except Exception as exc:  # noqa: BLE001
+        return f"schema validation failed: {exc}"
+
+
 _SYNC_GATE_DETAIL = "sync:pending_gate"
 _SYNC_CLEAR_DETAIL = "sync:gate_cleared"
 

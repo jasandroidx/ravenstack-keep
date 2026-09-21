@@ -24,6 +24,7 @@ export function FastMCPStatusBadge() {
   useEffect(() => {
     void checkBridge();
     const interval = setInterval(() => {
+      if (document.hidden) return;
       void checkBridge();
     }, 20000);
     return () => clearInterval(interval);
@@ -46,8 +47,10 @@ export function FastMCPStatusBadge() {
     : "FASTMCP: UNREACHABLE";
 
   return (
-    <div
-      className={`group relative flex cursor-pointer items-center gap-2 rounded-sm border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider backdrop-blur-md transition ${
+    <button
+      type="button"
+      aria-label={`${sourceLabel}. Click to probe FastMCP bridge.`}
+      className={`group relative flex cursor-pointer items-center gap-2 rounded-sm border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider backdrop-blur-md transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#2de2e6] ${
         isLive
           ? "border-[#39ff14]/60 bg-[#39ff14]/10 text-[#39ff14] shadow-[0_0_12px_rgba(57,255,20,0.25)] hover:bg-[#39ff14]/20"
           : "border-[#ffc857]/60 bg-[#ffc857]/10 text-[#ffc857] hover:bg-[#ffc857]/20"
@@ -67,8 +70,8 @@ export function FastMCPStatusBadge() {
         </span>
       ) : null}
 
-      {/* Hover Card Details */}
-      <div className="pointer-events-none absolute right-0 top-full z-50 mt-1 hidden w-72 flex-col gap-1 rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/95 p-3 text-[10px] text-[#e8ecf1] shadow-2xl backdrop-blur-xl group-hover:flex">
+      {/* Hover/Focus Card Details */}
+      <div className="pointer-events-none absolute right-0 top-full z-50 mt-1 hidden w-72 flex-col gap-1 rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/95 p-3 text-left font-mono text-[10px] normal-case text-[#e8ecf1] shadow-2xl backdrop-blur-xl group-hover:flex group-focus-visible:flex">
         <p className="font-bold text-[#ffc857]">SOVEREIGN FAST-MCP BRIDGE</p>
         <div className="space-y-1 text-[#9aa3b2]">
           <p>
@@ -93,6 +96,6 @@ export function FastMCPStatusBadge() {
           </p>
         )}
       </div>
-    </div>
+    </button>
   );
 }

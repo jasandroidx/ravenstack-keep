@@ -119,6 +119,9 @@ export class HallScene extends Phaser.Scene {
 
   public paused = false;
 
+  /** True once create() finished wiring up the scene objects. */
+  public ready = false;
+
   constructor(eventsOut: HallEvents) {
     super({ key: "HallScene" });
     this.eventsOut = eventsOut;
@@ -382,6 +385,11 @@ export class HallScene extends Phaser.Scene {
     } catch {
       // LocalStorage blocked
     }
+
+    // React holds a ref to this scene the moment the bridge exists, but the
+    // scene's create() runs on Phaser's async boot. Signals that the objects
+    // below are all live before external code touches them.
+    this.ready = true;
   }
 
   public pulseTorch() {
@@ -486,6 +494,7 @@ export class HallScene extends Phaser.Scene {
   }
 
   public setTruthState(state: "sourced" | "thin" | "none") {
+    if (!this.oracleEye) return;
     this.truthState = state;
     const colors = {
       sourced: 0x39ff14, // Toxic Green
@@ -494,10 +503,10 @@ export class HallScene extends Phaser.Scene {
     };
     const c = colors[state];
     this.oracleEye.setTint(c);
-    this.oracleGlow.setFillStyle(c, 0.35);
-    this.oracleHalo.setFillStyle(c, 0.18);
-    this.oraclePupil.setFillStyle(c, 1.0);
-    this.oracleProverbText.setColor(state === "sourced" ? "#39ff14" : state === "thin" ? "#ffc857" : "#ff2a6d");
+    this.oracleGlow?.setFillStyle?.(c, 0.35);
+    this.oracleHalo?.setFillStyle?.(c, 0.18);
+    this.oraclePupil?.setFillStyle?.(c, 1.0);
+    this.oracleProverbText?.setColor(state === "sourced" ? "#39ff14" : state === "thin" ? "#ffc857" : "#ff2a6d");
   }
 
   public setOracleThinking(thinking: boolean) {

@@ -39,6 +39,21 @@ Spatial: **[docs/SPATIAL-TELEMETRY.md](./docs/SPATIAL-TELEMETRY.md)**
 10. `get_adjacent_rooms`
 11. `get_occupancy_summary` (bonus)
 
+### Human gates (confirm:true required)
+
+12. `list_pending_gates` — `approve_spec` / `unlock_room` / resolved history
+13. `approve_spec` — promote Agent Spec to `approved` on disk (does not unlock room)
+14. `unlock_room` — room lock_state → `live` (approved occupant required)
+15. `lock_room` — room lock_state → `locked` (symmetric)
+
+### Keep ops (v0.2)
+
+16. `get_shift_board` / `get_duty_roster` / `get_rooms_snapshot` — duty roster + workplace lights, zero AI (`duty.py`), `format=json|markdown`
+17. `get_bubbles` / `publish_bubble` — async speech-bubble cache (A2, `keep-bubbles.v1`); publish gated, no LLM call
+18. `write_room_note` — gated vault write-back into `Ravenstack/keep-notes/<room>` (path-sanitized)
+19. `get_routing_status` — read-only lane report: endpoint latencies, dialogue fallback vs Grok VM, SLA 3 s
+20. `upsert_agent_spec` — gated, schema-validated, **draft-only** (promote via `approve_spec`)
+
 ## Layout
 
 ```
@@ -172,7 +187,7 @@ PY
 
 ## Non-goals (still)
 
-- Clawforge approve loop / `unlock_room`
+- Clawforge auto-approve *loop* (gates exist: `approve_spec` / `unlock_room` / `lock_room` stay human `confirm:true`)
 - Public exposure
 - Auto-executing kill conditions
 - Replacing reclaw-platform ops tools

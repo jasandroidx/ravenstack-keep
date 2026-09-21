@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/jasandroidx/ravenstack-keep/blob/ravenstack/schemas/keep-rooms.schema.json",
+  "title": "Keep workplaces — keep-rooms.json",
+  "description": "Workplace lights for the Keep shift board. Light is always derived from a real signal: busy (work queued), live (healthy/recent), quiet (stale but readable), dark (source unreachable). Never fabricated.",
+  "type": "object",
+  "required": ["schema", "generated_at", "source", "rooms"],
+  "properties": {
+    "schema": { "const": "keep-rooms.v1" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "source": { "const": "live" },
+    "rooms": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["room_id", "name", "kind", "light", "occupants", "last_event", "updated_at", "detail"],
+        "properties": {
+          "room_id": {
+            "type": "string",
+            "enum": ["gate", "dock", "auction-pit", "archive", "watchtower"]
+          },
+          "name": { "type": "string" },
+          "kind": { "type": "string" },
+          "light": { "type": "string", "enum": ["busy", "live", "quiet", "dark"] },
+          "occupants": { "type": "array", "items": { "type": "string" } },
+          "last_event": { "type": ["string", "null"] },
+          "updated_at": { "type": ["string", "null"] },
+          "detail": { "type": "string" }
+        }
+      }
+    }
+  }
+}

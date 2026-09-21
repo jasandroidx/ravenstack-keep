@@ -364,6 +364,8 @@ def _list_agent_specs() -> dict[str, Path]:
     return out
 
 
+_cached_validator: Any = None
+
 def _load_spec(agent_id: str) -> tuple[Optional[dict[str, Any]], Optional[Path], Optional[str]]:
     """Return (spec_dict, path, error_message)."""
     specs = _list_agent_specs()
@@ -380,9 +382,13 @@ def _load_spec(agent_id: str) -> tuple[Optional[dict[str, Any]], Optional[Path],
     except (OSError, json.JSONDecodeError) as e:
         return None, path, f"Failed to read spec: {e}"
     if jsonschema is not None and SCHEMA_PATH.is_file():
+        global _cached_validator
         try:
-            schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
-            jsonschema.validate(data, schema)
+            if _cached_validator is None:
+                schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+                Validator = jsonschema.validators.validator_for(schema)
+                _cached_validator = Validator(schema)
+            _cached_validator.validate(data)
         except Exception as e:  # noqa: BLE001 — surface as tool error
             return None, path, f"Spec failed schema validation: {e}"
     return data, path, None
@@ -1398,6 +1404,276 @@ def unlock_room(room_id: str, confirm: bool = False) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Keep ops — shift board, bubbles, vault notes, lane diagnostics, spec upsert
+# ---------------------------------------------------------------------------
+
+
+def _fmt_markdown_board(rooms: list[dict[str, Any]], duty: list[dict[str, Any]]) -> str:
+    lines = ["# Keep Shift Board"]
+    lines.append("")
+    lines.append("## Duty")
+    for row in duty:
+        lines.append(
+            f"- {row.get('name')} ({row.get('agent_id')}) — {row.get('status')} "
+            f"· {row.get('room_name') or '—'} · last work: {row.get('last_real_work') or '—'}"
+        )
+    lines.append("")
+    lines.append("## Workplaces")
+    for room in rooms:
+        lines.append(
+            f"- {room.get('name')} ({room.get('kind')}) — light={room.get('light')} "
+            f"· {room.get('detail') or ''}"
+        )
+    return "\n".join(lines)
+
+
+def _note_slug(title: str) -> str:
+    slug = re.sub(r"[^a-z0-9-]+", "-", title.lower()).strip("-")
+    return slug[:48] or "note"
+
+
+def _resolve_vault_root() -> Optional[Path]:
+    return _resolve_vault()
+
+
+@mcp.tool()
+def get_shift_board(refresh: bool = True, format: str = "json") -> str:
+    """Current Keep shift board: duty roster + workplace rooms (NO AI)."""
+    try:
+        import duty as d
+
+        fmt = (format or "json").lower()
+        if fmt not in ("json", "markdown"):
+            return _err("format must be 'json' or 'markdown'", code="invalid_input")
+        if refresh:
+            payload = d.compose_duty_payload()
+        else:
+            duty_data = d.read_keep_duty() or {}
+            rooms_data = d.read_keep_rooms() or {}
+            payload = {
+                "schema": "keep-boards.v1",
+                "generated_at": duty_data.get("generated_at") or rooms_data.get("generated_at"),
+                "source": "cached",
+                "rooms": rooms_data.get("rooms") or [],
+                "duty": duty_data.get("agents") or [],
+            }
+        if fmt == "markdown":
+            return _ok(
+                {
+                    "ok": True,
+                    "generated_at": payload.get("generated_at"),
+                    "source": payload.get("source"),
+                    "markdown": _fmt_markdown_board(payload["rooms"], payload["duty"]),
+                }
+            )
+        payload["ok"] = True
+        return _ok(payload)
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+@mcp.tool()
+def get_duty_roster(format: str = "json") -> str:
+    """Per-agent duty rows from the last shift-board snapshot (leave/busy/idle)."""
+    try:
+        import duty as d
+
+        fmt = (format or "json").lower()
+        if fmt not in ("json", "markdown"):
+            return _err("format must be 'json' or 'markdown'", code="invalid_input")
+        data = d.read_keep_duty() or {}
+        if fmt == "markdown":
+            lines = [
+                f"- {r.get('name')} ({r.get('agent_id')}) — {r.get('status')}"
+                for r in (data.get("agents") or [])
+            ]
+            return _ok(
+                {
+                    "ok": True,
+                    "generated_at": data.get("generated_at"),
+                    "markdown": "\n".join(lines) if lines else "No duty snapshot yet.",
+                }
+            )
+        return _ok({"ok": True, "generated_at": data.get("generated_at"), "duty": data.get("agents") or [], "total": len(data.get("agents") or [])})
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+@mcp.tool()
+def get_rooms_snapshot(format: str = "json") -> str:
+    """Workplace room lights from the last shift-board snapshot (no signal = dark)."""
+    try:
+        import duty as d
+
+        fmt = (format or "json").lower()
+        if fmt not in ("json", "markdown"):
+            return _err("format must be 'json' or 'markdown'", code="invalid_input")
+        data = d.read_keep_rooms() or {}
+        rooms = data.get("rooms") or []
+        if fmt == "markdown":
+            lines = [
+                f"- {r.get('name')} ({r.get('kind')}) — light={r.get('light')} · {r.get('detail') or ''}"
+                for r in rooms
+            ]
+            return _ok(
+                {
+                    "ok": True,
+                    "generated_at": data.get("generated_at"),
+                    "markdown": "\n".join(lines) if lines else "No rooms snapshot yet.",
+                }
+            )
+        return _ok({"ok": True, "generated_at": data.get("generated_at"), "rooms": rooms, "total": len(rooms)})
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+@mcp.tool(
+    annotations={"readOnlyHint": True, "openWorldHint": False},
+)
+def get_bubbles(
+    room_id: Optional[str] = None, limit: int = 20, format: str = "json"
+) -> str:
+    """Read async Keep speech bubbles, optionally filtered to one room."""
+    try:
+        import bubbles as b
+
+        return _ok(b.get_bubbles(room_id=room_id, limit=limit, format=format))
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+@mcp.tool(
+    annotations={"destructiveHint": False, "idempotentHint": False},
+)
+def publish_bubble(
+    agent_id: str,
+    room_id: str,
+    text: str,
+    model: str = "phi4-mini",
+    confirm: bool = False,
+    max_bubbles: int = 50,
+) -> str:
+    """GATED: store a pre-generated bubble (text produced elsewhere). No LLM call."""
+    try:
+        import bubbles as b
+
+        return _ok(
+            b.publish_bubble(
+                agent_id=agent_id,
+                room_id=room_id,
+                text=text,
+                model=model,
+                confirm=confirm,
+                max_bubbles=max_bubbles,
+            )
+        )
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+@mcp.tool(
+    annotations={"destructiveHint": False, "idempotentHint": False},
+)
+def write_room_note(
+    agent_id: str,
+    room_id: str,
+    title: str,
+    content: str,
+    confirm: bool = False,
+) -> str:
+    """GATED: land a distilled note into the vault (Ravenstack/keep-notes/<room>)."""
+    try:
+        if confirm is not True:
+            return _err(
+                "write_room_note requires confirm=true and explicit human intent.",
+                code="confirm_required",
+                action="write_room_note",
+            )
+        agent_id = agent_id.strip()
+        room_id = room_id.strip()
+        title = (title or "").strip()
+        content = (content or "").strip()
+        if not agent_id or not room_id or not title or not content:
+            return _err(
+                "agent_id, room_id, title, and content are all required.",
+                code="invalid_input",
+            )
+        if not _agent_known(agent_id):
+            return _err(f"No Agent Spec for '{agent_id}'.", code="unknown_agent")
+        with _connect() as conn:
+            room = _find_room(conn, room_id)
+        if not room:
+            return _err(f"Unknown room '{room_id}'.", code="not_found")
+        vault = _resolve_vault_root()
+        if vault is None:
+            return _err(
+                "No vault mounted (OBSIDIAN_VAULT unset). Read-only scope checks still work.",
+                code="vault_unavailable",
+            )
+        target_dir = vault / "Ravenstack" / "keep-notes" / room["room_id"]
+        target_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        filename = f"{_note_slug(title)}-{ts.replace(':', '')}.md"
+        target = target_dir / filename
+        note = (
+            f"---\nagent_id: {agent_id}\nroom_id: {room['room_id']}\n"
+            f"source: keep-mcp:write_room_note\ncreated: {ts}\n---\n\n"
+            f"# {title}\n\n{content}\n"
+        )
+        target.write_text(note, encoding="utf-8")
+        return _ok(
+            {
+                "ok": True,
+                "room_id": room["room_id"],
+                "title": title,
+                "path": str(target),
+                "created": ts,
+            }
+        )
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+@mcp.tool(
+    annotations={"readOnlyHint": True, "openWorldHint": True},
+)
+def get_routing_status() -> str:
+    """Read-only lane report: endpoint latencies, fallback state, VM pin."""
+    try:
+        import routing_status as r
+
+        return _ok(r.routing_status())
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+@mcp.tool(
+    annotations={"destructiveHint": False, "idempotentHint": False},
+)
+def upsert_agent_spec(agent_id: str, body: str, confirm: bool = False) -> str:
+    """GATED: write a schema-valid Agent Spec as draft (promote via approve_spec)."""
+    try:
+        import gates as g
+
+        return _ok(g.upsert_agent_spec(agent_id, body, confirm=confirm))
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+@mcp.tool(
+    annotations={"destructiveHint": True, "idempotentHint": False},
+)
+def lock_room(room_id: str, confirm: bool = False) -> str:
+    """GATED: set room lock_state → locked (symmetric to unlock_room)."""
+    try:
+        import gates as g
+
+        return _ok(g.lock_room(room_id, confirm=confirm))
+    except Exception as e:  # noqa: BLE001
+        return _err(str(e), code="internal_error")
+
+
+# ---------------------------------------------------------------------------
 # Health (for streamable-http ops)
 # ---------------------------------------------------------------------------
 
@@ -1437,17 +1713,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-# ---------------------------------------------------------------------------
-# Manual smoke examples (python -c / REPL after init_db):
-#
-#   init_db()
-#   print(get_castle_map())
-#   print(get_path("Great Hall", "Vault"))
-#   print(rooms_within_distance("Great Hall", 2))
-#   print(list_rooms())
-#   print(get_agent_spec("oracle"))
-#   print(report_agent_status("oracle", "answering", task="smoke"))
-#   print(get_cost_summary(agent_id="oracle"))
-# ---------------------------------------------------------------------------
