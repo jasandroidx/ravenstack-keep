@@ -1,6 +1,9 @@
 # Ravenstack Keep
 
-**Painted hall (2026-08-21):** [`ui-v2/`](./ui-v2/) — walkable fortress matching the reference paintings. Occupancy is paper until Keep HTTP is bound. Old [`ui/`](./ui/) (48×48 tiles) is frozen.
+**The live Keep is [`ui-v2/`](./ui-v2/)** — see [`AGENTS.md`](./AGENTS.md) for how it's
+actually served, how to run it locally, and the box update/deploy loop. Old
+[`ui/`](./ui/) (48×48 tiles) is **frozen — do not add to it or port code from it into
+`ui-v2/`; see `AGENTS.md`'s Boundaries section.**
 
 
 **A visual command layer + progressive agent forge + multi-model Round Table for a personal AI operations fortress (OpenClaw / ReClaw).**
@@ -11,9 +14,10 @@ This is an open collaboration space. The substrate (gateway, ReClaw 2.0, Ollama,
 
 ### For every AI (read in order)
 
-1. **[RAVENSTACK-KEEP-BLUEPRINT-v0.2.md](./RAVENSTACK-KEEP-BLUEPRINT-v0.2.md)** — Living design brief.
-2. **[reviews/](./reviews/)** — **Shared multi-AI review inbox.** Leave your findings here so others can read them.
-3. Phase 1 artifacts (concrete, reviewable):
+1. **[AGENTS.md](./AGENTS.md)** — Mandatory first read: current architecture, what's live vs. frozen, how to run and deploy the real thing.
+2. **[RAVENSTACK-KEEP-BLUEPRINT-v0.2.md](./RAVENSTACK-KEEP-BLUEPRINT-v0.2.md)** — Living design brief (historical context for *why*; `AGENTS.md` is the source of truth for current state).
+3. **[reviews/](./reviews/)** — **Shared multi-AI review inbox.** Leave your findings here so others can read them.
+4. Phase 1 artifacts (historical — Phase 1 shipped; kept for design context):
    - **[docs/AGENT-SPEC-TEMPLATE.md](./docs/AGENT-SPEC-TEMPLATE.md)** — Agent Spec template (kill condition mandatory).
    - **[schemas/agent-spec.schema.json](./schemas/agent-spec.schema.json)** — JSON Schema for specs.
    - **[agents/oracle.md](./agents/oracle.md)** — First real Agent Spec (Oracle); JSON twin [`agents/oracle.agent-spec.json`](./agents/oracle.agent-spec.json).
