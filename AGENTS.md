@@ -20,12 +20,17 @@
 `Ravenstack/architecture/ravenstack-keep/` in the vault (`Architecture - Overview.md`,
 `Architecture - mcp.md`, `Architecture - Key decisions.md`).
 
-**Corrected 2026-09-14, verified firsthand — do not revert to the old claim below:**
+**Corrected 2026-09-21, verified firsthand — do not revert to the old claim below:**
 the live Keep (`https://openclaw.tail20a090.ts.net:8120/` → `:8130`) is served by
-`ravenstack-keep-ui.service`, which now points at **this checkout**
-(`/root/ravenstack-keep/ui-v2`, branch `ravenstack`), started via
-`/root/ravenstack-keep/node_modules/.bin/vite`. Pushing to `origin/ravenstack` and
-restarting that systemd unit is what updates `:8120`.
+`ravenstack-keep-ui.service`, now pointing at **this checkout**
+(`/root/ravenstack-keep/ui-v2`, branch `ravenstack`), running the **built Nitro server**
+(`ui-v2/.output/server/index.mjs`, `NITRO_PRESET=node-server` build — dev `vite` was
+retired from the live box 2026-09-21 because dev mode shipped ~12MB of unbundled JS per
+page). The box update loop for UI changes is: push → `git pull --ff-only` in
+`/root/ravenstack-keep/ui-v2` → `npm run build:box` → `systemctl restart
+ravenstack-keep-ui`. Plain `npm run build` still targets the Vercel preset and does
+**not** update `:8120`. The unit also gets its non-URL env from an
+`EnvironmentFile=` drop-in pointing at `ui-v2/.env` (same env dev mode used).
 
 <details>
 <summary>Stale claim this replaced (kept for history, do not follow)</summary>
@@ -78,15 +83,16 @@ on `8112`.)
 cd /root/ravenstack-keep      # or the live worktree, see the warning above
 npm install                    # workspaces: root package.json → ui-v2
 npm run dev                    # vite dev, default port 3000 (ui-v2/vite.config.ts)
-                                # — the live :8130 process overrides this with an
-                                # explicit `--port 8130` CLI flag, see systemd unit
-npm run build                  # production bundle — NOT what :8120 currently serves
+npm run build:box              # Nitro node-server build → ui-v2/.output — THIS is
+                                # what :8130/:8120 serve (see update loop below)
+npm run build                  # production bundle for the Vercel preset — does NOT
+                                # update the live box
 ```
 
 Restart the live services after a change: `systemctl restart ravenstack-keep-mcp
-ravenstack-keep-http` (and separately handle the UI worktree — restarting
-`ravenstack-keep-ui.service` only picks up changes already present in that worktree's
-checkout).
+ravenstack-keep-http` (and separately handle the UI — `ravenstack-keep-ui.service`
+runs the built server, so it needs a **rebuild** first: `git pull --ff-only && npm
+run build:box && systemctl restart ravenstack-keep-ui`).
 
 ## The two backend services and how they relate
 

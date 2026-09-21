@@ -170,7 +170,10 @@ export default defineConfig(({ command, mode }) => {
       ...(command === "build"
         ? [
             nitro({
-              preset: "vercel",
+              // "vercel" is the deploy target contract. Set NITRO_PRESET to a
+              // runtime preset (e.g. node-server) to build the runnable server
+              // the box serves directly instead.
+              preset: process.env.NITRO_PRESET || "vercel",
               // Auto-registers server/middleware/* (the PWA install page +
               // manifest + head-tag middleware). Nitro v3 defaults serverDir to
               // false, so removing this silently unwires /?install=1 on deploys.

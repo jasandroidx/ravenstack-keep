@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { formatDistanceToNow, format } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 import { KeepShell } from "@/components/keep/shell";
 import { getDutyBoard } from "@/lib/keep/server";
 import { LIGHT_META, DUTY_META, type DutyBoard } from "@/lib/keep/duty";
@@ -122,7 +122,7 @@ function ShiftBoard() {
         </p>
         {isFetching ? (
           <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.16em] text-subtle">
-            refreshing… · {format(new Date(), "HH:mm:ss")}
+            refreshing…
           </p>
         ) : null}
       </section>
