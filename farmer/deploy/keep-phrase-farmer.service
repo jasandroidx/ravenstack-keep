@@ -1,0 +1,17 @@
+[Unit]
+Description=Keep Phrase Farmer (weekly static-content batch generator)
+Documentation=file:///workspace/ravenstack-keep/farmer/phrase_farmer.py
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Lane = Grok VM, keeping the fortress Ollama slot free.
+Environment=OLLAMA_BASE_URL=http://100.97.223.55:11434
+Environment=OLLAMA_MODEL=phi4-mini
+Environment=KEEP_GATES_URL=http://127.0.0.1:8112/api/gates
+# Adjust REPO to the checkout path on the box.
+WorkingDirectory=/REPO/farmer
+ExecStart=python3 /REPO/farmer/phrase_farmer.py
+Nice=10
+# Prefer the repo's venv if present, else system python3 (needs PyYAML).
