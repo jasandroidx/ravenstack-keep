@@ -141,11 +141,20 @@ export default defineConfig(({ command, mode }) => {
     if (process.env[key] === undefined) process.env[key] = value;
   }
 
+  // Tailscale serve forwards the MagicDNS hostname (Host: *.ts.net). Vite's
+  // DNS-rebinding guard would otherwise 403 the live Keep. Set
+  // ALLOWED_HOSTS (comma-separated) in the box env to allowlist them; unset =
+  // Vite defaults, i.e. no behaviour change.
+  const allowedHosts = process.env.ALLOWED_HOSTS
+    ? process.env.ALLOWED_HOSTS.split(",").map((h) => h.trim()).filter(Boolean)
+    : undefined;
+
   return {
     server: {
       host: "0.0.0.0",
       port: 3000,
       strictPort: true,
+      allowedHosts,
     },
     resolve: { tsconfigPaths: true },
     plugins: [
