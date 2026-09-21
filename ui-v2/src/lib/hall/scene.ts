@@ -351,8 +351,12 @@ export class HallScene extends Phaser.Scene {
       if (this.paused) return;
       const w = this.cameras.main.getWorldPoint(p.x, p.y);
       const hit = npcAtPoint(w.x, w.y);
-      const distToPlayer = Math.hypot(w.x - this.player.x, w.y - this.player.y);
-      if (hit && distToPlayer < 90) {
+      // PERFORMANCE: Using squared distance calculation rather than Math.hypot
+      // Math.hypot can be a measurable performance bottleneck in a game loop context
+      const dx = w.x - this.player.x;
+      const dy = w.y - this.player.y;
+      const distSqToPlayer = dx * dx + dy * dy;
+      if (hit && distSqToPlayer < 8100) { // 90 * 90
         if (hit.id === "oracle") {
           hallAudio.playOracleGaze();
         } else {
