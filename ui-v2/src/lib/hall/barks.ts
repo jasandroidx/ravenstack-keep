@@ -21,6 +21,8 @@
  *   Cell    — flat and factual. The flatness is the menace.
  */
 
+import { fetchNpcDialogue } from "@/lib/keep/ollama";
+
 export type HallState = {
   /** Gates waiting on a seal at the war table. Null when unread. */
   gatesPending: number | null;
@@ -266,4 +268,18 @@ export function pickBark(npcId: string, state: HallState | null): string | null 
 /** Test seam. */
 export function resetBarkMemory(): void {
   spent.clear();
+}
+
+/**
+ * Async greeting: try live Ollama dialogue first (bounded, non-blocking),
+ * fall back to the rule-based pool when the API or Ollama is unreachable.
+ */
+export async function pickBarkAsync(
+  npcId: string,
+  state: HallState | null,
+  userQuery?: string
+): Promise<string | null> {
+  const dynamicReply = await fetchNpcDialogue({ data: { npcId, userQuery } });
+  if (dynamicReply) return dynamicReply;
+  return pickBark(npcId, state);
 }
