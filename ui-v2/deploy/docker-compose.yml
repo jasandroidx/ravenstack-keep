@@ -11,5 +11,12 @@ services:
       - ../.env
     environment:
       VITE_AUTH_ENABLED: "false"
+      # Local-first. From inside the container, localhost is the container —
+      # reach the host's Ollama and MCP bridge explicitly.
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      MCP_BASE_URL: http://host.docker.internal:8100/mcp
+      KEEP_MODEL_ROUTE: local-first
       # KEEP_PULSE_URL: http://host.docker.internal:8088/status.json
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped

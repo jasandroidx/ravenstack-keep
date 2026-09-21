@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { KeepShell } from "@/components/keep/shell";
+import { RoutingPanel } from "@/components/keep/routing-panel";
 import { SignInGate } from "@/components/keep/sign-in-gate";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -61,6 +62,10 @@ function MechanicPage() {
           ))}
         </div>
       </section>
+
+      <SignInGate prompt="Sign in to probe the model and MCP planes.">
+        <RoutingPanel />
+      </SignInGate>
 
       <section className="mt-10">
         <h2 className="font-display text-2xl">Skill surface</h2>

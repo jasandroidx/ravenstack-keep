@@ -1,4 +1,6 @@
 import fixture from "./pulse.fixture.json";
+import { dashboardStatus } from "./box-adapter";
+import { mcpConfigured } from "./mcp";
 
 /** Where the occupancy chips came from. Never call paper "live". */
 export type PulseSource = "live" | "paper";
@@ -82,20 +84,47 @@ export function paperPulse(): KeepPulse {
 }
 
 /**
- * Box adapter. KEEP_PULSE_URL should be status.json or a same-network proxy.
- * Never point this at a public Funnel URL from source control.
+ * Box adapter, in order of trust:
+ *   1. MCP dashboard_status — the real control plane.
+ *   2. KEEP_PULSE_URL — status.json or a same-network proxy.
+ *   3. The paper fixture, always labeled paper.
+ *
+ * Never point either at a public Funnel URL from source control.
  */
 export async function fetchKeepPulse(): Promise<KeepPulse> {
-  const url = process.env.KEEP_PULSE_URL?.trim();
-  if (!url) return paperPulse();
-  try {
-    const res = await fetch(url, { headers: { Accept: "application/json" } });
-    if (!res.ok) return { ...paperPulse(), note: `pulse HTTP ${res.status}` };
-    const json: unknown = await res.json();
-    return asPulse(json, "live") ?? { ...paperPulse(), note: "pulse JSON did not match" };
-  } catch (err) {
-    return { ...paperPulse(), note: err instanceof Error ? err.message : "pulse fetch failed" };
+  const notes: string[] = [];
+
+  if (mcpConfigured()) {
+    const box = await dashboardStatus();
+    if (box.ok && box.json) {
+      const live = asPulse(box.json, "live");
+      if (live) return live;
+      notes.push("MCP dashboard_status did not match the pulse shape");
+    } else if (!box.ok) {
+      notes.push(box.error);
+    }
   }
+
+  const url = process.env.KEEP_PULSE_URL?.trim();
+  if (url) {
+    try {
+      const res = await fetch(url, { headers: { Accept: "application/json" } });
+      if (res.ok) {
+        const json: unknown = await res.json();
+        const live = asPulse(json, "live");
+        if (live) return live;
+        notes.push("pulse JSON did not match");
+      } else {
+        notes.push(`pulse HTTP ${res.status}`);
+      }
+    } catch (err) {
+      notes.push(err instanceof Error ? err.message : "pulse fetch failed");
+    }
+  } else if (!mcpConfigured()) {
+    notes.push("No MCP_BASE_URL and no KEEP_PULSE_URL — nothing to ask");
+  }
+
+  return { ...paperPulse(), note: notes.join(" | ") || undefined };
 }
 
 export function pulseForSlug(pulse: KeepPulse, slug: string) {

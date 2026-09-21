@@ -1,0 +1,7 @@
+# Root workspace install (npm/bun workspaces hoist here).
+node_modules/
+
+# Never commit real secrets or Funnel URLs.
+.env
+.env.*
+!.env.example

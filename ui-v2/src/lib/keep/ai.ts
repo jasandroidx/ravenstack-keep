@@ -1,6 +1,6 @@
-import { GoogleGenAI } from "@google/genai";
 import type { DraftSpec, TableResult } from "./types";
 import { KNOWLEDGE, ROOMS, SPECS } from "./catalog";
+import { complete, getGenAI } from "./router";
 
 const FORTRESS_BRIEF = `You are inside Ravenstack Keep, Jason Boyd's personal AI fortress (ReClaw / OpenClaw on Hetzner + Tailscale).
 
@@ -22,39 +22,6 @@ ${Object.values(SPECS)
   .map((s) => `- ${s.name} (${s.status}): ${s.purpose}`)
   .join("\n")}
 `;
-
-let genAiClient: GoogleGenAI | null = null;
-function getGenAI(): GoogleGenAI {
-  if (!genAiClient) {
-    genAiClient = new GoogleGenAI();
-  }
-  return genAiClient;
-}
-
-async function complete(system: string, user: string, maxTokens = 1800) {
-  try {
-    const ai = getGenAI();
-    const response = await ai.models.generateContent({
-      model: "gemini-3.7-flash",
-      contents: user,
-      config: {
-        systemInstruction: system,
-        maxOutputTokens: maxTokens,
-        temperature: 0.4,
-      },
-    });
-
-    const text = response.text?.trim() ?? "";
-    if (!text) {
-      return { ok: false as const, error: "Empty model response from Gemini" };
-    }
-    return { ok: true as const, text };
-  } catch (err: unknown) {
-    console.error("[Gemini API Error]", err);
-    const message = err instanceof Error ? err.message : String(err);
-    return { ok: false as const, error: `Gemini API error: ${message}` };
-  }
-}
 
 function extractJson<T>(text: string): T | null {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -92,7 +59,7 @@ You are Clawforge. Interrogate the idea, then draft ONE Agent Spec. Return JSON 
 }
 Never set status to approved or live. Default model_tier is local. knowledge_indexes must not include general.`;
 
-  const result = await complete(system, `Forge a draft Spec for this idea:\n\n${idea}`, 2000);
+  const result = await complete(system, `Forge a draft Spec for this idea:\n\n${idea}`, 2000, { json: true });
   if (!result.ok) return result;
   const spec = extractJson<DraftSpec>(result.text);
   if (!spec?.purpose || !spec.kill_condition) {
@@ -118,14 +85,14 @@ You chair the Round Table. Subscription seats only. Produce JSON:
 }
 Push back if the question is too cheap for the table.`;
 
-  const result = await complete(system, question, 1600);
+  const result = await complete(system, question, 1600, { json: true });
   if (!result.ok) return result;
   const table = extractJson<TableResult>(result.text);
   if (!table?.chair) return { ok: false as const, error: "The table did not return a usable finding." };
   return { ok: true as const, table };
 }
 
-export async function askOracle(question: string) {
+export async function askOracle(question: string, boxExcerpt?: string) {
   const hits = KNOWLEDGE.filter((d) => {
     const hay = `${d.title} ${d.body}`.toLowerCase();
     return question
@@ -134,9 +101,9 @@ export async function askOracle(question: string) {
       .filter((t) => t.length > 2)
       .some((t) => hay.includes(t));
   }).slice(0, 5);
-  const pack = (hits.length ? hits : KNOWLEDGE.slice(0, 3))
-    .map((d) => `### ${d.title}\n${d.body}`)
-    .join("\n\n");
+  const local = (hits.length ? hits : KNOWLEDGE.slice(0, 3)).map((d) => `### ${d.title}\n${d.body}`);
+  // Box knowledge is the vault SOT, so it goes first when MCP answered.
+  const pack = (boxExcerpt ? [`### Vault (via MCP)\n${boxExcerpt}`, ...local] : local).join("\n\n");
 
   const system = `${FORTRESS_BRIEF}
 
@@ -144,10 +111,13 @@ You are Oracle. Answer only from the provided vault excerpts. Cite titles. If th
 
   const result = await complete(system, `Question: ${question}\n\nVault excerpts:\n${pack}`, 1200);
   if (!result.ok) return result;
+  const citations = (hits.length ? hits : KNOWLEDGE.slice(0, 3)).map((d) => d.title);
   return {
     ok: true as const,
     answer: result.text,
-    citations: (hits.length ? hits : KNOWLEDGE.slice(0, 3)).map((d) => d.title),
+    citations: boxExcerpt ? ["Vault (via MCP)", ...citations] : citations,
+    provider: result.provider,
+    model: result.model,
   };
 }
 
@@ -164,7 +134,7 @@ export async function inspectConcern(kind: "sentinel" | "mechanic", concern: str
     1400,
   );
   if (!result.ok) return result;
-  return { ok: true as const, text: result.text };
+  return { ok: true as const, text: result.text, provider: result.provider, model: result.model };
 }
 
 export async function talkHall(agent: string, message: string) {
@@ -234,7 +204,7 @@ export async function generatePortraitImage(input: {
 }) {
   const pixelThemePrompt = `Masterpiece 16-bit and 32-bit dark cyber-arcane pixel art portrait of ${input.subjectName}, ${input.arcaneTitle}. ${input.customModifier ? `Character theme and custom modifiers: ${input.customModifier}.` : "High sovereign noble of the obsidian Keep."} Dark gothic obsidian stone masonry background, rich hand-crafted pixel dithering, dramatic chiaroscuro torchlight, glowing cyan (#2de2e6) and magenta (#ff2a6d) neon rim-lighting. Authentic retro pixel art style, no flat vectors, no vector shapes.`;
 
-  const ai = getGenAI();
+  const ai = await getGenAI();
 
   // 1. Photo-to-Pixel Transformation via Native Nano Banana (Multimodal Image Editing)
   if (input.photoBase64) {

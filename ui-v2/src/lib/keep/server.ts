@@ -4,6 +4,9 @@ import { getSql } from "@/lib/db";
 import { askOracle, conveneTable, forgeSpec, generatePortraitImage, generatePortraitLore, inspectConcern, talkHall } from "./ai";
 import { ARCHITECTURE, KNOWLEDGE, ROOMS, SKILL_SURFACE, SPECS, getRoom, getSpecForRoom, roomCounts } from "./catalog";
 import { fetchKeepPulse } from "./pulse";
+import { boxToolsAvailable, queryKnowledge } from "./box-adapter";
+import { mcpConfigured, mcpHealth } from "./mcp";
+import { routingStatus } from "./router";
 import type { DraftSpec, TableResult } from "./types";
 import type { CommissionRequest, LoreRerollRequest, PortraitItem } from "@/lib/gallery/types";
 
@@ -113,7 +116,15 @@ export const runOracle = createServerFn({ method: "POST" })
   .validator((question: string) => question.trim())
   .handler(async ({ context, data: question }) => {
     if (!question) return { ok: false as const, error: "Ask the vault something specific." };
-    const result = await askOracle(question);
+
+    // Vault SOT lives on the box. Catalog excerpts are the labeled fallback.
+    let boxExcerpt: string | undefined;
+    if (mcpConfigured()) {
+      const box = await queryKnowledge(question);
+      if (box.ok && box.text) boxExcerpt = box.text;
+    }
+
+    const result = await askOracle(question, boxExcerpt);
     if (!result.ok) return result;
     const sql = await getSql();
     await sql`
@@ -186,6 +197,23 @@ export const talkInHall = createServerFn({ method: "POST" })
     const result = await talkHall(data.agent, data.message);
     if (!result.ok) return result;
     return { ok: true as const, reply: result.text };
+  });
+
+/**
+ * Honest routing snapshot for Valerie's bench. Read-only, never returns a key.
+ * This is the screen to open first when "nothing works".
+ */
+export const getRoutingStatus = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async () => {
+    const [models, mcp] = await Promise.all([routingStatus(), mcpHealth()]);
+    const binds = mcp.reachable ? await boxToolsAvailable() : null;
+    return {
+      models,
+      mcp,
+      binds: binds?.ok ? { present: binds.present, missing: binds.missing } : null,
+      bindsError: binds && !binds.ok ? binds.error : null,
+    };
   });
 
 export type SavedDraft = {
