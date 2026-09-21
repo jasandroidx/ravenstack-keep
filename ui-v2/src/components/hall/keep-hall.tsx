@@ -6,10 +6,10 @@ import { RAVENLORD_SKINS, type HallNpc, type RavenlordSkin } from "@/lib/hall/wo
 import { getKeepSnapshot } from "@/lib/keep/server";
 import type { KeepPulse } from "@/lib/keep/pulse";
 import { hallAudio } from "@/lib/hall/audio";
-import { pickHeraldLine } from "@/lib/hall/herald";
+import { pickHeraldLineAsync } from "@/lib/hall/herald";
 import { WarTablePanel } from "@/components/keep/war-table-panel";
 import { getHallState, listQuarantine } from "@/lib/keep/server";
-import { pickBark, type HallState } from "@/lib/hall/barks";
+import { pickBarkAsync, type HallState } from "@/lib/hall/barks";
 import { FastMCPStatusBadge } from "@/components/keep/fastmcp-status-badge";
 import { toast } from "sonner";
 
@@ -58,10 +58,10 @@ export function KeepHall() {
   useEffect(() => {
     let alive = true;
     let timer: ReturnType<typeof setTimeout>;
-    const tick = () => {
+    const tick = async () => {
       if (!alive) return;
       if (!(talk || tableOpen || wardrobeOpen)) {
-        const line = pickHeraldLine(new Date().getHours());
+        const line = await pickHeraldLineAsync(new Date().getHours());
         if (line) {
           setHeraldLine(line.text);
           if (line.category === "torchlight") sceneRef.current?.pulseTorch();
@@ -109,7 +109,7 @@ export function KeepHall() {
             setAtTable(table);
           },
           onTalk: (npc) => {
-            setBark(pickBark(npc.id, hallStateRef.current));
+            pickBarkAsync(npc.id, hallStateRef.current).then(setBark);
             setTalk(npc);
             setTableOpen(false);
           },

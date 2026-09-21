@@ -8,6 +8,8 @@
  * instead, not here.
  */
 
+import { fetchAmbientEvent } from "@/lib/keep/ollama";
+
 export type HeraldLine = {
   id: string;
   category: "thought" | "weather" | "torchlight";
@@ -70,4 +72,17 @@ export function pickHeraldLine(hour: number): HeraldLine | null {
 /** Test seam. */
 export function resetHeraldMemory(): void {
   spent.clear();
+}
+
+/**
+ * Dynamic ambient line from Ollama when it answers, else the rule-based pool.
+ * Tagged "weather" — neutral atmosphere — deliberately NOT "torchlight", so a
+ * generated line never pulses the hall lights.
+ */
+export async function pickHeraldLineAsync(hour: number): Promise<HeraldLine | null> {
+  const dynamicText = await fetchAmbientEvent();
+  if (dynamicText) {
+    return { id: `ollama-${Date.now()}`, category: "weather", text: dynamicText };
+  }
+  return pickHeraldLine(hour);
 }
