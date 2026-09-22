@@ -326,7 +326,11 @@ export function KeepHall() {
   }, []);
 
   useEffect(() => {
-    if (sceneRef.current) sceneRef.current.paused = Boolean(talk || tableOpen || wardrobeOpen);
+    const isOpen = Boolean(talk || tableOpen || wardrobeOpen);
+    if (sceneRef.current) {
+      sceneRef.current.paused = isOpen;
+      sceneRef.current.setKeyboardEnabled(!isOpen);
+    }
   }, [talk, tableOpen, wardrobeOpen]);
 
   useEffect(() => {
