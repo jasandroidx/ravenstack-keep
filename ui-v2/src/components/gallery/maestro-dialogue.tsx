@@ -24,7 +24,7 @@ export function MaestroDialogue({
   onClose,
 }: MaestroDialogueProps) {
   const [quoteIndex, setQuoteIndex] = useState(() =>
-    Math.floor(Math.random() * MAESTRO_QUOTES.length)
+    Math.floor(Math.random() * MAESTRO_QUOTES.length),
   );
 
   const handleRattleCan = () => {
@@ -67,6 +67,7 @@ export function MaestroDialogue({
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close"
             className="flex h-8 w-8 items-center justify-center rounded-sm border border-[#3a3f4b] text-[#9aa3b2] transition-colors hover:border-[#ff2a6d] hover:text-[#ff2a6d]"
           >
             ✕
@@ -111,13 +112,16 @@ export function MaestroDialogue({
               className="group flex w-full items-center justify-between rounded-sm border border-[#2de2e6]/50 bg-[#2de2e6]/10 p-3.5 text-left transition-all hover:border-[#2de2e6] hover:bg-[#2de2e6]/20 active:scale-[0.99]"
             >
               <div className="flex items-center gap-3">
-                <span className="text-xl group-hover:scale-110 transition-transform">🎨</span>
+                <span className="text-xl group-hover:scale-110 transition-transform">
+                  🎨
+                </span>
                 <div>
                   <div className="font-display text-sm text-[#2de2e6]">
                     [1] Commission a New Portrait (Easel Studio)
                   </div>
                   <div className="text-xs text-[#9aa3b2]">
-                    Upload a portrait or selfie, choose cyber-arcane twists, and paint high-density pixel art.
+                    Upload a portrait or selfie, choose cyber-arcane twists, and
+                    paint high-density pixel art.
                   </div>
                 </div>
               </div>
@@ -135,13 +139,16 @@ export function MaestroDialogue({
               className="group flex w-full items-center justify-between rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/60 p-3.5 text-left transition-all hover:border-[#ffc857] hover:bg-[#ffc857]/10 active:scale-[0.99]"
             >
               <div className="flex items-center gap-3">
-                <span className="text-xl group-hover:scale-110 transition-transform">📜</span>
+                <span className="text-xl group-hover:scale-110 transition-transform">
+                  📜
+                </span>
                 <div>
                   <div className="font-display text-sm text-[#ffc857]">
                     [2] Chronicle & Re-Roll Lore
                   </div>
                   <div className="text-xs text-[#9aa3b2]">
-                    Weave new sovereign tales, inside jokes, and Obsidian Ledger histories for hung portraits.
+                    Weave new sovereign tales, inside jokes, and Obsidian Ledger
+                    histories for hung portraits.
                   </div>
                 </div>
               </div>
@@ -159,13 +166,16 @@ export function MaestroDialogue({
               className="group flex w-full items-center justify-between rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/60 p-3.5 text-left transition-all hover:border-[#ff2a6d] hover:bg-[#ff2a6d]/10 active:scale-[0.99]"
             >
               <div className="flex items-center gap-3">
-                <span className="text-xl group-hover:scale-110 transition-transform">🖼️</span>
+                <span className="text-xl group-hover:scale-110 transition-transform">
+                  🖼️
+                </span>
                 <div>
                   <div className="font-display text-sm text-[#ff2a6d]">
                     [3] Manage / Clear Wall Frames
                   </div>
                   <div className="text-xs text-[#9aa3b2]">
-                    Inspect all 8 wall slots, rearrange gallery mounts, or clear custom commissions.
+                    Inspect all 8 wall slots, rearrange gallery mounts, or clear
+                    custom commissions.
                   </div>
                 </div>
               </div>
@@ -181,7 +191,9 @@ export function MaestroDialogue({
             >
               <div className="flex items-center gap-3">
                 <span>🚪</span>
-                <span className="text-sm text-[#9aa3b2]">[4] Take your leave</span>
+                <span className="text-sm text-[#9aa3b2]">
+                  [4] Take your leave
+                </span>
               </div>
               <span className="text-xs text-[#9aa3b2]">Esc</span>
             </button>
