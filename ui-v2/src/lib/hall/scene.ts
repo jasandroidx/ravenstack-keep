@@ -289,14 +289,11 @@ export class HallScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(11);
 
-    // Dynamic Point Lights
-    for (const cfg of HALL_LIGHTS) {
-      const light = this.add.pointlight(cfg.x, cfg.y, cfg.color, cfg.radius, cfg.intensity);
-      light.setDepth(12);
-      this.hallLights.push(light);
-      this.lightBase.push(cfg.intensity);
-      this.lightPhase.push(Math.random() * Math.PI * 2);
-    }
+    // Dynamic Point Lights — removed. The pointlight sprites rendered as flat,
+    // harshly-edged color blobs overlapping the painted background rather than
+    // a soft torch glow (looked broken, not atmospheric). this.hallLights stays
+    // permanently empty; the flicker-update loop and pulseTorch() below already
+    // no-op safely on an empty array, so nothing else needed changing.
 
     // Player Shadow & Sprite
     this.shadow = this.add.ellipse(PLAYER_SPAWN.x, PLAYER_SPAWN.y + 2, 28, 10, 0x000000, 0.42).setDepth(13);

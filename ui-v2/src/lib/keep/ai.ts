@@ -472,11 +472,22 @@ OUTPUT FORMAT:
 3. Verification: How to verify the fix succeeded.
 4. Source Links: Clickable markdown links if external documentation or schematics were referenced.`;
 
+  const contents = input.contextLogs
+    ? `DIAGNOSTIC INQUIRY: ${input.concern}\n\nRAW DOCKER/SYSTEM LOGS OR CONTEXT:\n\`\`\`\n${input.contextLogs}\n\`\`\``
+    : input.concern;
+
+  // Local-first, same as every other agent in the Keep: try Ollama before ever
+  // touching Gemini. This tool's Gemini path also carries live googleSearch
+  // grounding (for the physical-shop / automotive lookups the persona above
+  // promises) which Ollama can't do here, so Gemini stays as the fallback for
+  // *that* — not the default for every stack-diagnostic question.
+  const local = await completeOllama(system, contents, 1800);
+  if (local.ok) {
+    return { ok: true as const, text: local.text, sources: [], groundingSearchQueries: [] };
+  }
+
   try {
     const ai = getGenAI();
-    const contents = input.contextLogs
-      ? `DIAGNOSTIC INQUIRY: ${input.concern}\n\nRAW DOCKER/SYSTEM LOGS OR CONTEXT:\n\`\`\`\n${input.contextLogs}\n\`\`\``
-      : input.concern;
 
     const response = await ai.models.generateContent({
       model: "gemini-3.7-flash",
