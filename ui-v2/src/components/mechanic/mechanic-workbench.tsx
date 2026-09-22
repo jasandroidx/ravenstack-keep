@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
-import { runMechanicDiagnosis } from "@/lib/keep/server";
+import { runMechanicDiagnosis, getLatestRavenDropInfo } from "@/lib/keep/server";
 import { mechanicAudio } from "@/lib/mechanic/audio";
 import { SignInGate } from "@/components/keep/sign-in-gate";
 
@@ -96,11 +96,16 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
   const [busy, setBusy] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [copiedBlockId, setCopiedBlockId] = useState<string | null>(null);
+  const [dropInfo, setDropInfo] = useState<{ exists: boolean; filename: string; mtime: string; header: string } | null>(null);
   const terminalEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     mechanicAudio.enabled = soundEnabled;
   }, [soundEnabled]);
+
+  useEffect(() => {
+    getLatestRavenDropInfo().then(setDropInfo).catch(console.error);
+  }, []);
 
   useEffect(() => {
     terminalEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -169,6 +174,7 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
       setMessages((prev) => [...prev, valerieMsg]);
       mechanicAudio.playDiagnosticReady();
       toast.success("Valerie finished diagnosis.");
+      getLatestRavenDropInfo().then(setDropInfo).catch(console.error);
     } catch (err: unknown) {
       console.error(err);
       const errMsg = err instanceof Error ? err.message : String(err);
@@ -461,6 +467,11 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
               {/* Quick Port Stats */}
               <div className="mt-2 text-center font-mono text-[10px] text-[#2de2e6] bg-[#0d0221] py-1 rounded border border-[#2de2e6]/20">
                 PORT 18789 · FASTMCP :8100 — see bridge badge for live status
+              </div>
+
+              {/* Raven Drop Badge */}
+              <div className="mt-2 text-center font-mono text-[10px] bg-[#0d0221] py-1 px-1.5 rounded border border-[#ffc857]/40 text-[#ffc857] truncate">
+                Reading drop: {dropInfo?.exists ? `${dropInfo.filename} @ ${dropInfo.mtime}` : "latest.txt @ none"}
               </div>
             </div>
 

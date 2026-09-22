@@ -3,6 +3,7 @@ import type { DraftSpec, TableResult } from "./types";
 import { KNOWLEDGE, ROOMS, SPECS } from "./catalog";
 import { executeFastMCPTool } from "./fastmcp";
 import { webSearch, browserRender, type SearchResult } from "./corvid-tools";
+import { readLatestRavenDrop } from "./drops";
 
 const FORTRESS_BRIEF = `You are inside Ravenstack Keep, Jason Boyd's personal AI fortress (ReClaw / OpenClaw on Hetzner + Tailscale).
 
@@ -648,9 +649,15 @@ OUTPUT FORMAT:
 3. Verification: How to verify the fix succeeded.
 Do not invent source links or citations -- you have no search tool. If you are not certain of a spec or a doc, say so instead of fabricating a reference.`;
 
-  const contents = input.contextLogs
+  const drop = readLatestRavenDrop();
+  let contents = input.contextLogs
     ? `DIAGNOSTIC INQUIRY: ${input.concern}\n\nRAW DOCKER/SYSTEM LOGS OR CONTEXT:\n\`\`\`\n${input.contextLogs}\n\`\`\``
     : input.concern;
+
+  if (drop.exists && drop.content) {
+    contents += `\n\nLATEST RAVEN DROP (${drop.filename}):\nHeader: ${drop.header}\n\`\`\`\n${drop.content}\n\`\`\``;
+  }
+
   // Local only -- no more googleSearch grounding tool, which was Gemini-only
   // and had no local equivalent. sources/groundingSearchQueries stay in the
   // return shape (always empty) so mechanic-workbench.tsx's optional
