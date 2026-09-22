@@ -27,25 +27,38 @@ const root = join(here, "..");
 // main entry lives directly in dist/, alongside the wasm/data assets.
 const entryPath = import.meta.resolve("@electric-sql/pglite");
 const srcDir = dirname(fileURLToPath(entryPath));
-const destDir = join(root, ".output", "server", "_libs");
 
 const assets = ["pglite.data", "pglite.wasm", "initdb.wasm"];
 
-if (!existsSync(destDir)) {
-  console.log(`[copy-pglite-assets] ${destDir} does not exist (no server build?) — skipping.`);
+// Nitro writes the server bundle to different places depending on preset:
+// - local `vite build` (node-server / default): .output/server/_libs
+// - Vercel preset: .vercel/output/functions/__server.func/_libs
+// Copy into every extant destination so PGLite's runtime `new URL(...)`
+// resolves the WASM/data files next to its bundled JS wrapper.
+const destDirs = [
+  join(root, ".output", "server", "_libs"),
+  join(root, ".vercel", "output", "functions", "__server.func", "_libs"),
+].filter(existsSync);
+
+if (destDirs.length === 0) {
+  console.log("[copy-pglite-assets] no server _libs directory found (no server build?) — skipping.");
   process.exit(0);
 }
 
-mkdirSync(destDir, { recursive: true });
-
-for (const asset of assets) {
-  const src = join(srcDir, asset);
-  const dest = join(destDir, asset);
-  if (!existsSync(src)) {
-    console.error(`[copy-pglite-assets] missing source asset: ${src}`);
-    process.exitCode = 1;
-    continue;
+let failed = false;
+for (const destDir of destDirs) {
+  mkdirSync(destDir, { recursive: true });
+  for (const asset of assets) {
+    const src = join(srcDir, asset);
+    const dest = join(destDir, asset);
+    if (!existsSync(src)) {
+      console.error(`[copy-pglite-assets] missing source asset: ${src}`);
+      failed = true;
+      continue;
+    }
+    copyFileSync(src, dest);
+    console.log(`[copy-pglite-assets] copied ${asset} -> ${dest}`);
   }
-  copyFileSync(src, dest);
-  console.log(`[copy-pglite-assets] copied ${asset} -> ${dest}`);
 }
+
+if (failed) process.exit(1);
