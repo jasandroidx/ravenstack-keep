@@ -1,6 +1,8 @@
 import { GoogleGenAI } from "@google/genai";
 import type { DraftSpec, TableResult } from "./types";
 import { KNOWLEDGE, ROOMS, SPECS } from "./catalog";
+import { executeFastMCPTool } from "./fastmcp";
+import { webSearch, browserRender, type SearchResult } from "./corvid-tools";
 
 const FORTRESS_BRIEF = `You are inside Ravenstack Keep, Jason Boyd's personal AI fortress (ReClaw / OpenClaw on Hetzner + Tailscale).
 
@@ -231,7 +233,189 @@ export async function inspectConcern(kind: "sentinel" | "mechanic", concern: str
   return { ok: true as const, text: result.text };
 }
 
+// Ollama tool-calling model for Corvid. His speced localHint (phi4-mini) is
+// tagged "tools"-capable by Ollama but ignored the tools array outright in
+// testing (answered from stale training data instead of calling web_search
+// even when explicitly told to). qwen3:4b reliably emits real tool_calls —
+// verified live against this box's Ollama before wiring this in.
+const CORVID_MODEL = "qwen3:4b";
+
+type OllamaToolCall = { id?: string; function: { name: string; arguments: Record<string, unknown> } };
+type OllamaChatMessage = {
+  role: "system" | "user" | "assistant" | "tool";
+  content: string;
+  tool_calls?: OllamaToolCall[];
+  tool_call_id?: string;
+};
+
+const CORVID_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "web_search",
+      description: "Search the public web (DuckDuckGo + Wikipedia). Use for anything current, or outside the vault.",
+      parameters: {
+        type: "object",
+        properties: { query: { type: "string", description: "The search query." } },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "browser_render",
+      description:
+        "Render one live page and return its visible text. Use only when web_search snippets aren't enough — a ToS page, a JS-heavy doc site, a specific URL you already have. Read-only.",
+      parameters: {
+        type: "object",
+        properties: { url: { type: "string", description: "The exact URL to render." } },
+        required: ["url"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "query_knowledge",
+      description: "Search the Ravenstack vault / internal knowledge base. Always try this before the open web for fortress-internal questions.",
+      parameters: {
+        type: "object",
+        properties: { query: { type: "string", description: "What to look up in the vault." } },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "oracle_verify",
+      description: "Cross-check a specific factual claim against the vault's truth rules before including it in a digest.",
+      parameters: {
+        type: "object",
+        properties: { claim: { type: "string", description: "The exact claim to verify." } },
+        required: ["claim"],
+      },
+    },
+  },
+] as const;
+
+async function runCorvidTool(
+  name: string,
+  args: Record<string, unknown>,
+): Promise<{ text: string; sources: Array<{ title: string; url: string }> }> {
+  switch (name) {
+    case "web_search": {
+      const query = String(args.query ?? "");
+      const res = await webSearch(query);
+      if (!res.ok) return { text: `web_search failed: ${res.error}`, sources: [] };
+      const sources = res.results.map((r: SearchResult) => ({ title: r.title, url: r.url }));
+      const text = res.results
+        .map((r: SearchResult) => `- [${r.source}] ${r.title} — ${r.snippet} (${r.url})`)
+        .join("\n");
+      return { text, sources };
+    }
+    case "browser_render": {
+      const url = String(args.url ?? "");
+      const res = await browserRender(url);
+      if (!res.ok) return { text: `browser_render failed: ${res.error}`, sources: [] };
+      return { text: res.text, sources: [{ title: url, url }] };
+    }
+    case "query_knowledge": {
+      const query = String(args.query ?? "");
+      const res = await executeFastMCPTool("query_knowledge", { query });
+      if (!res.ok) return { text: `query_knowledge failed: ${res.error}`, sources: [] };
+      return { text: JSON.stringify(res.data).slice(0, 4000), sources: [] };
+    }
+    case "oracle_verify": {
+      const claim = String(args.claim ?? "");
+      const res = await executeFastMCPTool("oracle_verify", { claim });
+      if (!res.ok) return { text: `oracle_verify failed: ${res.error}`, sources: [] };
+      return { text: JSON.stringify(res.data).slice(0, 2000), sources: [] };
+    }
+    default:
+      return { text: `Unknown tool: ${name}`, sources: [] };
+  }
+}
+
+/**
+ * Corvid's research loop — the one agent in the Keep with real external tools.
+ * Local-first (qwen3:4b on this box's Ollama) with no cloud escalation: a
+ * research digest is not latency-sensitive, so there is no fallback tier here
+ * the way `complete()` has for the other personas.
+ */
+async function talkCorvid(message: string) {
+  const system = `${FORTRESS_BRIEF}
+
+You are Corvid, raven scout of Ravenstack Keep. Precise, source-obsessed, allergic to rumor. Return only what can be cited. Short digests, no invented numbers. Try query_knowledge before the open web for anything fortress-internal. Use web_search for current or external facts. Use browser_render only when a specific page needs real rendering. When you give a final answer, write 2-6 short sentences in character, then a "Sources:" line listing the URLs you actually used — or say "Sources: none (no external lookup needed)" if you answered from the vault/your own reasoning alone.`;
+
+  const messages: OllamaChatMessage[] = [
+    { role: "system", content: system },
+    { role: "user", content: message },
+  ];
+  const allSources: Array<{ title: string; url: string }> = [];
+  const base = (process.env.OLLAMA_URL?.trim() || "http://127.0.0.1:11434").replace(/\/$/, "");
+
+  for (let turn = 0; turn < 4; turn++) {
+    let res: Response;
+    try {
+      res = await fetch(`${base}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // Generous on purpose: cold-loading qwen3:4b plus the full
+        // FORTRESS_BRIEF/persona/tool-schema prompt on CPU-only inference
+        // measured over 120s for a single turn in testing. A research digest
+        // is not latency-sensitive (see the comment on talkCorvid above).
+        signal: AbortSignal.timeout(240000),
+        body: JSON.stringify({
+          model: CORVID_MODEL,
+          think: false,
+          stream: false,
+          messages,
+          tools: CORVID_TOOLS,
+        }),
+      });
+    } catch (err) {
+      return { ok: false as const, error: `Ollama unreachable: ${err instanceof Error ? err.message : String(err)}` };
+    }
+    if (!res.ok) return { ok: false as const, error: `Ollama HTTP ${res.status}` };
+    const data = (await res.json()) as { message?: OllamaChatMessage };
+    const msg = data.message;
+    if (!msg) return { ok: false as const, error: "Empty response from Ollama." };
+
+    if (!msg.tool_calls || msg.tool_calls.length === 0) {
+      const text = msg.content.replace(/<think>[\s\S]*?<\/think>\s*/gi, "").trim();
+      if (!text) return { ok: false as const, error: "Corvid returned an empty digest." };
+      return { ok: true as const, text, sources: allSources };
+    }
+
+    messages.push({ role: "assistant", content: msg.content, tool_calls: msg.tool_calls });
+    for (const call of msg.tool_calls) {
+      const result = await runCorvidTool(call.function.name, call.function.arguments ?? {});
+      allSources.push(...result.sources);
+      messages.push({
+        role: "tool",
+        content: result.text,
+        ...(call.id ? { tool_call_id: call.id } : {}),
+      });
+    }
+  }
+  return { ok: false as const, error: "Corvid's research loop hit its turn limit without a final answer." };
+}
+
 export async function talkHall(agent: string, message: string) {
+  if (agent === "corvid") {
+    const res = await talkCorvid(message);
+    if (!res.ok) return res;
+    const sourceLines = res.sources.length
+      ? res.sources
+          .filter((s, i, arr) => arr.findIndex((x) => x.url === s.url) === i)
+          .map((s) => s.url)
+          .join(", ")
+      : "none (no external lookup needed)";
+    return { ok: true as const, text: `${res.text}\n\nSources: ${sourceLines}` };
+  }
+
   const persona: Record<string, string> = {
     raziel:
       "You are Raziel, Sovereign Arch-Orchestrator of Ravenstack Keep. Calm, brief, operational. You decompose work and enforce human gates. Never spend. Never invent live status.",
@@ -239,8 +423,6 @@ export async function talkHall(agent: string, message: string) {
       "You are Oracle, the wayfinder. Citation-first. You know where things live in the vault (ORACLE, ARCHITECTURE, rooms, ingest/distill). If you do not know, say not-in-knowledge. Never invent paths.",
     valerie:
       "You are Valerie, Fortress Mechanic of Ravenstack Keep. Sharp, dry, numbered checklists. You treat the gateway like a machine you personally built. Hate cloud bloat. Love local models and reversible diffs. Diagnose OpenClaw, MCP, skills, local inference. Smallest reversible step. Never print secrets, tokens, or Funnel paths. Never discuss county/auditor pipelines. If they want a live box fact you do not have, say you cannot see the box from here.",
-    corvid:
-      "You are Corvid. Short cited digests only. Vault first. Mark unknowns. No rumor. No invented numbers.",
   };
   const system = `${FORTRESS_BRIEF}
 
