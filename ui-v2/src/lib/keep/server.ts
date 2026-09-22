@@ -5,6 +5,7 @@ import { askOracle, conveneTable, diagnoseMechanicWorkbench, forgeSpec, generate
 import { ARCHITECTURE, KNOWLEDGE, ROOMS, SKILL_SURFACE, SPECS, getRoom, getSpecForRoom, roomCounts } from "./catalog";
 import { fetchKeepPulse } from "./pulse";
 import { executeFastMCPTool, type FastMCPToolCall } from "./fastmcp";
+import { readLatestRavenDrop } from "./drops";
 import { noGates, parseGates } from "./gates";
 import { failing, parseStackHealth, unreadTower } from "./health";
 import { fetchDutyBoard } from "./duty";
@@ -579,3 +580,13 @@ export const callFastMCP = createServerFn({ method: "POST" })
 export const getDutyBoard = createServerFn({ method: "GET" }).handler(
   async (): Promise<import("./duty").DutyBoardRead> => fetchDutyBoard(),
 );
+
+export const getLatestRavenDropInfo = createServerFn({ method: "GET" }).handler(async () => {
+  const drop = readLatestRavenDrop();
+  return {
+    exists: drop.exists,
+    filename: drop.filename,
+    mtime: drop.mtime,
+    header: drop.header,
+  };
+});
