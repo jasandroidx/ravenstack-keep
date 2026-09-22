@@ -505,7 +505,6 @@ export function MechanicWorkbench() {
                 <li><span className="text-[#ffc857]">L3:</span> Config, envs, volumes & uid:1000</li>
                 <li><span className="text-[#ffc857]">L4:</span> Docker logs, memory, OOM & loops</li>
                 <li><span className="text-[#ffc857]">L5:</span> FastMCP sockets & SQLite locks</li>
-                <li><span className="text-[#39ff14]">PHYS:</span> Auto circuits, OBD-II & sensors</li>
               </ul>
             </div>
           </div>
