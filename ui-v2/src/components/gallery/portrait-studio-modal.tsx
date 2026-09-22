@@ -154,16 +154,17 @@ export function PortraitStudioModal({
         },
       });
 
-      if (!serverRes.ok || !serverRes.portrait?.imageUrl) {
-        const errMsg =
-          !serverRes.ok && serverRes.error
-            ? serverRes.error
-            : "Nano Banana / Imagen 3 API error: No image returned.";
+      if (!serverRes.ok) {
+        const errMsg = serverRes.error || "Portrait commission failed.";
         setApiError(errMsg);
         toast.error(errMsg);
         return;
       }
 
+      // The fortress runs local-only now -- no cloud key means the chronicle
+      // still writes (local Ollama), but there is no local model that does
+      // pixel generation. That is an expected, honest degrade, not an error:
+      // save the lore and say plainly that the frame stays unlit.
       const portraitResult: PortraitItem = {
         ...serverRes.portrait,
         imageUrl: serverRes.portrait.imageUrl,
@@ -171,11 +172,17 @@ export function PortraitStudioModal({
       };
 
       saveLocalGalleryPortrait(portraitResult);
-      maestroAudio.playArcaneChime();
 
-      toast.success(
-        `Portrait of ${subjectName} successfully forged with Nano Banana and mounted to Slot #${slotNumber}!`,
-      );
+      if (serverRes.portrait.imageUrl) {
+        maestroAudio.playArcaneChime();
+        toast.success(
+          `Portrait of ${subjectName} successfully forged with Nano Banana and mounted to Slot #${slotNumber}!`,
+        );
+      } else {
+        toast.info(
+          `Chronicle inscribed for ${subjectName}. No pixel-art image: ${serverRes.imageNote || "no local image model configured"}.`,
+        );
+      }
       onComplete(portraitResult);
     } catch (err: unknown) {
       console.error("Studio error:", err);

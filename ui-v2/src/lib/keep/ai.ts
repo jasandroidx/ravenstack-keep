@@ -71,39 +71,17 @@ async function completeOllama(system: string, user: string, maxTokens: number) {
   }
 }
 
-async function completeGemini(system: string, user: string, maxTokens: number) {
-  try {
-    const ai = getGenAI();
-    const response = await ai.models.generateContent({
-      model: "gemini-3.7-flash",
-      contents: user,
-      config: {
-        systemInstruction: system,
-        maxOutputTokens: maxTokens,
-        temperature: 0.4,
-      },
-    });
-
-    const text = response.text?.trim() ?? "";
-    if (!text) {
-      return { ok: false as const, error: "Empty model response from Gemini" };
-    }
-    return { ok: true as const, text };
-  } catch (err: unknown) {
-    console.error("[Gemini API Error]", err);
-    const message = err instanceof Error ? err.message : String(err);
-    return { ok: false as const, error: `Gemini API error: ${message}` };
-  }
-}
-
-/** Local (Ollama) first; escalate to Gemini only if local fails and a key is configured. */
+/**
+ * Local Ollama only. The operator removed the Gemini key deliberately --
+ * every text-completion surface in the Keep (Oracle, Forge, the Round Table,
+ * Sentinel, Mechanic's inline form, hall dialogue, portrait lore) runs on the
+ * box's own models or not at all. getGenAI() and the Gemini/Nano Banana SDK
+ * calls below still exist ONLY inside generatePortraitImage, which has no
+ * local substitute for actual pixel generation -- see that function's own
+ * comment. No other function in this file may call getGenAI() again.
+ */
 async function complete(system: string, user: string, maxTokens = 1800) {
-  const local = await completeOllama(system, user, maxTokens);
-  if (local.ok) return local;
-
-  const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY);
-  if (!hasGeminiKey) return local;
-  return completeGemini(system, user, maxTokens);
+  return completeOllama(system, user, maxTokens);
 }
 
 function extractJson<T>(text: string): T | null {
@@ -289,6 +267,13 @@ Theme / Modifier: ${input.customModifier || "Gothic Cyber-Arcane Sovereign"}`;
   return { ok: true as const, lore: res.text };
 }
 
+/**
+ * The one function in this file still allowed to touch Gemini -- pixel-art
+ * portrait generation has no local model in this stack (Ollama does not do
+ * image synthesis here). Fails fast and honestly with no key configured
+ * rather than let generatePortraitLore's caller wait through several
+ * doomed network round trips to Nano Banana / Imagen first.
+ */
 export async function generatePortraitImage(input: {
   subjectName: string;
   arcaneTitle: string;
@@ -296,6 +281,15 @@ export async function generatePortraitImage(input: {
   photoBase64?: string;
   mimeType?: string;
 }) {
+  const hasKey = Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY);
+  if (!hasKey) {
+    return {
+      ok: false as const,
+      error:
+        "No cloud key configured, and portrait image generation has no local Ollama equivalent in this stack. The chronicle lore still writes locally -- only the pixel-art image is unavailable.",
+    };
+  }
+
   const pixelThemePrompt = `Masterpiece 16-bit and 32-bit dark cyber-arcane pixel art portrait of ${input.subjectName}, ${input.arcaneTitle}. ${input.customModifier ? `Character theme and custom modifiers: ${input.customModifier}.` : "High sovereign noble of the obsidian Keep."} Dark gothic obsidian stone masonry background, rich hand-crafted pixel dithering, dramatic chiaroscuro torchlight, glowing cyan (#2de2e6) and magenta (#ff2a6d) neon rim-lighting. Authentic retro pixel art style, no flat vectors, no vector shapes.`;
 
   const ai = getGenAI();
@@ -460,64 +454,35 @@ DIAGNOSTIC PROTOCOL (LAYERED TROUBLESHOOTING):
 - Layer 3 (Config & State): Environment variables, volume mounts, and file permissions.
 - Layer 4 (Logs & Memory): Docker container logs, OOM/memory pressure, and hanging sub-prompts.
 - Layer 5 (FastMCP & Multi-Agent): Tool socket drops, agent routing timeouts, and SQLite locks.
-- Secondary Domain (Physical Shop): Diagnostic help for automotive (e.g. Chevy Silverado circuits/sensors), small engines, diesel machinery, and electronics pinouts using live web search.
+- Secondary Domain (Physical Shop): Diagnostic help for automotive (e.g. Chevy Silverado circuits/sensors), small engines, diesel machinery, and electronics pinouts, from what you already know -- you have no live web search anymore, so say so rather than guess a part number or a spec you are not sure of.
 
 ENGINEERING RULES:
 - Smallest Reversible Fix: Never suggest deleting volumes or rebuilding entire stacks if a 1-line command or config edit solves it.
 - Single-Block Execution: Consolidate terminal fixes into a single copy-paste bash block using safe heredocs or chained commands.
 
 OUTPUT FORMAT:
-1. Root Cause Analysis: 1–2 sharp, candid sentences diagnosing the problem.
+1. Root Cause Analysis: 1-2 sharp, candid sentences diagnosing the problem.
 2. Executable Solution: Single copy-paste terminal command block or numbered physical steps.
 3. Verification: How to verify the fix succeeded.
-4. Source Links: Clickable markdown links if external documentation or schematics were referenced.`;
+Do not invent source links or citations -- you have no search tool. If you are not certain of a spec or a doc, say so instead of fabricating a reference.`;
 
-  try {
-    const ai = getGenAI();
-    const contents = input.contextLogs
-      ? `DIAGNOSTIC INQUIRY: ${input.concern}\n\nRAW DOCKER/SYSTEM LOGS OR CONTEXT:\n\`\`\`\n${input.contextLogs}\n\`\`\``
-      : input.concern;
+  const contents = input.contextLogs
+    ? `DIAGNOSTIC INQUIRY: ${input.concern}\n\nRAW DOCKER/SYSTEM LOGS OR CONTEXT:\n\`\`\`\n${input.contextLogs}\n\`\`\``
+    : input.concern;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.7-flash",
-      contents,
-      config: {
-        systemInstruction: system,
-        tools: [{ googleSearch: {} }],
-        temperature: 0.3,
-      },
-    });
-
-    const text = response.text?.trim() ?? "";
-    if (!text) {
-      return { ok: false as const, error: "Valerie returned an empty diagnostic response." };
-    }
-
-    const candidate = response.candidates?.[0];
-    const groundingMetadata = candidate?.groundingMetadata;
-    const sources: Array<{ title: string; url: string }> = [];
-
-    if (groundingMetadata?.groundingChunks) {
-      for (const chunk of groundingMetadata.groundingChunks) {
-        if (chunk.web?.uri) {
-          sources.push({
-            title: chunk.web.title || new URL(chunk.web.uri).hostname,
-            url: chunk.web.uri,
-          });
-        }
-      }
-    }
-
-    return {
-      ok: true as const,
-      text,
-      sources,
-      groundingSearchQueries: (groundingMetadata?.webSearchQueries as string[]) ?? [],
-    };
-  } catch (err: unknown) {
-    console.error("[Valerie Workbench Error]", err);
-    const message = err instanceof Error ? err.message : String(err);
-    return { ok: false as const, error: `Mechanic diagnosis failed: ${message}` };
+  // Local only -- no more googleSearch grounding tool, which was Gemini-only
+  // and had no local equivalent. sources/groundingSearchQueries stay in the
+  // return shape (always empty) so mechanic-workbench.tsx's optional
+  // rendering of that section degrades silently instead of needing a change.
+  const result = await complete(system, contents, 1800);
+  if (!result.ok) {
+    return { ok: false as const, error: `Mechanic diagnosis failed: ${result.error}` };
   }
+  return {
+    ok: true as const,
+    text: result.text,
+    sources: [] as Array<{ title: string; url: string }>,
+    groundingSearchQueries: [] as string[],
+  };
 }
 

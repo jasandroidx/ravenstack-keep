@@ -443,33 +443,36 @@ export const commissionPortrait = createServerFn({ method: "POST" })
     });
     const lore = loreRes.lore;
 
-    // 2. Image generation pass via Google Imagen 3
+    // 2. Image generation pass. No local model in this stack does pixel
+    // generation, so without a cloud key this always reports {ok:false} --
+    // that is expected now, not a failure worth losing the lore over. The
+    // chronicle already wrote successfully above; commission it with an
+    // empty image rather than discard real, free, local work because one
+    // optional cloud step had nothing to call.
     let imageUrl = "";
-    if (data.uploadedPhotoDataUrl) {
-      const match = data.uploadedPhotoDataUrl.match(/^data:([^;]+);base64,(.+)$/);
-      const mime = match?.[1] || "image/png";
-      const base64 = match?.[2] || data.uploadedPhotoDataUrl;
-      const imgRes = await generatePortraitImage({
-        subjectName: data.subjectName.trim(),
-        arcaneTitle: data.arcaneTitle.trim(),
-        customModifier: data.customModifier?.trim(),
-        photoBase64: base64,
-        mimeType: mime,
-      });
-      if (!imgRes.ok) {
-        return { ok: false as const, error: imgRes.error || "Google Imagen 3 API failed to generate image." };
-      }
+    let imageNote: string | undefined;
+    const imgRes = data.uploadedPhotoDataUrl
+      ? await (() => {
+          const match = data.uploadedPhotoDataUrl!.match(/^data:([^;]+);base64,(.+)$/);
+          const mime = match?.[1] || "image/png";
+          const base64 = match?.[2] || data.uploadedPhotoDataUrl!;
+          return generatePortraitImage({
+            subjectName: data.subjectName.trim(),
+            arcaneTitle: data.arcaneTitle.trim(),
+            customModifier: data.customModifier?.trim(),
+            photoBase64: base64,
+            mimeType: mime,
+          });
+        })()
+      : await generatePortraitImage({
+          subjectName: data.subjectName.trim(),
+          arcaneTitle: data.arcaneTitle.trim(),
+          customModifier: data.customModifier?.trim(),
+        });
+    if (imgRes.ok) {
       imageUrl = imgRes.imageUrl;
     } else {
-      const imgRes = await generatePortraitImage({
-        subjectName: data.subjectName.trim(),
-        arcaneTitle: data.arcaneTitle.trim(),
-        customModifier: data.customModifier?.trim(),
-      });
-      if (!imgRes.ok) {
-        return { ok: false as const, error: imgRes.error || "Google Imagen 3 API failed to generate image." };
-      }
-      imageUrl = imgRes.imageUrl;
+      imageNote = imgRes.error;
     }
 
     const item: PortraitItem = {
@@ -496,7 +499,7 @@ export const commissionPortrait = createServerFn({ method: "POST" })
       // Non-fatal if offline/local
     }
 
-    return { ok: true as const, portrait: item };
+    return { ok: true as const, portrait: item, imageNote };
   });
 
 export const rerollPortraitLoreServer = createServerFn({ method: "POST" })
