@@ -9,6 +9,7 @@ export const PLAYER_SRC = "/hall/sprites/ravenlord.png";
 export const VALERIE_ACTOR = "/hall/sprites/valerie-hd2d.png";
 export const VALERIE_TALK = "/hall/painted/talk-valerie.jpg";
 export const VALERIE_PORTRAIT = "/hall/portraits/valerie.jpg";
+export const ORACLE_TALK = "/hall/painted/talk-oracle.webp";
 
 export type RavenlordSkin = {
   id: string;
@@ -199,7 +200,8 @@ export const HALL_NPCS: HallNpc[] = [
     state: "working",
     actor: "/hall/sprites/oracle-eye.png",
     actorH: 68,
-    portrait: "/hall/sprites/oracle-eye.png",
+    portrait: ORACLE_TALK,
+    talkScene: ORACLE_TALK,
     greeting: "TRUTH OVER COMFORT. RECEIPTS OVER OPINION. I am the celestial green eye of the Canonical Registry. I do not guess, I do not hallucinate, and I do not tolerate polite AI deceit. Speak your query, or step back before the Inquisitor.",
     href: "/oracle",
     actions: [
