@@ -1,5 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "tanstack-start",
-  "outputDirectory": ".vercel/output"
+  "outputDirectory": "ui-v2/.vercel/output"
 }
