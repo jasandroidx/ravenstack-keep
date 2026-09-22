@@ -15,9 +15,9 @@ import {
   walkable,
   zoneAt,
   type HallNpc,
-} from "./world";
-import { hallAudio } from "./audio";
-import { calculateVelocity, determineFacing, type Facing } from "./locomotion";
+} from "./world.ts";
+import { hallAudio } from "./audio.ts";
+import { calculateVelocity, determineFacing, type Facing } from "./locomotion.ts";
 
 export type HallEvents = {
   onZone: (name: string, lock: string) => void;
@@ -138,6 +138,16 @@ export class HallScene extends Phaser.Scene {
     this.stickX = x;
     this.stickY = y;
     if (x || y) this.dest = null;
+  }
+
+  public setKeyboardEnabled(on: boolean) {
+    if (!this.input?.keyboard) return;
+    this.input.keyboard.enabled = on;
+    if (on) {
+      this.input.keyboard.enableGlobalCapture();
+    } else {
+      this.input.keyboard.disableGlobalCapture();
+    }
   }
 
   preload() {
