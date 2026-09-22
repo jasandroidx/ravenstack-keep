@@ -49,4 +49,22 @@ describe("Keep components accessibility test", () => {
       "FastMCPStatusBadge button should have focus-visible styling"
     );
   });
+
+  test("TalkSheet has Escape key listener and accessible Stand button with aria-label and focus-visible styling", () => {
+    const filePath = path.join(process.cwd(), "src/components/hall/talk-sheet.tsx");
+    const content = fs.readFileSync(filePath, "utf-8");
+
+    assert.ok(
+      content.includes('e.key === "Escape"'),
+      "TalkSheet should listen for Escape key to close dialogue"
+    );
+    assert.ok(
+      content.includes('aria-label="Stand up and close dialogue"'),
+      "TalkSheet Stand button should have descriptive aria-label"
+    );
+    assert.ok(
+      content.includes("focus-visible:ring-1"),
+      "TalkSheet Stand button should have focus-visible styling"
+    );
+  });
 });
