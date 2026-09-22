@@ -10,6 +10,9 @@ import { failing, parseStackHealth, unreadTower } from "./health";
 import { fetchDutyBoard } from "./duty";
 import type { CommissionRequest, LoreRerollRequest, PortraitItem } from "@/lib/gallery/types";
 import type { DraftSpec, TableResult } from "./types";
+import { boxToolsAvailable } from "./box-adapter";
+import { mcpHealth } from "./mcp";
+import { routingStatus } from "./router";
 
 export const getKeepSnapshot = createServerFn({ method: "GET" }).handler(async () => {
   const pulse = await fetchKeepPulse();
@@ -232,6 +235,23 @@ export const talkInHall = createServerFn({ method: "POST" })
     const result = await talkHall(data.agent, data.message);
     if (!result.ok) return result;
     return { ok: true as const, reply: result.text };
+  });
+
+/**
+ * Honest routing snapshot for Valerie's bench. Read-only, never returns a key.
+ * This is the screen to open first when "nothing works".
+ */
+export const getRoutingStatus = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async () => {
+    const [models, mcp] = await Promise.all([routingStatus(), mcpHealth()]);
+    const binds = mcp.reachable ? await boxToolsAvailable() : null;
+    return {
+      models,
+      mcp,
+      binds: binds?.ok ? { present: binds.present, missing: binds.missing } : null,
+      bindsError: binds && !binds.ok ? binds.error : null,
+    };
   });
 
 export type SavedDraft = {
