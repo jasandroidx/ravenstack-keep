@@ -41,10 +41,19 @@ function getGenAI(): GoogleGenAI {
   return genAiClient;
 }
 
+/** Talk plane default -- Oracle, Forge, the Round Table, hall dialogue, portrait lore. */
+export function talkModelName(): string {
+  return process.env.KEEP_TALK_MODEL?.trim() || "qwen3:1.7b";
+}
+
+/** Mechanic plane default -- Valerie's workbench only. A coder model earns its keep there: it reads logs and writes shell. */
+export function mechanicModelName(): string {
+  return process.env.KEEP_MECHANIC_MODEL?.trim() || "qwen3-coder:30b";
+}
+
 /** Local-first per the Keep's own cost model: Ollama on the box before any paid call. */
-async function completeOllama(system: string, user: string, maxTokens: number) {
+async function completeOllama(system: string, user: string, maxTokens: number, model: string) {
   const base = (process.env.OLLAMA_URL?.trim() || "http://127.0.0.1:11434").replace(/\/$/, "");
-  const model = process.env.KEEP_TALK_MODEL?.trim() || "qwen3:1.7b";
   try {
     const res = await fetch(`${base}/api/chat`, {
       method: "POST",
@@ -82,9 +91,12 @@ async function completeOllama(system: string, user: string, maxTokens: number) {
  * calls below still exist ONLY inside generatePortraitImage, which has no
  * local substitute for actual pixel generation -- see that function's own
  * comment. No other function in this file may call getGenAI() again.
+ *
+ * Every caller runs on the talk plane (KEEP_TALK_MODEL) except Valerie's
+ * workbench, which passes its own model explicitly -- see diagnoseMechanicWorkbench.
  */
-async function complete(system: string, user: string, maxTokens = 1800) {
-  return completeOllama(system, user, maxTokens);
+async function complete(system: string, user: string, maxTokens = 1800, model = talkModelName()) {
+  return completeOllama(system, user, maxTokens, model);
 }
 
 function extractJson<T>(text: string): T | null {
@@ -662,7 +674,7 @@ Do not invent source links or citations -- you have no search tool. If you are n
   // and had no local equivalent. sources/groundingSearchQueries stay in the
   // return shape (always empty) so mechanic-workbench.tsx's optional
   // rendering of that section degrades silently instead of needing a change.
-  const result = await complete(system, contents, 1800);
+  const result = await complete(system, contents, 1800, mechanicModelName());
   if (!result.ok) {
     return { ok: false as const, error: `Mechanic diagnosis failed: ${result.error}` };
   }

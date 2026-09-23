@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Installed at /usr/local/bin/probe. Validates the probe name, confirms the
+# script exists, then pipes its output through raven-drop so every run lands
+# in the vault under Ravenstack/ops/drops/ + INDEX.md.
+set -uo pipefail
+
+name="${1:-}"
+
+if [[ ! "$name" =~ ^[a-z0-9-]+$ ]]; then
+  echo "Refused: probe name must match ^[a-z0-9-]+\$, got: '${name}'" >&2
+  exit 1
+fi
+
+probes_dir="${RAVENSTACK_PROBES_DIR:-/root/ravenstack-armory/workflows/probes}"
+script="${probes_dir}/${name}.sh"
+
+if [ ! -f "$script" ]; then
+  echo "Refused: no such probe '${name}' (looked for ${script})" >&2
+  exit 1
+fi
+
+bash "$script" | raven-drop "probe-${name}"
