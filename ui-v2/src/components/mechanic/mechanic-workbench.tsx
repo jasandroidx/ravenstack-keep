@@ -4,7 +4,7 @@ import {
   runMechanicDiagnosis,
   getLatestRavenDropInfo,
   getMechanicConfig,
-  getRoutingStatus,
+  getStackHealth,
   runProbe,
 } from "@/lib/keep/server";
 import { mechanicAudio } from "@/lib/mechanic/audio";
@@ -142,21 +142,26 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
   // Boot banner is built from real state, not hardcoded: the mechanic model
   // actually configured, whether the FastMCP bridge answered just now, and
   // the latest Raven Drop. Each field independently falls back to "—" if its
-  // own read failed (including "signed out", for the auth-gated bridge read)
-  // rather than pretending the state under it was never checked.
+  // own read failed rather than pretending the state under it was never
+  // checked. The bridge check is getStackHealth() -- the same
+  // executeFastMCPTool() path the header's FastMCPStatusBadge uses -- not
+  // getRoutingStatus()'s mcp.reachable, which reads a different client
+  // (mcp.ts, MCP_BASE_URL/KEEP_MCP_URL, defaults to 127.0.0.1:8100) that is
+  // never reachable from a hosted deploy and would read "unreachable" here
+  // even while the header badge is genuinely connected.
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [dropRes, configRes, routingRes] = await Promise.allSettled([
+      const [dropRes, configRes, healthRes] = await Promise.allSettled([
         getLatestRavenDropInfo(),
         getMechanicConfig(),
-        getRoutingStatus(),
+        getStackHealth(),
       ]);
       if (cancelled) return;
       if (dropRes.status === "fulfilled") setDropInfo(dropRes.value);
       if (configRes.status === "fulfilled") setMechanicConfig(configRes.value);
       const mechanicModel = configRes.status === "fulfilled" ? configRes.value.mechanicModel : "—";
-      const reachable = routingRes.status === "fulfilled" ? routingRes.value.mcp.reachable : null;
+      const reachable = healthRes.status === "fulfilled" ? healthRes.value.ok : null;
       setBridgeReachable(reachable);
       const dropLabel =
         dropRes.status === "fulfilled" && dropRes.value.exists
