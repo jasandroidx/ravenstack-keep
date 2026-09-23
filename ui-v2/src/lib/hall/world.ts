@@ -139,6 +139,10 @@ export type HallNpc = {
   greeting: string;
   href?: string;
   talkScene?: string;
+  /** How the painted talk scene is framed: `contain` shows the whole scene
+   *  with a blurred copy of the same image filling behind it; `cover` crops
+   *  the scene to fill the background plate. Defaults to `contain`. */
+  talkFit?: "contain" | "cover";
   portrait?: string;
   actor?: string;
   actorH?: number;
