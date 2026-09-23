@@ -163,17 +163,34 @@ export function FastMCPSentinelWorkbench() {
           </form>
 
           {auditResult && !auditResult.ok && (
-            <div className="mt-5 rounded-lg border border-[#ffc857]/50 bg-[#ffc857]/5 p-5">
-              <p className="font-mono text-xs font-bold uppercase tracking-wider text-[#ffc857]">
-                ⚠ FastMCP bridge unreachable — no data
-              </p>
-              <p className="mt-2 font-mono text-[11px] leading-relaxed text-[#9aa3b2]">
-                Nothing is shown because nothing was retrieved. This panel never displays estimated, modelled, or example figures for a real county.
-              </p>
-              <p className="mt-2 font-mono text-[11px] text-[#9aa3b2]">
-                {auditResult.error}
-              </p>
-            </div>
+            <>
+              {auditResult.blocked ? (
+                <div className="mt-5 rounded-lg border border-[#ff3b3b]/50 bg-[#ff3b3b]/5 p-5">
+                  <p className="font-mono text-xs font-bold uppercase tracking-wider text-[#ff3b3b]">
+                    🚫 Tool blocked by the Keep allowlist
+                  </p>
+                  <p className="mt-2 font-mono text-[11px] leading-relaxed text-[#9aa3b2]">
+                    The request never reached the box. This panel will render a county audit only if
+                    {" "}
+                    <code className="text-[#ff3b3b]">audit_county_budget</code> is deliberately added to
+                    the read-only proxied set — nobody has done that, and it would need a human gate.
+                  </p>
+                  <p className="mt-2 font-mono text-[11px] text-[#9aa3b2]">{auditResult.error}</p>
+                </div>
+              ) : (
+                <div className="mt-5 rounded-lg border border-[#ffc857]/50 bg-[#ffc857]/5 p-5">
+                  <p className="font-mono text-xs font-bold uppercase tracking-wider text-[#ffc857]">
+                    ⚠ FastMCP bridge unreachable — no data
+                  </p>
+                  <p className="mt-2 font-mono text-[11px] leading-relaxed text-[#9aa3b2]">
+                    Nothing is shown because nothing was retrieved. This panel never displays estimated, modelled, or example figures for a real county.
+                  </p>
+                  <p className="mt-2 font-mono text-[11px] text-[#9aa3b2]">
+                    {auditResult.error}
+                  </p>
+                </div>
+              )}
+            </>
           )}
 
           {/* Audit Output Card */}
@@ -334,17 +351,33 @@ export function FastMCPSentinelWorkbench() {
           </form>
 
           {oracleResult && !oracleResult.ok && (
-            <div className="mt-5 rounded-lg border border-[#ffc857]/50 bg-[#ffc857]/5 p-5">
-              <p className="font-mono text-xs font-bold uppercase tracking-wider text-[#ffc857]">
-                ⚠ FastMCP bridge unreachable — no data
-              </p>
-              <p className="mt-2 font-mono text-[11px] leading-relaxed text-[#9aa3b2]">
-                The claim was not checked against the vault. No verdict, citation, or confidence score is shown, because none was produced.
-              </p>
-              <p className="mt-2 font-mono text-[11px] text-[#9aa3b2]">
-                {oracleResult.error}
-              </p>
-            </div>
+            <>
+              {oracleResult.blocked ? (
+                <div className="mt-5 rounded-lg border border-[#ff3b3b]/50 bg-[#ff3b3b]/5 p-5">
+                  <p className="font-mono text-xs font-bold uppercase tracking-wider text-[#ff3b3b]">
+                    🚫 Tool blocked by the Keep allowlist
+                  </p>
+                  <p className="mt-2 font-mono text-[11px] leading-relaxed text-[#9aa3b2]">
+                    The request never reached the box. This panel verifies a claim only if{" "}
+                    <code className="text-[#ff3b3b]">oracle_verify</code> exists as a registered,
+                    read-only implementation on the fortress MCP — it does not, so it stays blocked.
+                  </p>
+                  <p className="mt-2 font-mono text-[11px] text-[#9aa3b2]">{oracleResult.error}</p>
+                </div>
+              ) : (
+                <div className="mt-5 rounded-lg border border-[#ffc857]/50 bg-[#ffc857]/5 p-5">
+                  <p className="font-mono text-xs font-bold uppercase tracking-wider text-[#ffc857]">
+                    ⚠ FastMCP bridge unreachable — no data
+                  </p>
+                  <p className="mt-2 font-mono text-[11px] leading-relaxed text-[#9aa3b2]">
+                    The claim was not checked against the vault. No verdict, citation, or confidence score is shown, because none was produced.
+                  </p>
+                  <p className="mt-2 font-mono text-[11px] text-[#9aa3b2]">
+                    {oracleResult.error}
+                  </p>
+                </div>
+              )}
+            </>
           )}
 
           {oracleResult?.ok && oracleResult.data && (
