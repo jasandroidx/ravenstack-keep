@@ -415,12 +415,79 @@ export async function talkHall(agent: string, message: string) {
     valerie:
       "You are Valerie, Fortress Mechanic of Ravenstack Keep. Sharp, dry, numbered checklists. You treat the gateway like a machine you personally built. Hate cloud bloat. Love local models and reversible diffs. Diagnose OpenClaw, MCP, skills, local inference. Smallest reversible step. Never print secrets, tokens, or Funnel paths. Never discuss county/auditor pipelines. If they want a live box fact you do not have, say you cannot see the box from here.",
   };
+
+  // s1-lock-doors: Raziel states the ACTUAL gateway model he observed, never a
+  // guess. Looked up live from openclaw_models with a 3s timeout race — enough
+  // for a panel-bound reply, never a stall; unknown beats invented.
+  let modelLine = "";
+  if (agent === "raziel") {
+    const observed = await observedGatewayModelId();
+    modelLine =
+      observed === null
+        ? "\n\nObserved OpenClaw primary model: unknown (gateway model lookup unavailable). Say you cannot see the gateway model from here rather than invent one."
+        : `\n\nObserved OpenClaw primary model right now: ${observed}. Name it only because you observed it via the gateway.`;
+  }
+
   const system = `${FORTRESS_BRIEF}
 
 ${persona[agent] ?? persona.raziel}
-
+${modelLine}
 Reply in 2-6 short sentences, in character. No markdown headings.`;
   return complete(system, message, 500);
+}
+
+const GATEWAY_MODEL_LOOKUP_TIMEOUT_MS = 3000;
+
+/** Conservative extraction: stay quiet unless a tool result gives a clear model id. */
+function extractModelIdFromResult(data: unknown): string | null {
+  const seen = new Set<string>();
+  const walk = (value: unknown): string | null => {
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed && !seen.has(trimmed)) {
+        seen.add(trimmed);
+        return trimmed;
+      }
+      return null;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const hit = walk(item);
+        if (hit) return hit;
+      }
+      return null;
+    }
+    if (value && typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      for (const key of ["primary", "primaryModel", "model", "id", "name"]) {
+        const hit = walk(record[key]);
+        if (hit) return hit;
+      }
+      for (const key of Object.keys(record)) {
+        if (["primary", "primaryModel", "model", "id", "name"].includes(key)) continue;
+        const hit = walk(record[key]);
+        if (hit) return hit;
+      }
+    }
+    return null;
+  };
+  return walk(data);
+}
+
+/** Resolve the gateway's primary model id, or null when it cannot be observed in time. */
+async function observedGatewayModelId(): Promise<string | null> {
+  try {
+    const result = await Promise.race([
+      executeFastMCPTool<unknown>("openclaw_models", {}),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`openclaw_models lookup timed out after ${GATEWAY_MODEL_LOOKUP_TIMEOUT_MS}ms`)), GATEWAY_MODEL_LOOKUP_TIMEOUT_MS),
+      ),
+    ]);
+    if (!result.ok || result.data == null) return null;
+    return extractModelIdFromResult(result.data);
+  } catch {
+    return null;
+  }
 }
 
 export async function generatePortraitLore(input: {

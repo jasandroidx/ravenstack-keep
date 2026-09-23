@@ -7,6 +7,11 @@ import { createMiddleware } from "@tanstack/react-start";
  * token (partitioned cookies) via the `.client` hook below — call sites do not
  * thread it themselves.
  *
+ * The bearer travels in the `Authorization` request header, never in the
+ * function context: TanStack serialises GET middleware context into the URL
+ * query string, which would leak the preview session token into logs/history.
+ * The server hook reads the header back off the actual request.
+ *
  *   import { createServerFn } from "@tanstack/react-start";
  *   import { getSql } from "@/lib/db";
  *   import { authMiddleware } from "@/lib/auth/middleware";
@@ -27,20 +32,29 @@ import { createMiddleware } from "@tanstack/react-start";
 export const authMiddleware = createMiddleware({ type: "function" })
   .client(async ({ next }) => {
     // Live preview (partitioned iframe): the session rides a bearer token, not a
-    // cookie, so forward it to the server. Null when deployed (cookie auth), so
-    // this is a no-op there.
+    // cookie, so forward it to the server as a request header. Null when
+    // deployed (cookie auth), so this is a no-op there.
     const { getBearerToken } = await import("./client");
-    return next({ sendContext: { bearerToken: getBearerToken() ?? undefined } });
+    const token = getBearerToken() ?? "";
+    if (!token) return next();
+    return next({ headers: { authorization: `Bearer ${token}` } });
   })
-  .server(async ({ next, context }) => {
+  .server(async ({ next }) => {
     // ONLY import `*.server` modules here. This file is dual client/server
     // (bearer hook on the client). A plain `./isolation` path was renamed to
     // `isolation.server.ts` — keep this import in sync so image `tsc` resolves
     // it, and so Vite does not ship `@tanstack/react-start/server` to the browser.
     const { assertSameSiteRequest } = await import("./isolation.server");
     const { requireUserId } = await import("./verify.server");
+    const { getRequest } = await import("@tanstack/react-start/server");
     // Reject scripted cross-site/sibling requests before touching per-user data.
     assertSameSiteRequest();
-    const userId = await requireUserId(context.bearerToken);
+
+    // The client hook put the preview bearer in the Authorization header of the
+    // actual HTTP request we are handling (never in the URL). Recover it here.
+    const request = getRequest();
+    const authz = request?.headers?.get ? request.headers.get("authorization") : undefined;
+    const bearer = authz?.toLowerCase().startsWith("bearer ") ? authz.slice(7).trim() : undefined;
+    const userId = await requireUserId(bearer);
     return next({ context: { userId } });
   });
