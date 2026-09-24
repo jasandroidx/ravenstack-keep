@@ -8,3 +8,6 @@
 ## 2024-05-16 - File Upload Dropzone Accessibility
 **Learning:** Found that custom file upload drag-and-drop zones built with generic `div` elements and an `onClick` handler (to proxy the hidden file input) lacked keyboard support, preventing keyboard users from initiating an upload.
 **Action:** When implementing custom upload dropzones, explicitly add `role="button"`, `tabIndex={0}`, an `onKeyDown` handler (for "Enter" and " "), and `focus-visible` outline styling to the clickable container element.
+## 2024-09-24 - Missing ARIA Labels on Icon-only Modals
+**Learning:** Icon-only close buttons (like "✕") in custom built modal components frequently lack `aria-label`s, rendering them inaccessible or confusing to screen readers which will just announce "button" or "cross".
+**Action:** When auditing or implementing new modals, panels, and sidebars, explicitly check that all close buttons have descriptive `aria-label` attributes like `aria-label="Close"` or `aria-label="Close file details"`.

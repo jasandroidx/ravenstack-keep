@@ -224,6 +224,7 @@ export function PortraitStudioModal({
           {!busy && (
             <button
               type="button"
+              aria-label="Close"
               onClick={onClose}
               className="flex h-8 w-8 items-center justify-center rounded-sm border border-[#3a3f4b] text-[#9aa3b2] transition-colors hover:border-[#ff2a6d] hover:text-[#ff2a6d]"
             >
