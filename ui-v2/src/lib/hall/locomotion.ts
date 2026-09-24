@@ -16,7 +16,7 @@ export interface Vector2 {
 export function calculateVelocity(
   inputX: number,
   inputY: number,
-  speed: number
+  speed: number,
 ): Vector2 {
   if (inputX === 0 && inputY === 0) {
     return { x: 0, y: 0 };
@@ -35,7 +35,7 @@ export function calculateVelocity(
 export function determineFacing(
   vx: number,
   vy: number,
-  currentFacing: Facing
+  currentFacing: Facing,
 ): Facing {
   if (vx === 0 && vy === 0) {
     return currentFacing;
@@ -53,7 +53,7 @@ export function getInteractionPoint(
   px: number,
   py: number,
   facing: Facing,
-  distance = 32
+  distance = 32,
 ): Vector2 {
   switch (facing) {
     case "up":
@@ -77,7 +77,7 @@ export function isFacingTarget(
   tx: number,
   ty: number,
   maxDistance: number,
-  maxAngleDeg = 90
+  maxAngleDeg = 90,
 ): boolean {
   const dx = tx - px;
   const dy = ty - py;
@@ -99,8 +99,7 @@ export function isFacingTarget(
   }
 
   // Allow secondary adjacent facing if within half angle
-  const dist = Math.sqrt(distSq);
-  if (dist === 0) return true;
+  if (distSq === 0) return true;
 
   let fx = 0;
   let fy = 0;
@@ -109,8 +108,8 @@ export function isFacingTarget(
   else if (facing === "up") fy = -1;
   else if (facing === "down") fy = 1;
 
-  // Dot product
-  const dot = (dx * fx + dy * fy) / dist;
+  // PERF: use squared distance to avoid Math.sqrt in game loop
+  const dp = dx * fx + dy * fy;
   const minDot = Math.cos((maxAngleDeg * Math.PI) / 180 / 2);
-  return dot >= minDot;
+  return dp >= 0 && dp * dp >= distSq * (minDot * minDot);
 }
