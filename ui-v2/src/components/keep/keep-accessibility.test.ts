@@ -49,4 +49,26 @@ describe("Keep components accessibility test", () => {
       "FastMCPStatusBadge button should have focus-visible styling"
     );
   });
+
+  test("FastMCPGatewayStreamer has accessible controls with aria-labels and focus-visible styling", () => {
+    const filePath = path.join(process.cwd(), "src/components/mechanic/fastmcp-gateway-streamer.tsx");
+    const content = fs.readFileSync(filePath, "utf-8");
+
+    assert.ok(
+      content.includes('aria-label="Filter gateway logs by service"'),
+      "FastMCPGatewayStreamer select filter should have aria-label"
+    );
+    assert.ok(
+      content.includes('aria-label="Poll gateway logs once"'),
+      "FastMCPGatewayStreamer poll button should have aria-label"
+    );
+    assert.ok(
+      content.includes('aria-label="Retry polling gateway logs"'),
+      "FastMCPGatewayStreamer retry button should have aria-label"
+    );
+    assert.ok(
+      content.includes("focus-visible:ring-[#2de2e6]"),
+      "FastMCPGatewayStreamer interactive controls should have focus-visible ring styling"
+    );
+  });
 });
