@@ -8,3 +8,7 @@
 ## 2024-05-16 - File Upload Dropzone Accessibility
 **Learning:** Found that custom file upload drag-and-drop zones built with generic `div` elements and an `onClick` handler (to proxy the hidden file input) lacked keyboard support, preventing keyboard users from initiating an upload.
 **Action:** When implementing custom upload dropzones, explicitly add `role="button"`, `tabIndex={0}`, an `onKeyDown` handler (for "Enter" and " "), and `focus-visible` outline styling to the clickable container element.
+
+## 2026-09-25 - ARIA Labels on Icon-Only Buttons
+**Learning:** Found a pattern across the `ui-v2` codebase where icon-only buttons (like `✕` for close actions or `🔄` for refresh) lacked explicit `aria-label` attributes. While they might have visual meaning or `title` attributes, they lack proper accessibility for screen readers.
+**Action:** Always verify that icon-only buttons have descriptive `aria-label` attributes (e.g., `aria-label="Close"` or `aria-label="Poll logs once"`) to ensure they are fully accessible to screen readers, instead of relying solely on tooltips or generic icons.
