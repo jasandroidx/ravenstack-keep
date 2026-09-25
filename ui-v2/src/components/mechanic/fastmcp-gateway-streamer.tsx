@@ -101,7 +101,8 @@ export function FastMCPGatewayStreamer() {
           <select
             value={selectedService}
             onChange={(e) => setSelectedService(e.target.value)}
-            className="rounded border border-[#3a3f4b] bg-[#14141c] px-2 py-1 font-mono text-[11px] text-[#e8ecf1] outline-none"
+            aria-label="Filter logs by service"
+            className="rounded border border-[#3a3f4b] bg-[#14141c] px-2 py-1 font-mono text-[11px] text-[#e8ecf1] outline-none focus-visible:ring-2 focus-visible:ring-[#2de2e6]"
           >
             <option value="all">ALL SERVICES</option>
             <option value="gateway">GATEWAY (:18789)</option>
@@ -121,7 +122,7 @@ export function FastMCPGatewayStreamer() {
                 toast.info("Log polling paused.");
               }
             }}
-            className={`rounded px-3 py-1 font-mono text-xs font-bold uppercase transition ${
+            className={`rounded px-3 py-1 font-mono text-xs font-bold uppercase transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2de2e6] ${
               isStreaming
                 ? "border border-[#ff3b3b] bg-[#ff3b3b]/20 text-[#ff3b3b]"
                 : "border border-[#39ff14] bg-[#39ff14]/20 text-[#39ff14]"
@@ -133,7 +134,8 @@ export function FastMCPGatewayStreamer() {
           <button
             type="button"
             onClick={() => void fetchGatewayLogs()}
-            className="rounded border border-[#3a3f4b] bg-[#1e222b] px-2 py-1 font-mono text-xs text-[#9aa3b2] hover:text-[#e8ecf1]"
+            aria-label="Poll gateway logs once"
+            className="rounded border border-[#3a3f4b] bg-[#1e222b] px-2 py-1 font-mono text-xs text-[#9aa3b2] hover:text-[#e8ecf1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2de2e6]"
             title="Poll once"
           >
             🔄
@@ -157,7 +159,7 @@ export function FastMCPGatewayStreamer() {
                 <button
                   type="button"
                   onClick={retry}
-                  className="mt-1 rounded border border-[#2de2e6] bg-[#2de2e6]/10 px-3 py-1 font-mono text-[11px] text-[#2de2e6] hover:bg-[#2de2e6]/20"
+                  className="mt-1 rounded border border-[#2de2e6] bg-[#2de2e6]/10 px-3 py-1 font-mono text-[11px] text-[#2de2e6] hover:bg-[#2de2e6]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2de2e6]"
                 >
                   ↻ Retry
                 </button>
