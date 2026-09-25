@@ -1,3 +1,6 @@
 ## 2024-10-24 - Avoiding Math.hypot in Game Loops
 **Learning:** `Math.hypot` can be a measurable performance bottleneck for distance calculations inside a game loop (like the Phaser game loop in `ui-v2`).
 **Action:** Prefer squared distance calculations (`dx*dx + dy*dy`) when comparing against a threshold (square the threshold as well). If true distance is absolutely necessary, use `Math.sqrt(dx*dx + dy*dy)`.
+## 2025-02-12 - Optimize Math.sqrt out of dot-product based angle comparisons
+**Learning:** In Phaser game loops (e.g. `ui-v2/src/lib/hall/locomotion.ts`), validating angle thresholds between two points often uses the dot product (dp) compared against the cosine of a target angle (`minDot`). Finding the dot product using standard coordinates requires the length of the vector, which uses a costly `Math.sqrt(dx^2 + dy^2)` call.
+**Action:** Since we're dealing with distances and checking if `dp / dist >= minDot`, when we know that `dp >= 0` and `minDot >= 0` (such as angles <= 90 deg), we can safely square both sides to compare `dp^2 >= dist^2 * minDot^2`. This avoids calculating the square root entirely, offering a free CPU win in high-frequency pathing or collision loops without loss of precision. Include a tiny epsilon (- 0.000001) for strict bounds if exact-value edge cases are necessary due to floating point.

@@ -99,8 +99,7 @@ export function isFacingTarget(
   }
 
   // Allow secondary adjacent facing if within half angle
-  const dist = Math.sqrt(distSq);
-  if (dist === 0) return true;
+  if (distSq === 0) return true;
 
   let fx = 0;
   let fy = 0;
@@ -110,7 +109,20 @@ export function isFacingTarget(
   else if (facing === "down") fy = 1;
 
   // Dot product
-  const dot = (dx * fx + dy * fy) / dist;
+  const dp = dx * fx + dy * fy;
   const minDot = Math.cos((maxAngleDeg * Math.PI) / 180 / 2);
-  return dot >= minDot;
+
+  // PERFORMANCE: Compare squared values to avoid Math.sqrt in high-frequency game loop.
+  // Since minDot is positive for half-angles <= 90 deg (maxAngleDeg <= 180), negative dot products can be discarded.
+  // Fallback to traditional square root if maxAngleDeg > 180 (minDot is negative)
+  if (minDot >= 0) {
+    if (dp < 0) return false;
+    // Adding a tiny epsilon to handle floating point errors for exactly equal cases
+    return dp * dp >= distSq * (minDot * minDot) - 0.000001;
+  } else {
+    // If we're checking a > 180 degree cone, any positive dot product is automatically within the cone
+    if (dp >= 0) return true;
+    // For negative dot products, we want to ensure the magnitude of the negative dp isn't too large
+    return dp * dp <= distSq * (minDot * minDot) + 0.000001;
+  }
 }
