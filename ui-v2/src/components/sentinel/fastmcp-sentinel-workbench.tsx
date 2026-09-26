@@ -119,16 +119,17 @@ export function FastMCPSentinelWorkbench() {
         <div className="p-5">
           <form onSubmit={handleAuditCounty} className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="flex-1">
-              <label className="mb-1 block font-mono text-[10px] uppercase text-[#9aa3b2]">
+              <label htmlFor="county-select" className="mb-1 block font-mono text-[10px] uppercase text-[#9aa3b2]">
                 Select Indiana County (from worklist):
               </label>
               <select
+                id="county-select"
                 value={selectedCounty}
                 onChange={(e) => {
                   setSelectedCounty(e.target.value);
                   setCustomCounty("");
                 }}
-                className="h-9 w-full rounded-sm border border-[#3a3f4b] bg-[#1e222b] px-3 font-mono text-xs text-[#e8ecf1] outline-none focus:border-[#2de2e6]"
+                className="h-9 w-full rounded-sm border border-[#3a3f4b] bg-[#1e222b] px-3 font-mono text-xs text-[#e8ecf1] outline-none focus:border-[#2de2e6] focus-visible:ring-1 focus-visible:ring-[#2de2e6]"
               >
                 {INDIANA_COUNTIES.map((c) => (
                   <option key={c} value={c}>
@@ -139,15 +140,16 @@ export function FastMCPSentinelWorkbench() {
             </div>
 
             <div className="flex-1">
-              <label className="mb-1 block font-mono text-[10px] uppercase text-[#9aa3b2]">
+              <label htmlFor="custom-county-input" className="mb-1 block font-mono text-[10px] uppercase text-[#9aa3b2]">
                 Or enter custom Indiana county / unit:
               </label>
               <input
+                id="custom-county-input"
                 type="text"
                 value={customCounty}
                 onChange={(e) => setCustomCounty(e.target.value)}
                 placeholder="e.g. Posey County, Floyd County..."
-                className="h-9 w-full rounded-sm border border-[#3a3f4b] bg-[#1e222b] px-3 font-mono text-xs text-[#e8ecf1] outline-none focus:border-[#2de2e6] placeholder:text-[#6b7280]"
+                className="h-9 w-full rounded-sm border border-[#3a3f4b] bg-[#1e222b] px-3 font-mono text-xs text-[#e8ecf1] outline-none focus:border-[#2de2e6] focus-visible:ring-1 focus-visible:ring-[#2de2e6] placeholder:text-[#6b7280]"
               />
             </div>
 
@@ -155,7 +157,7 @@ export function FastMCPSentinelWorkbench() {
               <button
                 type="submit"
                 disabled={auditBusy}
-                className="h-9 rounded-sm bg-[#2de2e6] px-5 font-mono text-xs font-bold uppercase tracking-wider text-[#0b0e14] transition hover:bg-[#2de2e6]/90 disabled:opacity-50"
+                className="h-9 rounded-sm bg-[#2de2e6] px-5 font-mono text-xs font-bold uppercase tracking-wider text-[#0b0e14] transition hover:bg-[#2de2e6]/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2de2e6] disabled:opacity-50"
               >
                 {auditBusy ? "Auditing…" : "Execute Audit"}
               </button>
@@ -313,20 +315,21 @@ export function FastMCPSentinelWorkbench() {
 
         <div className="p-5">
           <form onSubmit={handleOracleVerify} className="space-y-3">
-            <label className="block font-mono text-xs text-[#9aa3b2]">
+            <label htmlFor="oracle-claim-input" className="block font-mono text-xs text-[#9aa3b2]">
               State a technical claim, SBOA statute, or architectural rule to verify against the Git-backed Obsidian vault:
             </label>
             <textarea
+              id="oracle-claim-input"
               value={ragClaim}
               onChange={(e) => setRagClaim(e.target.value)}
               rows={3}
-              className="w-full rounded-sm border border-[#3a3f4b] bg-[#1e222b] p-3 font-mono text-xs text-[#e8ecf1] outline-none focus:border-[#39ff14] placeholder:text-[#6b7280]"
+              className="w-full rounded-sm border border-[#3a3f4b] bg-[#1e222b] p-3 font-mono text-xs text-[#e8ecf1] outline-none focus:border-[#39ff14] focus-visible:ring-1 focus-visible:ring-[#39ff14] placeholder:text-[#6b7280]"
             />
             <div className="flex justify-end">
               <button
                 type="submit"
                 disabled={oracleBusy || !ragClaim.trim()}
-                className="h-9 rounded-sm bg-[#39ff14] px-5 font-mono text-xs font-bold uppercase tracking-wider text-[#0b0e14] transition hover:bg-[#39ff14]/90 disabled:opacity-50"
+                className="h-9 rounded-sm bg-[#39ff14] px-5 font-mono text-xs font-bold uppercase tracking-wider text-[#0b0e14] transition hover:bg-[#39ff14]/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#39ff14] disabled:opacity-50"
               >
                 {oracleBusy ? "Verifying against Vault…" : "Verify Claim with Oracle"}
               </button>
