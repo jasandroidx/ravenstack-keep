@@ -8,7 +8,8 @@ const MAX_CONSECUTIVE_ERRORS = 3;
 export function FastMCPGatewayStreamer() {
   const [logs, setLogs] = useState<GatewayLogLine[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [lastSyncResult, setLastSyncResult] = useState<FastMCPToolResult | null>(null);
+  const [lastSyncResult, setLastSyncResult] =
+    useState<FastMCPToolResult | null>(null);
   const [selectedService, setSelectedService] = useState<string>("all");
   const [lastPolledAt, setLastPolledAt] = useState<string | null>(null);
   const [consecutiveErrors, setConsecutiveErrors] = useState(0);
@@ -34,7 +35,9 @@ export function FastMCPGatewayStreamer() {
           const next = n + 1;
           if (next >= MAX_CONSECUTIVE_ERRORS) {
             setIsStreaming(false);
-            toast.error(`Gateway log stream stopped after ${MAX_CONSECUTIVE_ERRORS} consecutive errors.`);
+            toast.error(
+              `Gateway log stream stopped after ${MAX_CONSECUTIVE_ERRORS} consecutive errors.`,
+            );
           }
           return next;
         });
@@ -46,7 +49,9 @@ export function FastMCPGatewayStreamer() {
         if (next >= MAX_CONSECUTIVE_ERRORS) setIsStreaming(false);
         return next;
       });
-      toast.error(err instanceof Error ? err.message : "Failed to fetch gateway logs");
+      toast.error(
+        err instanceof Error ? err.message : "Failed to fetch gateway logs",
+      );
     }
   }
 
@@ -68,9 +73,10 @@ export function FastMCPGatewayStreamer() {
     return () => clearInterval(timer);
   }, [isStreaming]);
 
-  const filteredLogs = selectedService === "all"
-    ? logs
-    : logs.filter((l) => l.service === selectedService);
+  const filteredLogs =
+    selectedService === "all"
+      ? logs
+      : logs.filter((l) => l.service === selectedService);
 
   return (
     <div className="overflow-hidden rounded-xl border border-[#3a3f4b] bg-[#05020d] shadow-2xl">
@@ -79,7 +85,9 @@ export function FastMCPGatewayStreamer() {
         <div className="flex items-center gap-3">
           <span
             className={`h-2.5 w-2.5 rounded-full ${
-              isStreaming ? "bg-[#39ff14] shadow-[0_0_10px_#39ff14] animate-ping" : "bg-[#ffc857]"
+              isStreaming
+                ? "bg-[#39ff14] shadow-[0_0_10px_#39ff14] animate-ping"
+                : "bg-[#ffc857]"
             }`}
           />
           <div>
@@ -87,8 +95,13 @@ export function FastMCPGatewayStreamer() {
               📡 Live OpenClaw Gateway Logs
             </h3>
             <p className="font-mono text-[10px] text-[#9aa3b2]">
-              FastMCP: <code className="text-[#2de2e6]">tail_gateway_logs</code> · Mode:{" "}
-              <span className={lastSyncResult?.ok ? "text-[#39ff14]" : "text-[#ffc857]"}>
+              FastMCP: <code className="text-[#2de2e6]">tail_gateway_logs</code>{" "}
+              · Mode:{" "}
+              <span
+                className={
+                  lastSyncResult?.ok ? "text-[#39ff14]" : "text-[#ffc857]"
+                }
+              >
                 {lastSyncResult?.source?.toUpperCase() ?? "DISCONNECTED"}
               </span>{" "}
               · Last polled: {lastPolledAt ? lastPolledAt.slice(11, 19) : "—"}
@@ -135,6 +148,7 @@ export function FastMCPGatewayStreamer() {
             onClick={() => void fetchGatewayLogs()}
             className="rounded border border-[#3a3f4b] bg-[#1e222b] px-2 py-1 font-mono text-xs text-[#9aa3b2] hover:text-[#e8ecf1]"
             title="Poll once"
+            aria-label="Poll once"
           >
             🔄
           </button>
@@ -147,8 +161,12 @@ export function FastMCPGatewayStreamer() {
           <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center text-[#9aa3b2]">
             {lastSyncResult && !lastSyncResult.ok ? (
               <>
-                <span className="text-[#ffc857]">⚠ Gateway bridge unreachable — no logs</span>
-                <span className="text-[10px]">{lastSyncResult.error || "(empty reason)"}</span>
+                <span className="text-[#ffc857]">
+                  ⚠ Gateway bridge unreachable — no logs
+                </span>
+                <span className="text-[10px]">
+                  {lastSyncResult.error || "(empty reason)"}
+                </span>
                 {consecutiveErrors >= MAX_CONSECUTIVE_ERRORS && (
                   <span className="text-[10px] text-[#ff3b3b]">
                     Stream stopped after {consecutiveErrors} consecutive errors.
@@ -158,6 +176,7 @@ export function FastMCPGatewayStreamer() {
                   type="button"
                   onClick={retry}
                   className="mt-1 rounded border border-[#2de2e6] bg-[#2de2e6]/10 px-3 py-1 font-mono text-[11px] text-[#2de2e6] hover:bg-[#2de2e6]/20"
+                  aria-label="Retry fetching logs"
                 >
                   ↻ Retry
                 </button>
@@ -168,20 +187,27 @@ export function FastMCPGatewayStreamer() {
           </div>
         ) : (
           filteredLogs.map((l) => (
-            <div key={l.id} className="flex items-start gap-2 hover:bg-[#14141c]/60 px-1 py-0.5 rounded">
-              <span className="text-[10px] text-[#9aa3b2] shrink-0">{l.timestamp.split("T")[1]?.slice(0, 8) ?? l.timestamp}</span>
+            <div
+              key={l.id}
+              className="flex items-start gap-2 hover:bg-[#14141c]/60 px-1 py-0.5 rounded"
+            >
+              <span className="text-[10px] text-[#9aa3b2] shrink-0">
+                {l.timestamp.split("T")[1]?.slice(0, 8) ?? l.timestamp}
+              </span>
               <span
                 className={`text-[10px] font-bold px-1 rounded uppercase shrink-0 ${
                   l.level === "ERROR" || l.level === "CRITICAL"
                     ? "bg-[#ff3b3b]/20 text-[#ff3b3b]"
                     : l.level === "WARN"
-                    ? "bg-[#ffc857]/20 text-[#ffc857]"
-                    : "bg-[#2de2e6]/20 text-[#2de2e6]"
+                      ? "bg-[#ffc857]/20 text-[#ffc857]"
+                      : "bg-[#2de2e6]/20 text-[#2de2e6]"
                 }`}
               >
                 {l.service}
               </span>
-              <span className="text-[#e8ecf1] break-all">{l.raw || l.message}</span>
+              <span className="text-[#e8ecf1] break-all">
+                {l.raw || l.message}
+              </span>
             </div>
           ))
         )}
