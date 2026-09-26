@@ -99,4 +99,38 @@ describe("Keep components accessibility test", () => {
       "GoogleDriveExplorer close preview button should have focus-visible styling"
     );
   });
+
+  test("FastMCPSentinelWorkbench has accessible form controls with explicit labels and focus-visible styling", () => {
+    const filePath = path.join(process.cwd(), "src/components/sentinel/fastmcp-sentinel-workbench.tsx");
+    const content = fs.readFileSync(filePath, "utf-8");
+
+    assert.ok(
+      content.includes('htmlFor="county-select"'),
+      "County select label should have htmlFor attribute"
+    );
+    assert.ok(
+      content.includes('id="county-select"'),
+      "County select element should have corresponding id"
+    );
+    assert.ok(
+      content.includes('htmlFor="custom-county-input"'),
+      "Custom county input label should have htmlFor attribute"
+    );
+    assert.ok(
+      content.includes('id="custom-county-input"'),
+      "Custom county input element should have corresponding id"
+    );
+    assert.ok(
+      content.includes('htmlFor="oracle-claim-input"'),
+      "Oracle claim textarea label should have htmlFor attribute"
+    );
+    assert.ok(
+      content.includes('id="oracle-claim-input"'),
+      "Oracle claim textarea element should have corresponding id"
+    );
+    assert.ok(
+      content.includes("focus-visible:ring-1") || content.includes("focus-visible:ring-2"),
+      "Sentinel workbench form inputs/buttons should have focus-visible styling"
+    );
+  });
 });
