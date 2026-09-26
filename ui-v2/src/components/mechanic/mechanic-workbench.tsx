@@ -49,7 +49,8 @@ const QUICK_CHIPS: QuickChip[] = [
     id: "paste-log",
     label: "Paste Error Log",
     icon: "📋",
-    prompt: "Analyze the attached container log crash dump. Pinpoint the root cause failure, memory pressure, or permission error.",
+    prompt:
+      "Analyze the attached container log crash dump. Pinpoint the root cause failure, memory pressure, or permission error.",
     logs: `[ERROR] 2026-08-24 08:14:22 [openclaw.gateway] Failed to bind ws://127.0.0.1:18789: Address already in use
 [CRITICAL] 2026-08-24 08:14:23 [fastmcp.transport] Tool bridge connection refused on 127.0.0.1:8100
 [WARN] 2026-08-24 08:14:25 [fs.perms] /root/ReClaw-2.0/config/openclaw.yaml owned by root:root, expected uid 1000`,
@@ -64,7 +65,8 @@ const QUICK_CHIPS: QuickChip[] = [
     id: "file-perms",
     label: "Fix File Ownership (uid 1000)",
     icon: "🔧",
-    prompt: "Provide the standard single-block command to inspect and restore file ownership to uid 1000 across /root/ReClaw-2.0 after running root migrations.",
+    prompt:
+      "Provide the standard single-block command to inspect and restore file ownership to uid 1000 across /root/ReClaw-2.0 after running root migrations.",
   },
 ];
 
@@ -89,7 +91,10 @@ function formatHHMM(iso: string): string {
 }
 
 /** Parses the probe script's own `SUMMARY: OK|WARN|FAIL <reason>` contract. */
-function parseSummary(summary: string): { verdict: "OK" | "WARN" | "FAIL" | "UNKNOWN"; reason: string } {
+function parseSummary(summary: string): {
+  verdict: "OK" | "WARN" | "FAIL" | "UNKNOWN";
+  reason: string;
+} {
   const m = summary.match(/^SUMMARY:\s*(OK|WARN|FAIL)\s*(.*)$/);
   if (!m) return { verdict: "UNKNOWN", reason: summary };
   return { verdict: m[1] as "OK" | "WARN" | "FAIL", reason: m[2] ?? "" };
@@ -102,8 +107,17 @@ function verdictColor(verdict: "OK" | "WARN" | "FAIL" | "UNKNOWN"): string {
   return "text-[#9aa3b2]";
 }
 
-function buildBootBanner(opts: { mechanicModel: string; bridgeReachable: boolean | null; dropLabel: string }): string {
-  const bridgeText = opts.bridgeReachable === null ? "—" : opts.bridgeReachable ? "reachable" : "unreachable";
+function buildBootBanner(opts: {
+  mechanicModel: string;
+  bridgeReachable: boolean | null;
+  dropLabel: string;
+}): string {
+  const bridgeText =
+    opts.bridgeReachable === null
+      ? "—"
+      : opts.bridgeReachable
+        ? "reachable"
+        : "unreachable";
   return `================================================================================
 VALERIE'S MECHANIC WORKBENCH // CRT DIAGNOSTIC CONSOLE
 MODEL: ${opts.mechanicModel} · FASTMCP BRIDGE: ${bridgeText} · LATEST DROP: ${opts.dropLabel}
@@ -111,16 +125,27 @@ MODEL: ${opts.mechanicModel} · FASTMCP BRIDGE: ${bridgeText} · LATEST DROP: ${
 VALERIE IS AT THE BENCH. Ready for probes, Docker dumps, or diagnostic questions.`;
 }
 
-const UNKNOWN_BOOT_BANNER = buildBootBanner({ mechanicModel: "—", bridgeReachable: null, dropLabel: "—" });
+const UNKNOWN_BOOT_BANNER = buildBootBanner({
+  mechanicModel: "—",
+  bridgeReachable: null,
+  dropLabel: "—",
+});
 
 /**
  * @param initialConcern Symptom handed down from the Watchtower beacon.
  *   Observed state only — Sentinel names what failed, Valerie determines why.
  */
-export function MechanicWorkbench({ initialConcern }: { initialConcern?: string } = {}) {
+export function MechanicWorkbench({
+  initialConcern,
+}: { initialConcern?: string } = {}) {
   const [bootBannerText, setBootBannerText] = useState(UNKNOWN_BOOT_BANNER);
   const [messages, setMessages] = useState<TerminalMessage[]>(() => [
-    { id: "boot-1", sender: "system", timestamp: "00:00:01", text: UNKNOWN_BOOT_BANNER },
+    {
+      id: "boot-1",
+      sender: "system",
+      timestamp: "00:00:01",
+      text: UNKNOWN_BOOT_BANNER,
+    },
   ]);
   const [concern, setConcern] = useState(initialConcern ?? "");
   const [contextLogs, setContextLogs] = useState("");
@@ -128,10 +153,20 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
   const [busy, setBusy] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [copiedBlockId, setCopiedBlockId] = useState<string | null>(null);
-  const [dropInfo, setDropInfo] = useState<{ exists: boolean; filename: string; mtime: string; header: string } | null>(null);
-  const [probeStatus, setProbeStatus] = useState<Record<string, ProbeStatus>>({});
+  const [dropInfo, setDropInfo] = useState<{
+    exists: boolean;
+    filename: string;
+    mtime: string;
+    header: string;
+  } | null>(null);
+  const [probeStatus, setProbeStatus] = useState<Record<string, ProbeStatus>>(
+    {},
+  );
   const [runningProbe, setRunningProbe] = useState<string | null>(null);
-  const [mechanicConfig, setMechanicConfig] = useState<{ mechanicModel: string; talkModel: string } | null>(null);
+  const [mechanicConfig, setMechanicConfig] = useState<{
+    mechanicModel: string;
+    talkModel: string;
+  } | null>(null);
   const [bridgeReachable, setBridgeReachable] = useState<boolean | null>(null);
   const terminalEndRef = useRef<HTMLDivElement>(null);
 
@@ -160,16 +195,24 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
       if (cancelled) return;
       if (dropRes.status === "fulfilled") setDropInfo(dropRes.value);
       if (configRes.status === "fulfilled") setMechanicConfig(configRes.value);
-      const mechanicModel = configRes.status === "fulfilled" ? configRes.value.mechanicModel : "—";
-      const reachable = healthRes.status === "fulfilled" ? healthRes.value.ok : null;
+      const mechanicModel =
+        configRes.status === "fulfilled" ? configRes.value.mechanicModel : "—";
+      const reachable =
+        healthRes.status === "fulfilled" ? healthRes.value.ok : null;
       setBridgeReachable(reachable);
       const dropLabel =
         dropRes.status === "fulfilled" && dropRes.value.exists
           ? `${dropRes.value.filename} @ ${formatHHMM(dropRes.value.mtime)}`
           : "—";
-      const text = buildBootBanner({ mechanicModel, bridgeReachable: reachable, dropLabel });
+      const text = buildBootBanner({
+        mechanicModel,
+        bridgeReachable: reachable,
+        dropLabel,
+      });
       setBootBannerText(text);
-      setMessages((prev) => prev.map((m) => (m.id === "boot-1" ? { ...m, text } : m)));
+      setMessages((prev) =>
+        prev.map((m) => (m.id === "boot-1" ? { ...m, text } : m)),
+      );
     })();
     return () => {
       cancelled = true;
@@ -186,7 +229,11 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
   }
 
   /** Shared by the operator's own question and the auto-diagnosis after a probe run. */
-  async function submitDiagnosis(rawConcern: string, rawLogs: string | undefined, opts?: { announce?: boolean }) {
+  async function submitDiagnosis(
+    rawConcern: string,
+    rawLogs: string | undefined,
+    opts?: { announce?: boolean },
+  ) {
     const cleanConcern = rawConcern.trim();
     const cleanLogs = (rawLogs ?? "").trim();
     if (!cleanConcern && !cleanLogs) return;
@@ -198,7 +245,9 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
           id: `op-${Date.now()}`,
           sender: "operator",
           timestamp: getTimestamp(),
-          text: cleanConcern || `[Attached Raw Logs Diagnostic — ${cleanLogs.split("\n").length} lines]`,
+          text:
+            cleanConcern ||
+            `[Attached Raw Logs Diagnostic — ${cleanLogs.split("\n").length} lines]`,
         },
       ]);
     }
@@ -278,7 +327,12 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
     setRunningProbe(name);
     setMessages((prev) => [
       ...prev,
-      { id: `probe-run-${name}-${Date.now()}`, sender: "system", timestamp: getTimestamp(), text: `[probe:${name}] running…` },
+      {
+        id: `probe-run-${name}-${Date.now()}`,
+        sender: "system",
+        timestamp: getTimestamp(),
+        text: `[probe:${name}] running…`,
+      },
     ]);
 
     // Cleared as soon as the probe itself finishes -- kept separate from `busy`
@@ -294,7 +348,12 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
       toast.error(errMsg);
       setMessages((prev) => [
         ...prev,
-        { id: `probe-err-${name}-${Date.now()}`, sender: "system", timestamp: getTimestamp(), text: `[probe:${name}] [CONNECTION FAULT]: ${errMsg}` },
+        {
+          id: `probe-err-${name}-${Date.now()}`,
+          sender: "system",
+          timestamp: getTimestamp(),
+          text: `[probe:${name}] [CONNECTION FAULT]: ${errMsg}`,
+        },
       ]);
       return;
     } finally {
@@ -310,14 +369,21 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
         text: `[probe:${name}]\n${res.output.trim() || res.error || "(no output)"}`,
       },
     ]);
-    setProbeStatus((prev) => ({ ...prev, [name]: { summary: res.summary, ranAt: res.ranAt } }));
+    setProbeStatus((prev) => ({
+      ...prev,
+      [name]: { summary: res.summary, ranAt: res.ranAt },
+    }));
 
     if (!res.ok) {
       toast.error(res.error || `Probe "${name}" failed.`);
       return;
     }
 
-    await submitDiagnosis(`Diagnose this [probe:${name}] result. ${res.summary}`, res.output, { announce: false });
+    await submitDiagnosis(
+      `Diagnose this [probe:${name}] result. ${res.summary}`,
+      res.output,
+      { announce: false },
+    );
   }
 
   function handleChipClick(chip: QuickChip) {
@@ -342,13 +408,22 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
   }
 
   function clearTerminal() {
-    setMessages([{ id: "boot-1", sender: "system", timestamp: "00:00:01", text: bootBannerText }]);
+    setMessages([
+      {
+        id: "boot-1",
+        sender: "system",
+        timestamp: "00:00:01",
+        text: bootBannerText,
+      },
+    ]);
     mechanicAudio.playRelaySnap();
     toast.info("Terminal log buffer cleared.");
   }
 
   function exportTranscript() {
-    const lines = messages.map((m) => `[${m.timestamp}] <${m.sender.toUpperCase()}>:\n${m.text}\n`).join("\n---\n");
+    const lines = messages
+      .map((m) => `[${m.timestamp}] <${m.sender.toUpperCase()}>:\n${m.text}\n`)
+      .join("\n---\n");
     const blob = new Blob([lines], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -397,6 +472,7 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
                         ? "bg-[#39ff14]/20 text-[#39ff14] border border-[#39ff14]"
                         : "bg-[#1e222b] text-[#2de2e6] border border-[#2de2e6]/40 hover:bg-[#2de2e6] hover:text-[#0b0e14]"
                     }`}
+                    aria-label={isCopied ? "Command copied" : "Copy command"}
                   >
                     {isCopied ? "✓ COPIED" : "📋 COPY COMMAND"}
                   </button>
@@ -455,7 +531,8 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
       <div
         className="relative overflow-hidden rounded-xl border-4 border-[#2a2438] bg-[#0d0221] p-2 md:p-4 shadow-2xl shadow-black"
         style={{
-          boxShadow: "0 0 40px rgba(45, 226, 230, 0.08), inset 0 0 30px rgba(13, 2, 33, 0.9)",
+          boxShadow:
+            "0 0 40px rgba(45, 226, 230, 0.08), inset 0 0 30px rgba(13, 2, 33, 0.9)",
         }}
       >
         {/* Corner Iron Rivets (Gold / Bronze) */}
@@ -478,7 +555,8 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
                 OPENCLAW MECHANIC WORKBENCH // CRT DIAGNOSTIC CONSOLE
               </h2>
               <p className="text-[11px] font-mono text-[#9aa3b2]">
-                Layer 0–5 Deep Stack Auditing · Model: {mechanicConfig?.mechanicModel ?? "—"}
+                Layer 0–5 Deep Stack Auditing · Model:{" "}
+                {mechanicConfig?.mechanicModel ?? "—"}
               </p>
             </div>
           </div>
@@ -500,6 +578,7 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
               type="button"
               onClick={exportTranscript}
               className="rounded border border-[#3a3f4b] bg-[#1e222b] px-2 py-1 font-mono text-xs text-[#e8ecf1] hover:border-[#2de2e6] hover:text-[#2de2e6] transition-colors"
+              aria-label="Export log to file"
             >
               💾 EXPORT LOG
             </button>
@@ -507,6 +586,7 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
               type="button"
               onClick={clearTerminal}
               className="rounded border border-[#3a3f4b] bg-[#1e222b] px-2 py-1 font-mono text-xs text-[#ff3b3b] hover:bg-[#ff3b3b]/10 transition-colors"
+              aria-label="Clear terminal"
             >
               CLEAR
             </button>
@@ -555,21 +635,36 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
               <div className="mt-3 flex items-center justify-center gap-2 rounded bg-[#0b0e14] py-1.5 px-3 border border-[#3a3f4b]">
                 <span
                   className={`h-2 w-2 rounded-full ${
-                    bridgeReachable === true ? "bg-[#39ff14] animate-pulse" : bridgeReachable === false ? "bg-[#ff3b3b]" : "bg-[#9aa3b2]"
+                    bridgeReachable === true
+                      ? "bg-[#39ff14] animate-pulse"
+                      : bridgeReachable === false
+                        ? "bg-[#ff3b3b]"
+                        : "bg-[#9aa3b2]"
                   }`}
                 ></span>
                 <span
                   className={`font-mono text-[10px] md:text-[11px] font-bold tracking-wide ${
-                    bridgeReachable === true ? "text-[#39ff14]" : bridgeReachable === false ? "text-[#ff3b3b]" : "text-[#9aa3b2]"
+                    bridgeReachable === true
+                      ? "text-[#39ff14]"
+                      : bridgeReachable === false
+                        ? "text-[#ff3b3b]"
+                        : "text-[#9aa3b2]"
                   }`}
                 >
-                  {bridgeReachable === true ? "FASTMCP BRIDGE: REACHABLE" : bridgeReachable === false ? "FASTMCP BRIDGE: UNREACHABLE" : "FASTMCP BRIDGE: —"}
+                  {bridgeReachable === true
+                    ? "FASTMCP BRIDGE: REACHABLE"
+                    : bridgeReachable === false
+                      ? "FASTMCP BRIDGE: UNREACHABLE"
+                      : "FASTMCP BRIDGE: —"}
                 </span>
               </div>
 
               {/* Raven Drop Badge */}
               <div className="mt-2 text-center font-mono text-[10px] bg-[#0d0221] py-1 px-1.5 rounded border border-[#ffc857]/40 text-[#ffc857] truncate">
-                Reading drop: {dropInfo?.exists ? `${dropInfo.filename} @ ${dropInfo.mtime}` : "—"}
+                Reading drop:{" "}
+                {dropInfo?.exists
+                  ? `${dropInfo.filename} @ ${dropInfo.mtime}`
+                  : "—"}
               </div>
             </div>
 
@@ -578,21 +673,30 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
               <div className="text-[11px] font-bold uppercase text-[#ffc857] border-b border-[#2a2438] pb-1.5 flex items-center justify-between">
                 <span>🛰️ RECLAW STACK TELEMETRY</span>
                 <span className="text-[10px] text-[#9aa3b2]">
-                  {probeStatus.sitrep ? `PROBED ${formatHHMM(probeStatus.sitrep.ranAt)}` : "NOT YET PROBED"}
+                  {probeStatus.sitrep
+                    ? `PROBED ${formatHHMM(probeStatus.sitrep.ranAt)}`
+                    : "NOT YET PROBED"}
                 </span>
               </div>
 
               <div className="mt-2.5 space-y-2 text-[11px]">
                 <div className="flex justify-between items-center text-[#9aa3b2]">
                   <span>Verdict:</span>
-                  <span className={`font-bold ${verdictColor(probeStatus.sitrep ? parseSummary(probeStatus.sitrep.summary).verdict : "UNKNOWN")}`}>
-                    {probeStatus.sitrep ? parseSummary(probeStatus.sitrep.summary).verdict : "—"}
+                  <span
+                    className={`font-bold ${verdictColor(probeStatus.sitrep ? parseSummary(probeStatus.sitrep.summary).verdict : "UNKNOWN")}`}
+                  >
+                    {probeStatus.sitrep
+                      ? parseSummary(probeStatus.sitrep.summary).verdict
+                      : "—"}
                   </span>
                 </div>
                 <div className="flex justify-between items-start gap-2 text-[#9aa3b2]">
                   <span className="shrink-0">Detail:</span>
                   <span className="text-[#e8ecf1] text-right">
-                    {probeStatus.sitrep ? parseSummary(probeStatus.sitrep.summary).reason || "(no detail)" : "—"}
+                    {probeStatus.sitrep
+                      ? parseSummary(probeStatus.sitrep.summary).reason ||
+                        "(no detail)"
+                      : "—"}
                   </span>
                 </div>
               </div>
@@ -601,6 +705,7 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
                 onClick={() => void runProbeAndDiagnose("sitrep")}
                 disabled={runningProbe !== null || busy}
                 className="mt-2.5 w-full rounded border border-[#3a3f4b] bg-[#1e222b] px-2 py-1 font-mono text-[10px] text-[#9aa3b2] hover:border-[#2de2e6] hover:text-[#2de2e6] transition-colors disabled:opacity-50"
+                aria-label="Run sitrep probe"
               >
                 {runningProbe === "sitrep" ? "RUNNING…" : "RUN SITREP PROBE"}
               </button>
@@ -612,10 +717,22 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
                 ⚡ 5-LAYER TROUBLESHOOTING PROTOCOL
               </div>
               <ul className="mt-2 space-y-1 text-[11px] text-[#9aa3b2]">
-                <li><span className="text-[#ffc857]">L0–2:</span> Ports, bindings & Tailscale Funnel</li>
-                <li><span className="text-[#ffc857]">L3:</span> Config, envs, volumes & uid:1000</li>
-                <li><span className="text-[#ffc857]">L4:</span> Docker logs, memory, OOM & loops</li>
-                <li><span className="text-[#ffc857]">L5:</span> FastMCP sockets & SQLite locks</li>
+                <li>
+                  <span className="text-[#ffc857]">L0–2:</span> Ports, bindings
+                  & Tailscale Funnel
+                </li>
+                <li>
+                  <span className="text-[#ffc857]">L3:</span> Config, envs,
+                  volumes & uid:1000
+                </li>
+                <li>
+                  <span className="text-[#ffc857]">L4:</span> Docker logs,
+                  memory, OOM & loops
+                </li>
+                <li>
+                  <span className="text-[#ffc857]">L5:</span> FastMCP sockets &
+                  SQLite locks
+                </li>
               </ul>
             </div>
           </div>
@@ -628,7 +745,8 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
             <div
               className="relative flex flex-col h-[480px] md:h-[540px] rounded-lg border-2 border-[#3a3f4b] bg-[#05020d] p-3 md:p-4 overflow-hidden font-mono"
               style={{
-                boxShadow: "inset 0 0 20px rgba(0,0,0,0.9), 0 0 15px rgba(45, 226, 230, 0.05)",
+                boxShadow:
+                  "inset 0 0 20px rgba(0,0,0,0.9), 0 0 15px rgba(45, 226, 230, 0.05)",
               }}
             >
               {/* Scanline CRT Overlay */}
@@ -644,7 +762,10 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
               {/* Terminal Viewport / Scroll Area */}
               <div className="flex-1 overflow-y-auto pr-2 space-y-4 text-xs">
                 {messages.map((msg) => (
-                  <div key={msg.id} className="border-b border-[#2a2438]/50 pb-3">
+                  <div
+                    key={msg.id}
+                    className="border-b border-[#2a2438]/50 pb-3"
+                  >
                     {/* Message Header */}
                     <div className="flex items-center gap-2 text-[11px] mb-1">
                       <span className="text-[#9aa3b2]">[{msg.timestamp}]</span>
@@ -692,25 +813,36 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
 
             {/* Probe Rack -- one button per real probe on the box */}
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] font-mono text-[#9aa3b2] mr-1">PROBE RACK:</span>
+              <span className="text-[11px] font-mono text-[#9aa3b2] mr-1">
+                PROBE RACK:
+              </span>
               {PROBE_RACK.map((probe) => {
                 const status = probeStatus[probe.name];
-                const verdict = status ? parseSummary(status.summary).verdict : "UNKNOWN";
+                const verdict = status
+                  ? parseSummary(status.summary).verdict
+                  : "UNKNOWN";
                 return (
                   <button
                     key={probe.name}
                     type="button"
                     onClick={() => void runProbeAndDiagnose(probe.name)}
                     disabled={runningProbe !== null || busy}
-                    title={status ? `${status.summary} (probed ${formatHHMM(status.ranAt)})` : "Not yet probed"}
+                    title={
+                      status
+                        ? `${status.summary} (probed ${formatHHMM(status.ranAt)})`
+                        : "Not yet probed"
+                    }
                     className={`inline-flex items-center gap-1 rounded border px-2.5 py-1 text-xs font-mono transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                       status
                         ? `border-current bg-current/10 ${verdictColor(verdict)}`
                         : "border-[#3a3f4b] bg-[#1e222b] text-[#e8ecf1] hover:border-[#2de2e6] hover:bg-[#2de2e6]/10 hover:text-[#2de2e6]"
                     }`}
+                    aria-label={probe.label}
                   >
                     <span>{probe.icon}</span>
-                    <span>{runningProbe === probe.name ? "RUNNING…" : probe.label}</span>
+                    <span>
+                      {runningProbe === probe.name ? "RUNNING…" : probe.label}
+                    </span>
                   </button>
                 );
               })}
@@ -718,14 +850,19 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
 
             {/* Quick-Action Diagnostic Chips */}
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] font-mono text-[#9aa3b2] mr-1">QUICK CHIPS:</span>
+              <span className="text-[11px] font-mono text-[#9aa3b2] mr-1">
+                QUICK CHIPS:
+              </span>
               {QUICK_CHIPS.map((chip) => (
                 <button
                   key={chip.id}
                   type="button"
                   onClick={() => handleChipClick(chip)}
-                  disabled={Boolean(chip.probe) && (runningProbe !== null || busy)}
+                  disabled={
+                    Boolean(chip.probe) && (runningProbe !== null || busy)
+                  }
                   className="inline-flex items-center gap-1 rounded border border-[#3a3f4b] bg-[#1e222b] px-2.5 py-1 text-xs font-mono text-[#e8ecf1] transition-all hover:border-[#2de2e6] hover:bg-[#2de2e6]/10 hover:text-[#2de2e6] disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label={chip.label}
                 >
                   <span>{chip.icon}</span>
                   <span>{chip.label}</span>
@@ -740,13 +877,21 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
                 onClick={() => setShowLogDrawer(!showLogDrawer)}
                 className="text-xs font-mono text-[#ffc857] hover:underline inline-flex items-center gap-1"
               >
-                <span>{showLogDrawer ? "▼ Hide" : "▶ Attach"} Raw Docker / Terminal Log Dump ({contextLogs ? `${contextLogs.split("\n").length} lines` : "Empty"})</span>
+                <span>
+                  {showLogDrawer ? "▼ Hide" : "▶ Attach"} Raw Docker / Terminal
+                  Log Dump (
+                  {contextLogs
+                    ? `${contextLogs.split("\n").length} lines`
+                    : "Empty"}
+                  )
+                </span>
               </button>
               {contextLogs && (
                 <button
                   type="button"
                   onClick={() => setContextLogs("")}
                   className="text-[10px] font-mono text-[#ff3b3b] hover:underline"
+                  aria-label="Clear raw context logs"
                 >
                   Clear Raw Logs
                 </button>

@@ -8,3 +8,6 @@
 ## 2024-05-16 - File Upload Dropzone Accessibility
 **Learning:** Found that custom file upload drag-and-drop zones built with generic `div` elements and an `onClick` handler (to proxy the hidden file input) lacked keyboard support, preventing keyboard users from initiating an upload.
 **Action:** When implementing custom upload dropzones, explicitly add `role="button"`, `tabIndex={0}`, an `onKeyDown` handler (for "Enter" and " "), and `focus-visible` outline styling to the clickable container element.
+## 2024-05-24 - Accessibility Labels for Icon-Only and Dynamic Buttons
+**Learning:** Found multiple instances where buttons heavily reliant on visual icons or dynamic text (like "✓ COPIED" vs "📋 COPY COMMAND") lacked screen-reader-friendly `aria-label`s. This pattern is common in tool-heavy UIs where space is premium, but it makes the experience confusing for non-visual users.
+**Action:** Always verify that buttons whose visual content is primarily an icon, or whose primary text frequently changes state, have a robust and descriptive `aria-label` that clearly explains their function in all states.
