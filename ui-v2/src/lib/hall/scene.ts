@@ -82,6 +82,12 @@ export class HallScene extends Phaser.Scene {
   private lastZone = "";
   private lastPrompt = "";
   private dest: { x: number; y: number } | null = null;
+  /** NPC the player clicked: once they reach the walkable approach tile, the
+   *  NPC's dialogue opens automatically. Cleared by manual input. */
+  private pendingApproach: HallNpc | null = null;
+  /** How long the player has been wedged with an active dest (prop or wall
+   *  between them and the click). Clears so they don't grind an edge. */
+  private destStallMs = 0;
   private stickX = 0;
   private stickY = 0;
   private lastFacing: Facing = "down";
@@ -238,6 +244,22 @@ export class HallScene extends Phaser.Scene {
         });
         spr.play(`npc-idle-${npc.id}`);
       }
+
+      // Small pixel name tag above every character. The Oracle paints its own
+      // proverb above the eye, so it is left to speak for itself.
+      if (npc.actor && npc.id !== "oracle") {
+        this.add
+          .text(npc.x, npc.y - OP_H / 2 - 6, npc.name, {
+            fontFamily: "monospace",
+            fontSize: "8px",
+            color: "#e8ecf1",
+            backgroundColor: "#0b0e14aa",
+            padding: { x: 3, y: 1 },
+          })
+          .setOrigin(0.5, 1)
+          .setDepth(12)
+          .setAlpha(0.92);
+      }
     }
 
     // The Oracle Eye
@@ -289,14 +311,11 @@ export class HallScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(11);
 
-    // Dynamic Point Lights
-    for (const cfg of HALL_LIGHTS) {
-      const light = this.add.pointlight(cfg.x, cfg.y, cfg.color, cfg.radius, cfg.intensity);
-      light.setDepth(12);
-      this.hallLights.push(light);
-      this.lightBase.push(cfg.intensity);
-      this.lightPhase.push(Math.random() * Math.PI * 2);
-    }
+    // Dynamic Point Lights — removed. The pointlight sprites rendered as flat,
+    // harshly-edged color blobs overlapping the painted background rather than
+    // a soft torch glow (looked broken, not atmospheric). this.hallLights stays
+    // permanently empty; the flicker-update loop and pulseTorch() below already
+    // no-op safely on an empty array, so nothing else needed changing.
 
     // Player Shadow & Sprite
     this.shadow = this.add.ellipse(PLAYER_SPAWN.x, PLAYER_SPAWN.y + 2, 28, 10, 0x000000, 0.42).setDepth(13);
@@ -333,6 +352,11 @@ export class HallScene extends Phaser.Scene {
     this.cameras.main.setDeadzone(200, 130);
     this.cameras.main.setZoom(1.45);
 
+    // Spawn fully on-screen: the first painted frames may precede the final
+    // sized resize, which can leave the player half-cut under the HUD bar.
+    // Snap the camera onto the player one frame in, then let the follow ease.
+    this.time.delayedCall(32, () => this.centerCameraOnPlayer());
+
     if (this.input.keyboard) {
       this.cursors = this.input.keyboard.createCursorKeys();
       this.wasd = this.input.keyboard.addKeys("W,A,S,D") as typeof this.wasd;
@@ -351,22 +375,26 @@ export class HallScene extends Phaser.Scene {
       if (this.paused) return;
       const w = this.cameras.main.getWorldPoint(p.x, p.y);
       const hit = npcAtPoint(w.x, w.y);
-      // PERFORMANCE: Using squared distance calculation rather than Math.hypot
-      // Math.hypot can be a measurable performance bottleneck in a game loop context
+      // PERF: squared distance avoids Math.hypot in the hot path
       const dx = w.x - this.player.x;
       const dy = w.y - this.player.y;
       const distSqToPlayer = dx * dx + dy * dy;
-      if (hit && distSqToPlayer < 8100) { // 90 * 90
-        if (hit.id === "oracle") {
-          hallAudio.playOracleGaze();
-        } else {
-          hallAudio.playInteract();
+      if (hit) {
+        if (hit.id === "oracle") hallAudio.playOracleGaze();
+        else hallAudio.playInteract();
+        if (distSqToPlayer < 8100) {
+          // Already at the NPC: talk immediately. E/Space does the same.
+          this.eventsOut.onTalk(hit);
+          return;
         }
-        this.eventsOut.onTalk(hit);
+        // Far NPC: walk the player next to them, then open the dialogue.
+        this.pendingApproach = null;
+        this.approach(hit);
         return;
       }
       if (walkable(w.x, w.y)) {
         this.dest = { x: w.x, y: w.y };
+        this.pendingApproach = null;
         this.reticle.setPosition(w.x, w.y).setVisible(true);
       }
     });
@@ -691,6 +719,60 @@ export class HallScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Clicked a far NPC: set a walkable approach tile inside the NPC's talk
+   * radius and remember to open their dialogue on arrival. Picks the point
+   * on the player's side of the NPC first, then any nearest walkable tile.
+   */
+  private approach(npc: HallNpc) {
+    if (!this.player || !walkable(npc.x, npc.y)) return;
+    const dx = this.player.x - npc.x;
+    const dy = this.player.y - npc.y;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    const targetDist = npc.radius + 10;
+    let tx = npc.x + (dx / dist) * targetDist;
+    let ty = npc.y + (dy / dist) * targetDist;
+    if (!walkable(tx, ty)) {
+      let best: { x: number; y: number; dSq: number } | null = null;
+      for (let a = 0; a < 32; a++) {
+        const ang = (a / 32) * Math.PI * 2;
+        const cx = npc.x + Math.cos(ang) * targetDist;
+        const cy = npc.y + Math.sin(ang) * targetDist;
+        if (!walkable(cx, cy)) continue;
+        const ddx = cx - this.player.x;
+        const ddy = cy - this.player.y;
+        const dSq = ddx * ddx + ddy * ddy;
+        if (!best || dSq < best.dSq) best = { x: cx, y: cy, dSq };
+      }
+      if (!best) return;
+      tx = best.x;
+      ty = best.y;
+    }
+    this.dest = { x: tx, y: ty };
+    this.pendingApproach = npc;
+    this.reticle.setPosition(tx, ty).setVisible(true);
+  }
+
+  /** Snap the camera back onto the player (spawn / post-resize). */
+  public centerCameraOnPlayer() {
+    if (this.player && this.cameras.main) {
+      this.cameras.main.centerOn(this.player.x, this.player.y);
+    }
+  }
+
+  /**
+   * Enable or disable Phaser's keyboard while React owns the focus (talk /
+   * table / wardrobe modals). Instead of fully pausing the scene, the keyboard
+   * plugin is switched off so typing in an input never fires E/Space/ESC into
+   * the game, then re-enabled (with global capture) when a modal closes.
+   */
+  public setKeyboardEnabled(on: boolean) {
+    if (!this.input?.keyboard) return;
+    this.input.keyboard.enabled = on;
+    if (on) this.input.keyboard.enableGlobalCapture();
+    else this.input.keyboard.disableGlobalCapture();
+  }
+
   update(time: number, delta: number) {
     if (this.freezeMs > 0) {
       this.freezeMs -= delta;
@@ -802,6 +884,7 @@ export class HallScene extends Phaser.Scene {
 
     if (inputX !== 0 || inputY !== 0) {
       this.dest = null;
+      this.pendingApproach = null;
       this.reticle.setVisible(false);
       targetVel = calculateVelocity(inputX, inputY, speed);
     } else if (this.dest) {
@@ -811,6 +894,12 @@ export class HallScene extends Phaser.Scene {
       if (distSq < 64) {
         this.dest = null;
         this.reticle.setVisible(false);
+        if (this.pendingApproach) {
+          const npc = this.pendingApproach;
+          this.pendingApproach = null;
+          hallAudio.playInteract();
+          this.eventsOut.onTalk(npc);
+        }
       } else {
         targetVel = calculateVelocity(dx, dy, speed);
       }
@@ -842,6 +931,21 @@ export class HallScene extends Phaser.Scene {
     if (isMoving !== this.wasMoving) {
       this.squash(isMoving ? 0.94 : 1.07, isMoving ? 1.07 : 0.93);
       this.wasMoving = isMoving;
+    }
+
+    // Wedge clear: a click that sits behind a prop or wall leaves the player
+    // pushing against the boundary forever. If a dest is set but the player
+    // can't move, drop it (and any pending NPC approach) after half a second.
+    if (this.dest && !isMoving) {
+      this.destStallMs += delta;
+    } else {
+      this.destStallMs = 0;
+    }
+    if (this.destStallMs > 550) {
+      this.dest = null;
+      this.pendingApproach = null;
+      this.destStallMs = 0;
+      this.reticle.setVisible(false);
     }
 
     if (isMoving) {

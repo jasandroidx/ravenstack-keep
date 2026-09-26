@@ -21,6 +21,7 @@ export interface FastMCPToolCall {
     | "get_castle_map"
     | "oracle_query"
     | "oracle_verify"
+    | "query_knowledge"
     | "pending_gates"
     | "stack_health"
     // Human gates. These write, and only ever with confirm: true supplied by

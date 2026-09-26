@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Installed at /usr/local/bin/probe. Validates the probe name, confirms the
+# script exists, archives a copy of the run in the vault via raven-drop, and
+# prints the probe script's own clean output (ending in its SUMMARY line) as
+# this command's result.
+#
+# raven-drop is NOT a passive "log this output" pipe -- per its own docs it
+# takes a heredoc of COMMANDS on stdin and runs them itself, then prints its
+# own "commands"/"output" sections plus a drop-path footer. Piping the probe
+# script's already-rendered text INTO it (as an earlier version of this file
+# did) made raven-drop try to execute that plain text as shell, which failed
+# every line and also buried the real SUMMARY line under raven-drop's own
+# footer. So: hand raven-drop the script's SOURCE to run+archive in the
+# background (best-effort -- a raven-drop hiccup must never take down the
+# probe result callers actually need), and separately run the script directly
+# so stdout/exit code are exactly, only, the script's own.
+set -uo pipefail
+
+name="${1:-}"
+
+if [[ ! "$name" =~ ^[a-z0-9-]+$ ]]; then
+  echo "Refused: probe name must match ^[a-z0-9-]+\$, got: '${name}'" >&2
+  exit 1
+fi
+
+probes_dir="${RAVENSTACK_PROBES_DIR:-/root/ravenstack-armory/workflows/probes}"
+script="${probes_dir}/${name}.sh"
+
+if [ ! -f "$script" ]; then
+  echo "Refused: no such probe '${name}' (looked for ${script})" >&2
+  exit 1
+fi
+
+( raven-drop "probe-${name}" < "$script" >/dev/null 2>&1 & )
+
+exec bash "$script"

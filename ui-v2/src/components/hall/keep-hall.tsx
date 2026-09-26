@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type PointerEvent, type ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { TalkSheet } from "@/components/hall/talk-sheet";
 import type { HallScene } from "@/lib/hall/scene";
 import { RAVENLORD_SKINS, type HallNpc, type RavenlordSkin } from "@/lib/hall/world";
@@ -17,6 +17,7 @@ type Stick = { x: number; y: number };
 
 export function KeepHall() {
   const host = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
   const gameRef = useRef<{
     destroy: (removeCanvas: boolean) => void;
     scale: { resize: (w: number, h: number) => void; stopListeners?: () => void };
@@ -114,15 +115,19 @@ export function KeepHall() {
     if (!el) return;
     let dead = false;
     let starting = false;
+    // Exactly one Phaser.Game per mount. `created` closes the last window a
+    // second game could slip in (ResizeObserver races the initial boot), so
+    // the Phaser banner and canvas exist exactly once per page visit.
+    let created = false;
 
     async function boot(w: number, h: number) {
-      if (typeof window === "undefined" || dead || starting || gameRef.current || !host.current) return;
+      if (typeof window === "undefined" || dead || starting || created || gameRef.current || !host.current) return;
       starting = true;
       try {
         const phaserMod = await import("phaser");
         const Phaser = (phaserMod as unknown as { default?: typeof phaserMod }).default || phaserMod;
         const { HallScene } = await import("@/lib/hall/scene");
-        if (dead || !host.current || gameRef.current) return;
+        if (dead || !host.current || created || gameRef.current) return;
 
         const scene = new HallScene({
           onZone: (name, nextLock) => {
@@ -163,6 +168,7 @@ export function KeepHall() {
         });
         sceneRef.current = scene;
 
+        created = true;
         const game = new Phaser.Game({
           type: Phaser.AUTO,
           parent: host.current,
@@ -201,6 +207,9 @@ export function KeepHall() {
       }
       try {
         gameRef.current.scale.resize(w, h);
+        // After the canvas settles to its real size, sit the player fully in
+        // frame rather than leaving the spawn half-under the HUD.
+        if (sceneRef.current?.ready) sceneRef.current.centerCameraOnPlayer();
       } catch {
         /* ignore resize error during teardown */
       }
@@ -217,6 +226,7 @@ export function KeepHall() {
       dead = true;
       ro.disconnect();
       sceneRef.current = null;
+      created = false;
       try {
         gameRef.current?.scale.stopListeners?.();
       } catch {
@@ -326,7 +336,15 @@ export function KeepHall() {
   }, []);
 
   useEffect(() => {
-    if (sceneRef.current) sceneRef.current.paused = Boolean(talk || tableOpen || wardrobeOpen);
+    const isOpen = Boolean(talk || tableOpen || wardrobeOpen);
+    if (sceneRef.current) {
+      sceneRef.current.paused = isOpen;
+      // While a modal owns focus, Phaser's keyboard is off so typing in an
+      // input never fires E/Space/ESC into the game; it is re-enabled with
+      // global capture the moment the modal closes (fixes keyboard capture
+      // during modal text input — see PR #85).
+      sceneRef.current.setKeyboardEnabled(!isOpen);
+    }
   }, [talk, tableOpen, wardrobeOpen]);
 
   useEffect(() => {
@@ -463,7 +481,8 @@ export function KeepHall() {
             <button
               type="button"
               onClick={() => {
-                sceneRef.current?.triggerOracleManifestation();
+                hallAudio.playOracleGaze();
+                navigate({ to: "/oracle" });
               }}
               title="Summon The Oracle (Spectral Inquisitor)"
               className="rounded-sm border border-[#39ff14]/60 bg-[#39ff14]/10 px-2.5 py-2 font-mono text-xs uppercase tracking-wider text-[#39ff14] backdrop-blur-md transition hover:bg-[#39ff14]/25 hover:text-[#e8ecf1]"

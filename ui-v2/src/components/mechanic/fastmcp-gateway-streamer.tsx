@@ -3,11 +3,15 @@ import { toast } from "sonner";
 import { callFastMCP } from "@/lib/keep/server";
 import type { GatewayLogLine, FastMCPToolResult } from "@/lib/keep/fastmcp";
 
+const MAX_CONSECUTIVE_ERRORS = 3;
+
 export function FastMCPGatewayStreamer() {
   const [logs, setLogs] = useState<GatewayLogLine[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [lastSyncResult, setLastSyncResult] = useState<FastMCPToolResult | null>(null);
   const [selectedService, setSelectedService] = useState<string>("all");
+  const [lastPolledAt, setLastPolledAt] = useState<string | null>(null);
+  const [consecutiveErrors, setConsecutiveErrors] = useState(0);
 
   async function fetchGatewayLogs() {
     try {
@@ -18,16 +22,37 @@ export function FastMCPGatewayStreamer() {
         },
       });
       setLastSyncResult(res);
+      setLastPolledAt(new Date().toISOString());
       if (res.ok && Array.isArray(res.data)) {
         setLogs(res.data as unknown as GatewayLogLine[]);
+        setConsecutiveErrors(0);
       } else {
         // Bridge is down: clear the viewport rather than leave stale lines that
         // read as current gateway state.
         setLogs([]);
+        setConsecutiveErrors((n) => {
+          const next = n + 1;
+          if (next >= MAX_CONSECUTIVE_ERRORS) {
+            setIsStreaming(false);
+            toast.error(`Gateway log stream stopped after ${MAX_CONSECUTIVE_ERRORS} consecutive errors.`);
+          }
+          return next;
+        });
       }
     } catch (err) {
+      setLastPolledAt(new Date().toISOString());
+      setConsecutiveErrors((n) => {
+        const next = n + 1;
+        if (next >= MAX_CONSECUTIVE_ERRORS) setIsStreaming(false);
+        return next;
+      });
       toast.error(err instanceof Error ? err.message : "Failed to fetch gateway logs");
     }
+  }
+
+  function retry() {
+    setConsecutiveErrors(0);
+    void fetchGatewayLogs();
   }
 
   useEffect(() => {
@@ -65,7 +90,8 @@ export function FastMCPGatewayStreamer() {
               FastMCP: <code className="text-[#2de2e6]">tail_gateway_logs</code> · Mode:{" "}
               <span className={lastSyncResult?.ok ? "text-[#39ff14]" : "text-[#ffc857]"}>
                 {lastSyncResult?.source?.toUpperCase() ?? "DISCONNECTED"}
-              </span>
+              </span>{" "}
+              · Last polled: {lastPolledAt ? lastPolledAt.slice(11, 19) : "—"}
             </p>
           </div>
         </div>
@@ -118,11 +144,23 @@ export function FastMCPGatewayStreamer() {
       {/* Terminal Viewport */}
       <div className="h-64 overflow-y-auto p-3 font-mono text-xs leading-relaxed space-y-1.5 bg-[#05020d]">
         {filteredLogs.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-1 px-4 text-center text-[#9aa3b2]">
+          <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center text-[#9aa3b2]">
             {lastSyncResult && !lastSyncResult.ok ? (
               <>
                 <span className="text-[#ffc857]">⚠ Gateway bridge unreachable — no logs</span>
-                <span className="text-[10px]">{lastSyncResult.error}</span>
+                <span className="text-[10px]">{lastSyncResult.error || "(empty reason)"}</span>
+                {consecutiveErrors >= MAX_CONSECUTIVE_ERRORS && (
+                  <span className="text-[10px] text-[#ff3b3b]">
+                    Stream stopped after {consecutiveErrors} consecutive errors.
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={retry}
+                  className="mt-1 rounded border border-[#2de2e6] bg-[#2de2e6]/10 px-3 py-1 font-mono text-[11px] text-[#2de2e6] hover:bg-[#2de2e6]/20"
+                >
+                  ↻ Retry
+                </button>
               </>
             ) : (
               <span>Waiting for gateway log emission…</span>

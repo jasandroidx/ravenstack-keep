@@ -287,7 +287,7 @@ export const SPECS: Record<string, AgentSpec> = {
   corvid: {
     id: "corvid",
     name: "Corvid",
-    status: "draft",
+    status: "approved",
     character:
       "Raven scout of the Keep. Precise, source-obsessed, allergic to rumor. Returns only with what can be cited. Short digests. No invented numbers.",
     roomName: "The Roost",
@@ -296,12 +296,15 @@ export const SPECS: Record<string, AgentSpec> = {
     purpose: "Produce cited research digests for operator requests and Clawforge design questions.",
     modelDefault: "local",
     allowedTiers: ["local", "escalate"],
-    localHint: "phi4-mini",
-    escalateWhen: "Source conflict, long multi-document synthesis, or operator requests higher quality.",
+    localHint: "qwen3:4b",
+    escalateWhen: "Source conflict, long multi-document synthesis, or operator requests higher quality. (phi4-mini was the original hint but tested unreliable at actually invoking tools — it answered from stale training data even when explicitly told to search. qwen3:4b calls tools correctly, verified live 2026-09-22.)",
     godMode: "Never ambient.",
     tools: [
       { name: "query_knowledge", source: "reclaw-platform", access: "read", notes: "Vault + RAG first." },
       { name: "save_ravenstack_note", source: "reclaw-platform", access: "gated", notes: "Only when operator asks to persist." },
+      { name: "web_search", source: "corvid-toolkit", access: "read", notes: "Keyless — Wikipedia, HN, Reddit, arXiv, DuckDuckGo/SearXNG fallback. 24h cache, per-source fail-soft. Approved 2026-09-22." },
+      { name: "browser_render", source: "playwright (subprocess)", access: "read", notes: "Renders one live page — ToS docs, JS-heavy sites, anything web_search can't reach. Fresh headless chromium per call, closes when done, no persistent browser. Read-only, no form submission or login. Approved 2026-09-22." },
+      { name: "oracle_verify", source: "reclaw-platform", access: "read", notes: "Cross-check a claim against vault truth rules before it goes in a digest — matches his own 'no invented numbers' rule." },
     ],
     existingSkills: [{ name: "ravenstack-connector", notes: "Primary internal research path." }],
     forgeSkills: [
@@ -321,9 +324,10 @@ export const SPECS: Record<string, AgentSpec> = {
     ],
     handoffsIn: [{ target: "corvid", when: "Operator asks to research, scout, or check ToS." }],
     gates: [
-      "Live external web scrape or paid API fetch.",
+      "Paid search API fetch (Tavily/Exa/You.com) — keyless web_search + browser_render cover the default case; a paid call needs an explicit operator ask, not a silent escalation.",
       "Persisting digests without operator ask.",
       "Enabling cron or ambient scheduled research.",
+      "Browser form submission, login, or any write action on a page — browser_render is read-only.",
       "Any action that advances frozen Story Factory / county publish.",
     ],
     kill: "Retire after three citation failures in 14 days, role consolidation, or 90 days unused.",
@@ -335,7 +339,7 @@ export const SPECS: Record<string, AgentSpec> = {
       "What tools and ToS risks would a marketplace Flipper agent need?",
       "Summarize existing grant-watcher SOULs and gaps vs Corvid's scope.",
     ],
-    notes: "NOT the rural_data pipeline Researcher. External fetch is gated.",
+    notes: "NOT the rural_data pipeline Researcher. Approved operator, 2026-09-22: keyless web_search + read-only browser_render, on-demand only, never ambient. Paid search APIs stay gated.",
   },
   sentinel: {
     id: "sentinel",

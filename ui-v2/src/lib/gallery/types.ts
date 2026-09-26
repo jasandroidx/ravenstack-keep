@@ -8,16 +8,19 @@
  */
 
 export type PortraitItem = {
-  id: string;
+  /** Portrait id or legend slot label; both call sites assign from server rows. */
+  id: string | number;
   slotNumber: number;
   subjectName: string;
   arcaneTitle: string;
   customModifier?: string;
   trivia?: string;
   imageUrl: string;
-  thumbnailUrl: string;
+  thumbnailUrl?: string;
   lore: string;
   createdAt: string;
+  /** Set when lore was re-rolled after creation. */
+  updatedAt?: string;
   /**
    * Marks a portrait the slot grid renders as "★ Legend" instead of the
    * subject's name. Read by the modal, never written by the server — it is a
@@ -38,6 +41,8 @@ export type CommissionRequest = {
 
 /** Re-roll the lore for a portrait without regenerating its image. */
 export type LoreRerollRequest = {
+  /** Portrait id — present when rerolling an existing wall frame. */
+  id?: string | number;
   subjectName: string;
   arcaneTitle: string;
   customModifier?: string;

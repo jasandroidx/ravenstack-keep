@@ -1,8 +1,15 @@
 import { useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
-import { runMechanicDiagnosis } from "@/lib/keep/server";
+import {
+  runMechanicDiagnosis,
+  getLatestRavenDropInfo,
+  getMechanicConfig,
+  getStackHealth,
+  runProbe,
+} from "@/lib/keep/server";
 import { mechanicAudio } from "@/lib/mechanic/audio";
 import { SignInGate } from "@/components/keep/sign-in-gate";
+import { VALERIE_PORTRAIT } from "@/lib/hall/world";
 
 interface TerminalMessage {
   id: string;
@@ -18,7 +25,10 @@ interface QuickChip {
   id: string;
   label: string;
   icon: string;
-  prompt: string;
+  /** Wired to a real probe -- clicking runs it (see PROBE_RACK) instead of filling the textarea. */
+  probe?: string;
+  /** Canned prompt fallback for chips not wired to a probe. */
+  prompt?: string;
   logs?: string;
 }
 
@@ -27,13 +37,13 @@ const QUICK_CHIPS: QuickChip[] = [
     id: "check-18789",
     label: "Check Control UI :18789",
     icon: "⚡",
-    prompt: "Diagnose reachability and loopback binding for OpenClaw Gateway on port 18789. Check if websocket handshakes are dropping or if reverse proxy headers are misconfigured.",
+    probe: "gateway",
   },
   {
     id: "probe-8100",
     label: "Probe FastMCP :8100",
     icon: "🔌",
-    prompt: "Probe the FastMCP bridge on 127.0.0.1:8100 and its Tailscale Funnel ingress. Diagnose tool schema sync failures and socket timeouts.",
+    probe: "sitrep",
   },
   {
     id: "paste-log",
@@ -45,16 +55,10 @@ const QUICK_CHIPS: QuickChip[] = [
 [WARN] 2026-08-24 08:14:25 [fs.perms] /root/ReClaw-2.0/config/openclaw.yaml owned by root:root, expected uid 1000`,
   },
   {
-    id: "search-docs",
-    label: "Search docs.openclaw.ai",
-    icon: "🔍",
-    prompt: "Search docs.openclaw.ai and GitHub (openclaw/openclaw) for recommended Docker Compose v2 networking configurations, Tailscale Funnel ingress rules, and Ollama integration parameters.",
-  },
-  {
     id: "tailscale-funnel",
     label: "Check Tailscale Funnel",
     icon: "🛡️",
-    prompt: "Diagnose Tailscale Funnel proxy status for the configured OpenClaw hostname routing public FastMCP traffic to local port 8100.",
+    probe: "tailnet",
   },
   {
     id: "file-perms",
@@ -62,45 +66,115 @@ const QUICK_CHIPS: QuickChip[] = [
     icon: "🔧",
     prompt: "Provide the standard single-block command to inspect and restore file ownership to uid 1000 across /root/ReClaw-2.0 after running root migrations.",
   },
-  {
-    id: "auto-repair",
-    label: "Chevy Silverado / Physical Shop",
-    icon: "🚗",
-    prompt: "Physical shop diagnostic: Diagnose 2018 Chevy Silverado 5.3L intermittent P0300 random misfire under load. Check fuel trim, O2 sensors, MAF, and ignition coil ground pinouts.",
-  },
 ];
 
-const INITIAL_SYSTEM_MESSAGES: TerminalMessage[] = [
-  {
-    id: "boot-1",
-    sender: "system",
-    timestamp: "00:00:01",
-    text: `================================================================================
-OPENCLAW WORKBENCH v2026.7 // RETRO-CRT TERMINAL DIAGNOSTIC CONSOLE
-HOST: Hetzner CCX33 VPS (Ubuntu 24.04 LTS) | STACK ROOT: /root/ReClaw-2.0
-STATUS: Live Monitoring Active | Google Search Grounding: ENABLED
-================================================================================
-VALERIE IS AT THE BENCH. Ready for Docker dumps, FastMCP telemetry, or engine schematics.`,
-  },
+/** One button per probe, above the chips. Order matches the Armory's probe files. */
+const PROBE_RACK: { name: string; label: string; icon: string }[] = [
+  { name: "sitrep", label: "Sitrep", icon: "🛰️" },
+  { name: "gateway", label: "Gateway", icon: "⚡" },
+  { name: "tailnet", label: "Tailnet", icon: "🛡️" },
+  { name: "ollama", label: "Ollama", icon: "🧠" },
+  { name: "keep", label: "Keep", icon: "🏰" },
+  { name: "disk-mem", label: "Disk/Mem", icon: "💾" },
+  { name: "crashes", label: "Crashes", icon: "💥" },
 ];
+
+type ProbeStatus = { summary: string; ranAt: string };
+
+function formatHHMM(iso: string): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toTimeString().slice(0, 5);
+}
+
+/** Parses the probe script's own `SUMMARY: OK|WARN|FAIL <reason>` contract. */
+function parseSummary(summary: string): { verdict: "OK" | "WARN" | "FAIL" | "UNKNOWN"; reason: string } {
+  const m = summary.match(/^SUMMARY:\s*(OK|WARN|FAIL)\s*(.*)$/);
+  if (!m) return { verdict: "UNKNOWN", reason: summary };
+  return { verdict: m[1] as "OK" | "WARN" | "FAIL", reason: m[2] ?? "" };
+}
+
+function verdictColor(verdict: "OK" | "WARN" | "FAIL" | "UNKNOWN"): string {
+  if (verdict === "OK") return "text-[#39ff14]";
+  if (verdict === "WARN") return "text-[#ffc857]";
+  if (verdict === "FAIL") return "text-[#ff3b3b]";
+  return "text-[#9aa3b2]";
+}
+
+function buildBootBanner(opts: { mechanicModel: string; bridgeReachable: boolean | null; dropLabel: string }): string {
+  const bridgeText = opts.bridgeReachable === null ? "—" : opts.bridgeReachable ? "reachable" : "unreachable";
+  return `================================================================================
+VALERIE'S MECHANIC WORKBENCH // CRT DIAGNOSTIC CONSOLE
+MODEL: ${opts.mechanicModel} · FASTMCP BRIDGE: ${bridgeText} · LATEST DROP: ${opts.dropLabel}
+================================================================================
+VALERIE IS AT THE BENCH. Ready for probes, Docker dumps, or diagnostic questions.`;
+}
+
+const UNKNOWN_BOOT_BANNER = buildBootBanner({ mechanicModel: "—", bridgeReachable: null, dropLabel: "—" });
 
 /**
  * @param initialConcern Symptom handed down from the Watchtower beacon.
  *   Observed state only — Sentinel names what failed, Valerie determines why.
  */
 export function MechanicWorkbench({ initialConcern }: { initialConcern?: string } = {}) {
-  const [messages, setMessages] = useState<TerminalMessage[]>(INITIAL_SYSTEM_MESSAGES);
+  const [bootBannerText, setBootBannerText] = useState(UNKNOWN_BOOT_BANNER);
+  const [messages, setMessages] = useState<TerminalMessage[]>(() => [
+    { id: "boot-1", sender: "system", timestamp: "00:00:01", text: UNKNOWN_BOOT_BANNER },
+  ]);
   const [concern, setConcern] = useState(initialConcern ?? "");
   const [contextLogs, setContextLogs] = useState("");
   const [showLogDrawer, setShowLogDrawer] = useState(false);
   const [busy, setBusy] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [copiedBlockId, setCopiedBlockId] = useState<string | null>(null);
+  const [dropInfo, setDropInfo] = useState<{ exists: boolean; filename: string; mtime: string; header: string } | null>(null);
+  const [probeStatus, setProbeStatus] = useState<Record<string, ProbeStatus>>({});
+  const [runningProbe, setRunningProbe] = useState<string | null>(null);
+  const [mechanicConfig, setMechanicConfig] = useState<{ mechanicModel: string; talkModel: string } | null>(null);
+  const [bridgeReachable, setBridgeReachable] = useState<boolean | null>(null);
   const terminalEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     mechanicAudio.enabled = soundEnabled;
   }, [soundEnabled]);
+
+  // Boot banner is built from real state, not hardcoded: the mechanic model
+  // actually configured, whether the FastMCP bridge answered just now, and
+  // the latest Raven Drop. Each field independently falls back to "—" if its
+  // own read failed rather than pretending the state under it was never
+  // checked. The bridge check is getStackHealth() -- the same
+  // executeFastMCPTool() path the header's FastMCPStatusBadge uses -- not
+  // getRoutingStatus()'s mcp.reachable, which reads a different client
+  // (mcp.ts, MCP_BASE_URL/KEEP_MCP_URL, defaults to 127.0.0.1:8100) that is
+  // never reachable from a hosted deploy and would read "unreachable" here
+  // even while the header badge is genuinely connected.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [dropRes, configRes, healthRes] = await Promise.allSettled([
+        getLatestRavenDropInfo(),
+        getMechanicConfig(),
+        getStackHealth(),
+      ]);
+      if (cancelled) return;
+      if (dropRes.status === "fulfilled") setDropInfo(dropRes.value);
+      if (configRes.status === "fulfilled") setMechanicConfig(configRes.value);
+      const mechanicModel = configRes.status === "fulfilled" ? configRes.value.mechanicModel : "—";
+      const reachable = healthRes.status === "fulfilled" ? healthRes.value.ok : null;
+      setBridgeReachable(reachable);
+      const dropLabel =
+        dropRes.status === "fulfilled" && dropRes.value.exists
+          ? `${dropRes.value.filename} @ ${formatHHMM(dropRes.value.mtime)}`
+          : "—";
+      const text = buildBootBanner({ mechanicModel, bridgeReachable: reachable, dropLabel });
+      setBootBannerText(text);
+      setMessages((prev) => prev.map((m) => (m.id === "boot-1" ? { ...m, text } : m)));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     terminalEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -111,27 +185,24 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
     return d.toTimeString().split(" ")[0];
   }
 
-  async function handleSubmit(e?: React.FormEvent) {
-    if (e) e.preventDefault();
-    const cleanConcern = concern.trim();
-    const cleanLogs = contextLogs.trim();
+  /** Shared by the operator's own question and the auto-diagnosis after a probe run. */
+  async function submitDiagnosis(rawConcern: string, rawLogs: string | undefined, opts?: { announce?: boolean }) {
+    const cleanConcern = rawConcern.trim();
+    const cleanLogs = (rawLogs ?? "").trim();
+    if (!cleanConcern && !cleanLogs) return;
 
-    if (!cleanConcern && !cleanLogs) {
-      toast.error("Provide a diagnostic concern, command, or raw log dump.");
-      return;
+    if (opts?.announce !== false) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `op-${Date.now()}`,
+          sender: "operator",
+          timestamp: getTimestamp(),
+          text: cleanConcern || `[Attached Raw Logs Diagnostic — ${cleanLogs.split("\n").length} lines]`,
+        },
+      ]);
     }
-
-    const operatorMsg: TerminalMessage = {
-      id: `op-${Date.now()}`,
-      sender: "operator",
-      timestamp: getTimestamp(),
-      text: cleanConcern || (cleanLogs ? `[Attached Raw Logs Diagnostic — ${cleanLogs.split("\n").length} lines]` : ""),
-    };
-
-    setMessages((prev) => [...prev, operatorMsg]);
-    setConcern("");
     setBusy(true);
-    mechanicAudio.playRelaySnap();
 
     try {
       const res = await runMechanicDiagnosis({
@@ -156,7 +227,6 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
         return;
       }
 
-      // Stream / add response
       const valerieMsg: TerminalMessage = {
         id: `val-${Date.now()}`,
         sender: "valerie",
@@ -169,6 +239,7 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
       setMessages((prev) => [...prev, valerieMsg]);
       mechanicAudio.playDiagnosticReady();
       toast.success("Valerie finished diagnosis.");
+      getLatestRavenDropInfo().then(setDropInfo).catch(console.error);
     } catch (err: unknown) {
       console.error(err);
       const errMsg = err instanceof Error ? err.message : String(err);
@@ -187,8 +258,74 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
     }
   }
 
+  async function handleSubmit(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    const cleanConcern = concern.trim();
+    const cleanLogs = contextLogs.trim();
+    if (!cleanConcern && !cleanLogs) {
+      toast.error("Provide a diagnostic concern, command, or raw log dump.");
+      return;
+    }
+    setConcern("");
+    mechanicAudio.playRelaySnap();
+    await submitDiagnosis(cleanConcern, cleanLogs);
+  }
+
+  /** Probe rack + the three wired chips: run the real probe, stream its output, then hand it to Valerie. */
+  async function runProbeAndDiagnose(name: string) {
+    if (runningProbe) return;
+    mechanicAudio.playRelaySnap();
+    setRunningProbe(name);
+    setMessages((prev) => [
+      ...prev,
+      { id: `probe-run-${name}-${Date.now()}`, sender: "system", timestamp: getTimestamp(), text: `[probe:${name}] running…` },
+    ]);
+
+    // Cleared as soon as the probe itself finishes -- kept separate from `busy`
+    // (which submitDiagnosis owns next) so the busy indicator's text switches
+    // from "running probe" to "thinking" instead of showing the probe name
+    // through the diagnosis phase too.
+    let res: Awaited<ReturnType<typeof runProbe>>;
+    try {
+      res = await runProbe({ data: { name } });
+    } catch (err: unknown) {
+      console.error(err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      toast.error(errMsg);
+      setMessages((prev) => [
+        ...prev,
+        { id: `probe-err-${name}-${Date.now()}`, sender: "system", timestamp: getTimestamp(), text: `[probe:${name}] [CONNECTION FAULT]: ${errMsg}` },
+      ]);
+      return;
+    } finally {
+      setRunningProbe(null);
+    }
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `probe-out-${name}-${Date.now()}`,
+        sender: "system",
+        timestamp: getTimestamp(),
+        text: `[probe:${name}]\n${res.output.trim() || res.error || "(no output)"}`,
+      },
+    ]);
+    setProbeStatus((prev) => ({ ...prev, [name]: { summary: res.summary, ranAt: res.ranAt } }));
+
+    if (!res.ok) {
+      toast.error(res.error || `Probe "${name}" failed.`);
+      return;
+    }
+
+    await submitDiagnosis(`Diagnose this [probe:${name}] result. ${res.summary}`, res.output, { announce: false });
+  }
+
   function handleChipClick(chip: QuickChip) {
-    setConcern(chip.prompt);
+    if (chip.probe) {
+      void runProbeAndDiagnose(chip.probe);
+      return;
+    }
+    if (chip.prompt) setConcern(chip.prompt);
     if (chip.logs) {
       setContextLogs(chip.logs);
       setShowLogDrawer(true);
@@ -205,7 +342,7 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
   }
 
   function clearTerminal() {
-    setMessages(INITIAL_SYSTEM_MESSAGES);
+    setMessages([{ id: "boot-1", sender: "system", timestamp: "00:00:01", text: bootBannerText }]);
     mechanicAudio.playRelaySnap();
     toast.info("Terminal log buffer cleared.");
   }
@@ -341,7 +478,7 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
                 OPENCLAW MECHANIC WORKBENCH // CRT DIAGNOSTIC CONSOLE
               </h2>
               <p className="text-[11px] font-mono text-[#9aa3b2]">
-                Layer 0–5 Deep Stack Auditing · Google Search Grounded · Hetzner VPS & Physical Rig
+                Layer 0–5 Deep Stack Auditing · Model: {mechanicConfig?.mechanicModel ?? "—"}
               </p>
             </div>
           </div>
@@ -391,49 +528,13 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
               <div className="absolute bottom-1.5 right-1.5 h-2 w-2 rounded-full bg-[#ffc857]" />
 
               <div className="flex flex-col items-center">
-                {/* 16-Bit Valerie Cyber-Arcane Avatar */}
-                <div className="relative h-32 w-32 md:h-36 md:w-36 overflow-hidden rounded-md border-2 border-[#2de2e6] bg-[#0b0e14] shadow-inner">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 128 128"
-                    width="100%"
-                    height="100%"
-                    shapeRendering="crispEdges"
-                    className="h-full w-full"
-                  >
-                    <rect width="128" height="128" fill="#0b0e14" />
-                    {/* Stone masonry background */}
-                    <rect x="0" y="0" width="128" height="128" fill="#14141c" />
-                    <rect x="8" y="8" width="112" height="112" fill="#1e222b" stroke="#ffc857" strokeWidth="2" />
-                    <rect x="16" y="16" width="96" height="96" fill="#12161f" />
-                    {/* Torch & Neon Ambient Glow */}
-                    <rect x="24" y="24" width="80" height="80" fill="#1a1c26" />
-                    {/* Valerie Cyber-Mechanic Sprite */}
-                    {/* Shoulders & Jacket */}
-                    <rect x="28" y="74" width="72" height="42" fill="#3a3f4b" />
-                    <rect x="36" y="66" width="56" height="18" fill="#4a5568" />
-                    <rect x="40" y="82" width="48" height="28" fill="#2a2e39" />
-                    {/* Head / Face */}
-                    <rect x="44" y="28" width="40" height="42" fill="#d4af37" />
-                    <rect x="48" y="32" width="32" height="34" fill="#e8c89b" />
-                    {/* Hair / Bandana */}
-                    <rect x="40" y="24" width="48" height="16" fill="#ff2a6d" />
-                    <rect x="36" y="32" width="12" height="24" fill="#ff2a6d" />
-                    <rect x="80" y="32" width="12" height="20" fill="#ff2a6d" />
-                    {/* Mechanic Goggles / Eyewear */}
-                    <rect x="44" y="40" width="18" height="12" fill="#0b0e14" stroke="#2de2e6" strokeWidth="2" />
-                    <rect x="66" y="40" width="18" height="12" fill="#0b0e14" stroke="#2de2e6" strokeWidth="2" />
-                    <rect x="60" y="44" width="8" height="4" fill="#2de2e6" />
-                    <rect x="48" y="44" width="10" height="4" fill="#2de2e6" />
-                    <rect x="70" y="44" width="10" height="4" fill="#2de2e6" />
-                    {/* Grin / Smudge */}
-                    <rect x="56" y="58" width="16" height="3" fill="#3a3f4b" />
-                    <rect x="74" y="54" width="6" height="4" fill="#4a5568" />
-                    {/* Tool / Wrench Badge */}
-                    <text x="64" y="104" fontFamily="monospace" fontSize="18" fill="#ffc857" textAnchor="middle">
-                      ⚙️
-                    </text>
-                  </svg>
+                {/* Valerie's Portrait */}
+                <div className="relative h-40 w-32 md:h-56 md:w-44 overflow-hidden rounded-md border-2 border-[#2de2e6] bg-[#0b0e14] shadow-inner">
+                  <img
+                    src={VALERIE_PORTRAIT}
+                    alt="Valerie, Chief Mechanic"
+                    className="h-full w-full object-cover object-top"
+                  />
                   <div className="absolute bottom-1 right-1 rounded bg-[#0b0e14]/90 px-1 py-0.5 text-[9px] font-mono text-[#39ff14]">
                     CHIEF // V2.0
                   </div>
@@ -450,56 +551,62 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
                 </div>
               </div>
 
-              {/* Status Indicator */}
+              {/* Status Indicator -- driven by the last FastMCP bridge read, not decorative */}
               <div className="mt-3 flex items-center justify-center gap-2 rounded bg-[#0b0e14] py-1.5 px-3 border border-[#3a3f4b]">
-                <span className="h-2 w-2 rounded-full bg-[#39ff14] animate-pulse"></span>
-                <span className="font-mono text-[10px] md:text-[11px] font-bold text-[#39ff14] tracking-wide">
-                  WORKSHOP ONLINE // SEARCH GROUNDED
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    bridgeReachable === true ? "bg-[#39ff14] animate-pulse" : bridgeReachable === false ? "bg-[#ff3b3b]" : "bg-[#9aa3b2]"
+                  }`}
+                ></span>
+                <span
+                  className={`font-mono text-[10px] md:text-[11px] font-bold tracking-wide ${
+                    bridgeReachable === true ? "text-[#39ff14]" : bridgeReachable === false ? "text-[#ff3b3b]" : "text-[#9aa3b2]"
+                  }`}
+                >
+                  {bridgeReachable === true ? "FASTMCP BRIDGE: REACHABLE" : bridgeReachable === false ? "FASTMCP BRIDGE: UNREACHABLE" : "FASTMCP BRIDGE: —"}
                 </span>
               </div>
 
-              {/* Quick Port Stats */}
-              <div className="mt-2 text-center font-mono text-[10px] text-[#2de2e6] bg-[#0d0221] py-1 rounded border border-[#2de2e6]/20">
-                PORT 18789 · FASTMCP :8100 — see bridge badge for live status
+              {/* Raven Drop Badge */}
+              <div className="mt-2 text-center font-mono text-[10px] bg-[#0d0221] py-1 px-1.5 rounded border border-[#ffc857]/40 text-[#ffc857] truncate">
+                Reading drop: {dropInfo?.exists ? `${dropInfo.filename} @ ${dropInfo.mtime}` : "—"}
               </div>
             </div>
 
-            {/* Real-time Subsystem Readout */}
+            {/* Real-time Subsystem Readout -- the latest sitrep probe result, not hardcoded reference text */}
             <div className="rounded-lg border border-[#3a3f4b] bg-[#14141c] p-3 text-xs font-mono">
               <div className="text-[11px] font-bold uppercase text-[#ffc857] border-b border-[#2a2438] pb-1.5 flex items-center justify-between">
                 <span>🛰️ RECLAW STACK TELEMETRY</span>
-                <span className="text-[10px] text-[#9aa3b2]">REFERENCE — NOT PROBED</span>
+                <span className="text-[10px] text-[#9aa3b2]">
+                  {probeStatus.sitrep ? `PROBED ${formatHHMM(probeStatus.sitrep.ranAt)}` : "NOT YET PROBED"}
+                </span>
               </div>
 
               <div className="mt-2.5 space-y-2 text-[11px]">
                 <div className="flex justify-between items-center text-[#9aa3b2]">
-                  <span>Host Machine:</span>
-                  <span className="text-[#e8ecf1] font-bold">Hetzner CCX33 VPS</span>
+                  <span>Verdict:</span>
+                  <span className={`font-bold ${verdictColor(probeStatus.sitrep ? parseSummary(probeStatus.sitrep.summary).verdict : "UNKNOWN")}`}>
+                    {probeStatus.sitrep ? parseSummary(probeStatus.sitrep.summary).verdict : "—"}
+                  </span>
                 </div>
-                <div className="flex justify-between items-center text-[#9aa3b2]">
-                  <span>OS / Stack Root:</span>
-                  <span className="text-[#2de2e6]">Ubuntu 24.04 · /root/ReClaw-2.0</span>
-                </div>
-                <div className="flex justify-between items-center text-[#9aa3b2]">
-                  <span>OpenClaw Gateway:</span>
-                  <span className="text-[#39ff14]">openclaw:2026.7.1 (:18789)</span>
-                </div>
-                <div className="flex justify-between items-center text-[#9aa3b2]">
-                  <span>FastMCP Bridge:</span>
-                  <span className="text-[#9aa3b2]">configured via FASTMCP_* env (:8100)</span>
-                </div>
-                <div className="flex justify-between items-center text-[#9aa3b2]">
-                  <span>Local LLM Core:</span>
-                  <span className="text-[#ffc857]">Ollama gemma4 (:11434)</span>
-                </div>
-                <div className="flex justify-between items-center text-[#9aa3b2]">
-                  <span>Permissions Rule:</span>
-                  <span className="text-[#39ff14]">Strict uid: 1000:1000</span>
+                <div className="flex justify-between items-start gap-2 text-[#9aa3b2]">
+                  <span className="shrink-0">Detail:</span>
+                  <span className="text-[#e8ecf1] text-right">
+                    {probeStatus.sitrep ? parseSummary(probeStatus.sitrep.summary).reason || "(no detail)" : "—"}
+                  </span>
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={() => void runProbeAndDiagnose("sitrep")}
+                disabled={runningProbe !== null || busy}
+                className="mt-2.5 w-full rounded border border-[#3a3f4b] bg-[#1e222b] px-2 py-1 font-mono text-[10px] text-[#9aa3b2] hover:border-[#2de2e6] hover:text-[#2de2e6] transition-colors disabled:opacity-50"
+              >
+                {runningProbe === "sitrep" ? "RUNNING…" : "RUN SITREP PROBE"}
+              </button>
             </div>
 
-            {/* Diagnostic Protocol Hierarchy */}
+            {/* Diagnostic Protocol Hierarchy (legend only -- each layer's real check lives in the probe rack below) */}
             <div className="rounded-lg border border-[#3a3f4b] bg-[#14141c] p-3 text-xs font-mono">
               <div className="text-[11px] font-bold uppercase text-[#2de2e6] border-b border-[#2a2438] pb-1.5">
                 ⚡ 5-LAYER TROUBLESHOOTING PROTOCOL
@@ -509,7 +616,6 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
                 <li><span className="text-[#ffc857]">L3:</span> Config, envs, volumes & uid:1000</li>
                 <li><span className="text-[#ffc857]">L4:</span> Docker logs, memory, OOM & loops</li>
                 <li><span className="text-[#ffc857]">L5:</span> FastMCP sockets & SQLite locks</li>
-                <li><span className="text-[#39ff14]">PHYS:</span> Auto circuits, OBD-II & sensors</li>
               </ul>
             </div>
           </div>
@@ -544,7 +650,7 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
                       <span className="text-[#9aa3b2]">[{msg.timestamp}]</span>
                       {msg.sender === "system" && (
                         <span className="font-bold text-[#ffc857] bg-[#ffc857]/10 px-1.5 py-0.5 rounded border border-[#ffc857]/30">
-                          SYSTEM // MONITORED
+                          SYSTEM
                         </span>
                       )}
                       {msg.sender === "operator" && (
@@ -564,23 +670,50 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
                   </div>
                 ))}
 
-                {busy && (
+                {(busy || runningProbe) && (
                   <div className="flex items-center gap-2 text-xs text-[#2de2e6] animate-pulse">
                     <span className="inline-block h-2 w-2 rounded-full bg-[#2de2e6]" />
-                    <span>Valerie is analyzing stack logs & scrying search docs...</span>
+                    <span>
+                      {runningProbe
+                        ? `Running probe ${runningProbe}…`
+                        : `Valerie is thinking (${mechanicConfig?.mechanicModel ?? "model —"})…`}
+                    </span>
                   </div>
                 )}
                 <div ref={terminalEndRef} />
               </div>
 
-              {/* Blinking Prompt Line at bottom */}
+              {/* Prompt Line at bottom */}
               <div className="mt-2 pt-2 border-t border-[#2a2438] flex items-center text-[11px] text-[#39ff14]">
-                <span className="text-[#ffc857]">valerie@ravenstack-workshop</span>
-                <span className="text-[#9aa3b2]">:</span>
-                <span className="text-[#2de2e6]">~/ReClaw-2.0</span>
-                <span className="text-[#e8ecf1]">$</span>
+                <span className="text-[#ffc857]">Ask Valerie ›</span>
                 <span className="ml-1 inline-block h-3.5 w-2 bg-[#39ff14] animate-ping" />
               </div>
+            </div>
+
+            {/* Probe Rack -- one button per real probe on the box */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-mono text-[#9aa3b2] mr-1">PROBE RACK:</span>
+              {PROBE_RACK.map((probe) => {
+                const status = probeStatus[probe.name];
+                const verdict = status ? parseSummary(status.summary).verdict : "UNKNOWN";
+                return (
+                  <button
+                    key={probe.name}
+                    type="button"
+                    onClick={() => void runProbeAndDiagnose(probe.name)}
+                    disabled={runningProbe !== null || busy}
+                    title={status ? `${status.summary} (probed ${formatHHMM(status.ranAt)})` : "Not yet probed"}
+                    className={`inline-flex items-center gap-1 rounded border px-2.5 py-1 text-xs font-mono transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                      status
+                        ? `border-current bg-current/10 ${verdictColor(verdict)}`
+                        : "border-[#3a3f4b] bg-[#1e222b] text-[#e8ecf1] hover:border-[#2de2e6] hover:bg-[#2de2e6]/10 hover:text-[#2de2e6]"
+                    }`}
+                  >
+                    <span>{probe.icon}</span>
+                    <span>{runningProbe === probe.name ? "RUNNING…" : probe.label}</span>
+                  </button>
+                );
+              })}
             </div>
 
             {/* Quick-Action Diagnostic Chips */}
@@ -591,7 +724,8 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
                   key={chip.id}
                   type="button"
                   onClick={() => handleChipClick(chip)}
-                  className="inline-flex items-center gap-1 rounded border border-[#3a3f4b] bg-[#1e222b] px-2.5 py-1 text-xs font-mono text-[#e8ecf1] transition-all hover:border-[#2de2e6] hover:bg-[#2de2e6]/10 hover:text-[#2de2e6]"
+                  disabled={Boolean(chip.probe) && (runningProbe !== null || busy)}
+                  className="inline-flex items-center gap-1 rounded border border-[#3a3f4b] bg-[#1e222b] px-2.5 py-1 text-xs font-mono text-[#e8ecf1] transition-all hover:border-[#2de2e6] hover:bg-[#2de2e6]/10 hover:text-[#2de2e6] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span>{chip.icon}</span>
                   <span>{chip.label}</span>
