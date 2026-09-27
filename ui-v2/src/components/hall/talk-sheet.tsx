@@ -73,6 +73,18 @@ export function TalkSheet({
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Close dialogue sheet on Escape key press
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        hallAudio.playInteract();
+        onClose();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   // Auto-scroll message history
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -318,14 +330,17 @@ export function TalkSheet({
 
       {/* Top Controls Bar */}
       <div className="absolute right-4 top-4 z-40 flex items-center gap-2">
-        <div className="flex rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/90 p-0.5 backdrop-blur-md">
+        <div className="flex rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/90 p-0.5 backdrop-blur-md" role="tablist">
           <button
             type="button"
+            role="tab"
+            aria-selected={tab === "chat"}
+            aria-label="Switch to Dialogue tab"
             onClick={() => {
               hallAudio.playInteract();
               setTab("chat");
             }}
-            className={`rounded-xs px-3 py-1 font-mono text-xs uppercase tracking-wider transition ${
+            className={`rounded-xs px-3 py-1 font-mono text-xs uppercase tracking-wider transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2de2e6] ${
               tab === "chat"
                 ? isOracle
                   ? "bg-[#39ff14]/20 text-[#39ff14] font-bold"
@@ -337,11 +352,14 @@ export function TalkSheet({
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={tab === "armor"}
+            aria-label="Switch to Ravenlord Armor tab"
             onClick={() => {
               hallAudio.playInteract();
               setTab("armor");
             }}
-            className={`rounded-xs px-3 py-1 font-mono text-xs uppercase tracking-wider transition ${
+            className={`rounded-xs px-3 py-1 font-mono text-xs uppercase tracking-wider transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffc857] ${
               tab === "armor"
                 ? "bg-[#ffc857]/20 text-[#ffc857] font-bold"
                 : "text-[#9aa3b2] hover:text-[#e8ecf1]"
@@ -353,11 +371,12 @@ export function TalkSheet({
 
         <button
           type="button"
+          aria-label="Close dialogue and stand"
           onClick={() => {
             hallAudio.playInteract();
             onClose();
           }}
-          className="flex items-center gap-1.5 rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/90 px-3 py-1.5 font-mono text-xs uppercase tracking-[0.16em] text-[#9aa3b2] backdrop-blur-md hover:border-[#2de2e6] hover:text-[#e8ecf1]"
+          className="flex items-center gap-1.5 rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/90 px-3 py-1.5 font-mono text-xs uppercase tracking-[0.16em] text-[#9aa3b2] backdrop-blur-md hover:border-[#2de2e6] hover:text-[#e8ecf1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2de2e6]"
         >
           <span>[ESC]</span> Stand
         </button>
