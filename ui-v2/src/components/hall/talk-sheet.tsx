@@ -73,6 +73,18 @@ export function TalkSheet({
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Handle ESC key to close dialogue sheet
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        hallAudio.playInteract();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   // Auto-scroll message history
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -357,7 +369,8 @@ export function TalkSheet({
             hallAudio.playInteract();
             onClose();
           }}
-          className="flex items-center gap-1.5 rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/90 px-3 py-1.5 font-mono text-xs uppercase tracking-[0.16em] text-[#9aa3b2] backdrop-blur-md hover:border-[#2de2e6] hover:text-[#e8ecf1]"
+          aria-label="Stand up and close dialogue"
+          className="flex items-center gap-1.5 rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/90 px-3 py-1.5 font-mono text-xs uppercase tracking-[0.16em] text-[#9aa3b2] backdrop-blur-md hover:border-[#2de2e6] hover:text-[#e8ecf1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2de2e6]"
         >
           <span>[ESC]</span> Stand
         </button>
