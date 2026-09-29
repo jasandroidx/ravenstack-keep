@@ -133,7 +133,8 @@ export function FastMCPGatewayStreamer() {
           <button
             type="button"
             onClick={() => void fetchGatewayLogs()}
-            className="rounded border border-[#3a3f4b] bg-[#1e222b] px-2 py-1 font-mono text-xs text-[#9aa3b2] hover:text-[#e8ecf1]"
+            aria-label="Poll once"
+            className="rounded border border-[#3a3f4b] bg-[#1e222b] px-2 py-1 font-mono text-xs text-[#9aa3b2] hover:text-[#e8ecf1] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#2de2e6]"
             title="Poll once"
           >
             🔄
