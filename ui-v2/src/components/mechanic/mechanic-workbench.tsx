@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import {
   runMechanicDiagnosis,
@@ -117,6 +117,126 @@ const UNKNOWN_BOOT_BANNER = buildBootBanner({ mechanicModel: "—", bridgeReacha
  * @param initialConcern Symptom handed down from the Watchtower beacon.
  *   Observed state only — Sentinel names what failed, Valerie determines why.
  */
+const TerminalMessageItem = React.memo(function TerminalMessageItem({ msg }: { msg: TerminalMessage }) {
+  const [copiedBlockId, setCopiedBlockId] = useState<string | null>(null);
+
+  const copyToClipboard = (text: string, blockId: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedBlockId(blockId);
+    mechanicAudio.playCopyChirp();
+    toast.success("Command copied to clipboard!");
+    setTimeout(() => setCopiedBlockId(null), 2200);
+  };
+
+  const text = msg.text;
+  const parts = text.split(/(```[\s\S]*?```)/g);
+
+  return (
+    <div className="border-b border-[#2a2438]/50 pb-3">
+      {/* Message Header */}
+      <div className="flex items-center gap-2 text-[11px] mb-1">
+        <span className="text-[#9aa3b2]">[{msg.timestamp}]</span>
+        {msg.sender === "system" && (
+          <span className="font-bold text-[#ffc857] bg-[#ffc857]/10 px-1.5 py-0.5 rounded border border-[#ffc857]/30">
+            SYSTEM
+          </span>
+        )}
+        {msg.sender === "operator" && (
+          <span className="font-bold text-[#2de2e6] bg-[#2de2e6]/10 px-1.5 py-0.5 rounded border border-[#2de2e6]/30">
+            OPERATOR // JASON BOYD
+          </span>
+        )}
+        {msg.sender === "valerie" && (
+          <span className="font-bold text-[#39ff14] bg-[#39ff14]/10 px-1.5 py-0.5 rounded border border-[#39ff14]/30">
+            VALERIE // CHIEF MECHANIC
+          </span>
+        )}
+      </div>
+
+      {/* Message Body */}
+      <div className="space-y-3 text-sm font-mono leading-relaxed">
+        {parts.map((part, index) => {
+          if (part.startsWith("```")) {
+            const lines = part.slice(3, -3).trim().split("\n");
+            let lang = "";
+            let code = part.slice(3, -3);
+            if (lines[0] && !lines[0].includes(" ") && lines.length > 1) {
+              lang = lines[0].trim();
+              code = lines.slice(1).join("\n");
+            }
+            const blockId = `${msg.id}-block-${index}`;
+            const isCopied = copiedBlockId === blockId;
+
+            return (
+              <div
+                key={index}
+                className="relative my-3 overflow-hidden rounded-md border border-[#3a3f4b] bg-[#080511] p-3 text-xs"
+              >
+                <div className="flex items-center justify-between border-b border-[#2a2438] pb-2 text-[11px] text-[#9aa3b2]">
+                  <span className="font-mono uppercase text-[#2de2e6]">
+                    {lang || "bash / shell"} // EXECUTABLE
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(code.trim(), blockId)}
+                    className={`inline-flex items-center gap-1.5 rounded px-2 py-1 text-[11px] font-bold transition-all ${
+                      isCopied
+                        ? "bg-[#39ff14]/20 text-[#39ff14] border border-[#39ff14]"
+                        : "bg-[#1e222b] text-[#2de2e6] border border-[#2de2e6]/40 hover:bg-[#2de2e6] hover:text-[#0b0e14]"
+                    }`}
+                  >
+                    {isCopied ? "✓ COPIED" : "📋 COPY COMMAND"}
+                  </button>
+                </div>
+                <pre className="mt-2 overflow-x-auto font-mono text-[#39ff14] selection:bg-[#2de2e6] selection:text-[#0b0e14]">
+                  <code>{code.trim()}</code>
+                </pre>
+              </div>
+            );
+          }
+
+          // Format bullet points and headers
+          return (
+            <div key={index} className="whitespace-pre-wrap text-[#e8ecf1]">
+              {part}
+            </div>
+          );
+        })}
+
+        {/* Live Search Grounding Badges */}
+        {msg.sources && msg.sources.length > 0 && (
+          <div className="mt-4 rounded border border-[#2de2e6]/30 bg-[#0d0221]/90 p-3">
+            <div className="flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-[#2de2e6] uppercase">
+              <span>🌐</span>
+              <span>Live Search Grounding Sources ({msg.sources.length})</span>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {msg.sources.map((src, i) => (
+                <a
+                  key={i}
+                  href={src.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 rounded border border-[#3a3f4b] bg-[#1e222b] px-2 py-1 text-[11px] text-[#9aa3b2] hover:border-[#2de2e6] hover:text-[#2de2e6] transition-colors"
+                >
+                  <span>🔗</span>
+                  <span className="max-w-[200px] truncate">{src.title}</span>
+                </a>
+              ))}
+            </div>
+            {msg.searchQueries && msg.searchQueries.length > 0 && (
+              <div className="mt-2 text-[10px] text-[#9aa3b2] flex items-center gap-1">
+                <span className="text-[#ffc857]">Grounded Queries:</span>
+                <span>{msg.searchQueries.join(" · ")}</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
+
 export function MechanicWorkbench({ initialConcern }: { initialConcern?: string } = {}) {
   const [bootBannerText, setBootBannerText] = useState(UNKNOWN_BOOT_BANNER);
   const [messages, setMessages] = useState<TerminalMessage[]>(() => [
@@ -333,13 +453,7 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
     mechanicAudio.playKeyTick();
   }
 
-  function copyToClipboard(text: string, blockId: string) {
-    navigator.clipboard.writeText(text);
-    setCopiedBlockId(blockId);
-    mechanicAudio.playCopyChirp();
-    toast.success("Command copied to clipboard!");
-    setTimeout(() => setCopiedBlockId(null), 2200);
-  }
+
 
   function clearTerminal() {
     setMessages([{ id: "boot-1", sender: "system", timestamp: "00:00:01", text: bootBannerText }]);
@@ -359,95 +473,7 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
     toast.success("Transcript downloaded.");
   }
 
-  /**
-   * Helper to parse and render formatted markdown text with copyable code blocks and citations
-   */
-  function renderFormattedMessage(msg: TerminalMessage) {
-    const text = msg.text;
-    const parts = text.split(/(```[\s\S]*?```)/g);
 
-    return (
-      <div className="space-y-3 text-sm font-mono leading-relaxed">
-        {parts.map((part, index) => {
-          if (part.startsWith("```")) {
-            const lines = part.slice(3, -3).trim().split("\n");
-            let lang = "";
-            let code = part.slice(3, -3);
-            if (lines[0] && !lines[0].includes(" ") && lines.length > 1) {
-              lang = lines[0].trim();
-              code = lines.slice(1).join("\n");
-            }
-            const blockId = `${msg.id}-block-${index}`;
-            const isCopied = copiedBlockId === blockId;
-
-            return (
-              <div
-                key={index}
-                className="relative my-3 overflow-hidden rounded-md border border-[#3a3f4b] bg-[#080511] p-3 text-xs"
-              >
-                <div className="flex items-center justify-between border-b border-[#2a2438] pb-2 text-[11px] text-[#9aa3b2]">
-                  <span className="font-mono uppercase text-[#2de2e6]">
-                    {lang || "bash / shell"} // EXECUTABLE
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => copyToClipboard(code.trim(), blockId)}
-                    className={`inline-flex items-center gap-1.5 rounded px-2 py-1 text-[11px] font-bold transition-all ${
-                      isCopied
-                        ? "bg-[#39ff14]/20 text-[#39ff14] border border-[#39ff14]"
-                        : "bg-[#1e222b] text-[#2de2e6] border border-[#2de2e6]/40 hover:bg-[#2de2e6] hover:text-[#0b0e14]"
-                    }`}
-                  >
-                    {isCopied ? "✓ COPIED" : "📋 COPY COMMAND"}
-                  </button>
-                </div>
-                <pre className="mt-2 overflow-x-auto font-mono text-[#39ff14] selection:bg-[#2de2e6] selection:text-[#0b0e14]">
-                  <code>{code.trim()}</code>
-                </pre>
-              </div>
-            );
-          }
-
-          // Format bullet points and headers
-          return (
-            <div key={index} className="whitespace-pre-wrap text-[#e8ecf1]">
-              {part}
-            </div>
-          );
-        })}
-
-        {/* Live Search Grounding Badges */}
-        {msg.sources && msg.sources.length > 0 && (
-          <div className="mt-4 rounded border border-[#2de2e6]/30 bg-[#0d0221]/90 p-3">
-            <div className="flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-[#2de2e6] uppercase">
-              <span>🌐</span>
-              <span>Live Search Grounding Sources ({msg.sources.length})</span>
-            </div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {msg.sources.map((src, i) => (
-                <a
-                  key={i}
-                  href={src.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 rounded border border-[#3a3f4b] bg-[#1e222b] px-2 py-1 text-[11px] text-[#9aa3b2] hover:border-[#2de2e6] hover:text-[#2de2e6] transition-colors"
-                >
-                  <span>🔗</span>
-                  <span className="max-w-[200px] truncate">{src.title}</span>
-                </a>
-              ))}
-            </div>
-            {msg.searchQueries && msg.searchQueries.length > 0 && (
-              <div className="mt-2 text-[10px] text-[#9aa3b2] flex items-center gap-1">
-                <span className="text-[#ffc857]">Grounded Queries:</span>
-                <span>{msg.searchQueries.join(" · ")}</span>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  }
 
   return (
     <div className="w-full">
@@ -644,30 +670,10 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
               {/* Terminal Viewport / Scroll Area */}
               <div className="flex-1 overflow-y-auto pr-2 space-y-4 text-xs">
                 {messages.map((msg) => (
-                  <div key={msg.id} className="border-b border-[#2a2438]/50 pb-3">
-                    {/* Message Header */}
-                    <div className="flex items-center gap-2 text-[11px] mb-1">
-                      <span className="text-[#9aa3b2]">[{msg.timestamp}]</span>
-                      {msg.sender === "system" && (
-                        <span className="font-bold text-[#ffc857] bg-[#ffc857]/10 px-1.5 py-0.5 rounded border border-[#ffc857]/30">
-                          SYSTEM
-                        </span>
-                      )}
-                      {msg.sender === "operator" && (
-                        <span className="font-bold text-[#2de2e6] bg-[#2de2e6]/10 px-1.5 py-0.5 rounded border border-[#2de2e6]/30">
-                          OPERATOR // JASON BOYD
-                        </span>
-                      )}
-                      {msg.sender === "valerie" && (
-                        <span className="font-bold text-[#39ff14] bg-[#39ff14]/10 px-1.5 py-0.5 rounded border border-[#39ff14]/30">
-                          VALERIE // CHIEF MECHANIC
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Message Body */}
-                    {renderFormattedMessage(msg)}
-                  </div>
+                  <TerminalMessageItem
+                    key={msg.id}
+                    msg={msg}
+                  />
                 ))}
 
                 {(busy || runningProbe) && (

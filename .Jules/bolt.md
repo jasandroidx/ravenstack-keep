@@ -5,3 +5,7 @@
 ## 2026-09-02 - Avoid Math.sqrt in isFacingTarget game loop
 **Learning:** `Math.sqrt` used to calculate normalized dot products in directional cone checks (like `isFacingTarget`) can be avoided in high-frequency game loops when comparing against non-negative cosines.
 **Action:** Use squared distance comparisons (`dp >= 0 && dp * dp >= distSq * (minDot * minDot)`) instead of computing `dist = Math.sqrt(distSq)` and `dot = dp / dist`.
+
+## 2025-03-01 - Prevent Input Lag in React Chat UIs via React.memo
+**Learning:** In chat interfaces like `mechanic-workbench.tsx`, having uncontrolled or frequently updating input state (like typing into a textarea) co-located with a large list mapping can cause the entire message history to re-render on every keystroke, introducing severe input lag as the chat history grows.
+**Action:** When implementing message feeds or logs alongside user input, extract the complex message rendering logic into a separate `MessageItem` component and wrap it in `React.memo()`. This ensures that individual log lines are only re-rendered if their props actually change, keeping typing responsive.
