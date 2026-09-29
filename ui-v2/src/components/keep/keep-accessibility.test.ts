@@ -99,4 +99,22 @@ describe("Keep components accessibility test", () => {
       "GoogleDriveExplorer close preview button should have focus-visible styling"
     );
   });
+
+  test("TalkSheet overlay has accessible close button with aria-label, focus-visible styling, and Escape key listener", () => {
+    const filePath = path.join(process.cwd(), "src/components/hall/talk-sheet.tsx");
+    const content = fs.readFileSync(filePath, "utf-8");
+
+    assert.ok(
+      content.includes('aria-label="Close dialogue sheet"'),
+      "TalkSheet close button should have descriptive aria-label"
+    );
+    assert.ok(
+      content.includes("focus-visible:ring-2"),
+      "TalkSheet buttons should have focus-visible styling"
+    );
+    assert.ok(
+      content.includes('e.key === "Escape"'),
+      "TalkSheet should handle Escape key to close"
+    );
+  });
 });
