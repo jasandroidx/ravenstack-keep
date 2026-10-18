@@ -15,7 +15,8 @@ import {
 } from "./ai";
 import { ARCHITECTURE, KNOWLEDGE, ROOMS, SKILL_SURFACE, SPECS, getRoom, getSpecForRoom, roomCounts } from "./catalog";
 import { fetchKeepPulse } from "./pulse";
-import { executeFastMCPTool, type FastMCPToolCall } from "./fastmcp";
+import { executeFastMCPTool, assertToolAllowlist, stripConfirm, type FastMCPToolCall, type GatewayLogLine } from "./fastmcp";
+import { evaluateKeepGate, parseAllowedLogins, type KeepGateMode } from "@/lib/auth/tailscale-gate";
 import { readLatestRavenDrop } from "./drops";
 import { noGates, parseGates } from "./gates";
 import { failing, parseStackHealth, unreadTower } from "./health";
@@ -581,8 +582,89 @@ export const getHallState = createServerFn({ method: "POST" }).handler(async () 
 export const callFastMCP = createServerFn({ method: "POST" })
   .validator((input: { tool: FastMCPToolCall["tool"]; params?: Record<string, unknown> }) => input)
   .handler(async ({ data }) => {
-    const result = await executeFastMCPTool(data.tool, data.params ?? {});
+    // s1-lock-doors: the browser may only reach the READ-ONLY tools on
+    // KEEP_READONLY_TOOLS. Everything else — write tools, county audits, Oracle
+    // verification, human gates — is refused here, before it can start work on
+    // the box. Human gate decisions travel only through the dedicated
+    // `decideGate` server function, never through this proxy.
+    const verdict = assertToolAllowlist(data.tool);
+    if (!verdict.allowed) {
+      return {
+        ok: false,
+        source: "unreachable" as const,
+        endpoint: "",
+        data: null,
+        latencyMs: 0,
+        timestamp: new Date().toISOString(),
+        blocked: true,
+        error: `Refused (403) by the Keep allowlist: tool "${data.tool}" is not on the read-only proxied set.`,
+      };
+    }
+    const result = await executeFastMCPTool(verdict.tool, stripConfirm(data.params ?? {}));
     return result;
+  });
+
+/**
+ * Normalize one raw gateway-log line into the GatewayLogLine view model.
+ * Conservative on purpose: the docker engine's output format is not guaranteed
+ * to carry a timestamp, so every field is best-effort and `raw` always survives.
+ * Pure; unit-tested.
+ */
+export function parseGatewayLogLine(raw: string, index: number): GatewayLogLine {
+  const trimmed = raw.trim();
+  const tsMatch = trimmed.match(/^(\d{4}-\d{2}-\d{2}T[\d:.]+Z?)/);
+  const levelMatch = trimmed.match(/\b(CRITICAL|ERROR|WARN|INFO)\b/);
+  const message = trimmed.replace(/^.*?\]\s*/, "").trim() || trimmed;
+  return {
+    id: `gw-${index}`,
+    timestamp: tsMatch?.[1] ?? "",
+    service: "gateway",
+    level: (levelMatch?.[1] as GatewayLogLine["level"]) ?? (trimmed.length ? "INFO" : "INFO"),
+    message: message.slice(0, 2000),
+    raw: trimmed,
+  };
+}
+
+/**
+ * Live OpenClaw gateway log tail for the Mechanic's streamer. Reads the
+ * gateway container's own log (execFile, fixed args — never a shell string),
+ * fail-closed: an unreadable docker/container reports an error, never a fake
+ * line. Normalized to `{ ok, lines[], error? }` — the panel renders exactly
+ * this shape, nothing else.
+ */
+export const getGatewayLogs = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async (): Promise<{ ok: true; lines: GatewayLogLine[] } | { ok: false; error: string }> => {
+    try {
+      const { execFile } = await import("node:child_process");
+      const { promisify } = await import("node:util");
+      const run = promisify(execFile);
+      const { stdout } = await run("docker", ["logs", "--tail", "40", "openclaw-gateway"], {
+        timeout: 10_000,
+        maxBuffer: 1_000_000,
+      });
+      const rawLines = stdout.split(/\r?\n/).filter(Boolean);
+      return { ok: true, lines: rawLines.map((raw, index) => parseGatewayLogLine(raw, index)) };
+    } catch (err) {
+      return {
+        ok: false,
+        error: `Gateway logs unavailable: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
+  });
+
+/** The gate identity behind THIS request — what the badge paints. Reuses the exact gate predicate. */
+export const getKeepIdentity = createServerFn({ method: "GET" })
+  .handler(async (): Promise<{ mode: KeepGateMode; login: string | null }> => {
+    const { getRequest } = await import("@tanstack/react-start/server");
+    const request = getRequest() ?? new Request("http://localhost", { method: "GET", headers: {} });
+    const verdict = evaluateKeepGate(request.headers, {
+      internalToken: process.env.KEEP_INTERNAL_TOKEN?.trim() ?? "",
+      allowedLogins: parseAllowedLogins(process.env.KEEP_ALLOWED_LOGINS),
+      authDisabled: String(process.env.VITE_AUTH_ENABLED) === "false",
+      skipTailscaleCheck: Boolean(process.env.VERCEL),
+    });
+    return { mode: verdict.mode, login: verdict.login };
   });
 
 /**

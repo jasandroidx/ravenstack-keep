@@ -1,33 +1,30 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { callFastMCP } from "@/lib/keep/server";
-import type { GatewayLogLine, FastMCPToolResult } from "@/lib/keep/fastmcp";
+import { getGatewayLogs } from "@/lib/keep/server";
+import type { GatewayLogLine } from "@/lib/keep/fastmcp";
 
 const MAX_CONSECUTIVE_ERRORS = 3;
+
+type GatewayLogsSync = { ok: boolean; error?: string };
 
 export function FastMCPGatewayStreamer() {
   const [logs, setLogs] = useState<GatewayLogLine[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [lastSyncResult, setLastSyncResult] = useState<FastMCPToolResult | null>(null);
+  const [lastSync, setLastSync] = useState<GatewayLogsSync | null>(null);
   const [selectedService, setSelectedService] = useState<string>("all");
   const [lastPolledAt, setLastPolledAt] = useState<string | null>(null);
   const [consecutiveErrors, setConsecutiveErrors] = useState(0);
 
   async function fetchGatewayLogs() {
     try {
-      const res = await callFastMCP({
-        data: {
-          tool: "tail_gateway_logs",
-          params: { limit: 40 },
-        },
-      });
-      setLastSyncResult(res);
+      const res = await getGatewayLogs();
+      setLastSync({ ok: res.ok, error: res.ok ? undefined : res.error });
       setLastPolledAt(new Date().toISOString());
-      if (res.ok && Array.isArray(res.data)) {
-        setLogs(res.data as unknown as GatewayLogLine[]);
+      if (res.ok) {
+        setLogs(res.lines);
         setConsecutiveErrors(0);
       } else {
-        // Bridge is down: clear the viewport rather than leave stale lines that
+        // Unreadable: clear the viewport rather than leave stale lines that
         // read as current gateway state.
         setLogs([]);
         setConsecutiveErrors((n) => {
@@ -87,9 +84,9 @@ export function FastMCPGatewayStreamer() {
               📡 Live OpenClaw Gateway Logs
             </h3>
             <p className="font-mono text-[10px] text-[#9aa3b2]">
-              FastMCP: <code className="text-[#2de2e6]">tail_gateway_logs</code> · Mode:{" "}
-              <span className={lastSyncResult?.ok ? "text-[#39ff14]" : "text-[#ffc857]"}>
-                {lastSyncResult?.source?.toUpperCase() ?? "DISCONNECTED"}
+              Source: <code className="text-[#2de2e6]">docker logs · openclaw-gateway</code> · Status:{" "}
+              <span className={lastSync?.ok ? "text-[#39ff14]" : "text-[#ffc857]"}>
+                {lastSync ? (lastSync.ok ? "LINKED" : "UNREACHABLE") : "CONNECTING"}
               </span>{" "}
               · Last polled: {lastPolledAt ? lastPolledAt.slice(11, 19) : "—"}
             </p>
@@ -145,10 +142,10 @@ export function FastMCPGatewayStreamer() {
       <div className="h-64 overflow-y-auto p-3 font-mono text-xs leading-relaxed space-y-1.5 bg-[#05020d]">
         {filteredLogs.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center text-[#9aa3b2]">
-            {lastSyncResult && !lastSyncResult.ok ? (
+            {lastSync && !lastSync.ok ? (
               <>
-                <span className="text-[#ffc857]">⚠ Gateway bridge unreachable — no logs</span>
-                <span className="text-[10px]">{lastSyncResult.error || "(empty reason)"}</span>
+                <span className="text-[#ffc857]">⚠ Gateway logs unreachable — no lines</span>
+                <span className="text-[10px]">{lastSync.error || "(empty reason)"}</span>
                 {consecutiveErrors >= MAX_CONSECUTIVE_ERRORS && (
                   <span className="text-[10px] text-[#ff3b3b]">
                     Stream stopped after {consecutiveErrors} consecutive errors.

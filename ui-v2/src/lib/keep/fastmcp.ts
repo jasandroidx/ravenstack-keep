@@ -24,6 +24,17 @@ export interface FastMCPToolCall {
     | "query_knowledge"
     | "pending_gates"
     | "stack_health"
+    // Read-only fortress surface. These are exactly the tools proxies may ask
+    // for (see KEEP_READONLY_TOOLS below).
+    | "docker_status"
+    | "openclaw_models"
+    | "list_drops"
+    | "read_drop"
+    | "logs"
+    | "tailnet_status"
+    | "keep_deploy_status"
+    | "run_probe"
+    | "config_peek"
     // Human gates. These write, and only ever with confirm: true supplied by
     // a deliberate operator action at the war table.
     | "county_queue_approve"
@@ -42,6 +53,52 @@ export interface FastMCPToolResult<T = JsonValue> {
   latencyMs: number;
   timestamp: string;
   error?: string;
+  /** True when the request never reached the bridge: refused by the ui-v2 allowlist. */
+  blocked?: boolean;
+}
+
+/**
+ * Exactly the read-only tool surface a BROWSER may ask for through the
+ * `callFastMCP` proxy. Anything else — write tools, county audit runs, Oracle
+ * verification — is refused before it can start real work on the box.
+ *
+ * Human gate decisions never arrive through this proxy: they go through the
+ * dedicated `decideGate` server function, which is out of scope here. This
+ * allowlist is deliberately only the READ-ONLY view models the Sentinel /
+ * Mechanic / Keep panels render.
+ */
+export const KEEP_READONLY_TOOLS = [
+  "get_castle_map",
+  "tail_gateway_logs",
+  "stack_health",
+  "docker_status",
+  "openclaw_models",
+  "list_drops",
+  "read_drop",
+  "logs",
+  "tailnet_status",
+  "keep_deploy_status",
+  "run_probe",
+  "config_peek",
+] as const satisfies readonly FastMCPToolCall["tool"][];
+
+export function isReadonlyTool(tool: string): tool is (typeof KEEP_READONLY_TOOLS)[number] {
+  return (KEEP_READONLY_TOOLS as readonly string[]).includes(tool);
+}
+
+export type ToolAllowlistVerdict =
+  | { allowed: true; tool: (typeof KEEP_READONLY_TOOLS)[number] }
+  | { allowed: false; tool: string };
+
+/** Refuses anything outside KEEP_READONLY_TOOLS. Pure; unit-tested. */
+export function assertToolAllowlist(tool: string): ToolAllowlistVerdict {
+  return isReadonlyTool(tool) ? { allowed: true, tool } : { allowed: false, tool };
+}
+
+/** Human-gate `confirm` never passes through the browser proxy, even for allowed tools. */
+export function stripConfirm(params: Record<string, unknown> = {}): Record<string, unknown> {
+  const { confirm: _confirm, ...rest } = params;
+  return rest;
 }
 
 export interface IndianaCountyAudit {

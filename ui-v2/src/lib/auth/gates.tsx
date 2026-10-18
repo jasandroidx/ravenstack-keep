@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Navigate } from "@tanstack/react-router";
+import { getKeepIdentity } from "@/lib/keep/server";
 import { authEnabled, signOut } from "./client";
 import { useCurrentUser, useCurrentUserState } from "./use-current-user";
 
@@ -67,14 +69,7 @@ export function UserButton() {
         </span>
       )}
       <span className="text-sm font-medium">{label}</span>
-      {user.isDevFallback && (
-        <span
-          className="rounded-sm border border-[#ff2a6d]/60 bg-[#ff2a6d]/10 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-[#ff2a6d]"
-          title="VITE_AUTH_ENABLED=false — no session, shared identity for every visitor"
-        >
-          Dev build · no auth
-        </span>
-      )}
+      {user.isDevFallback && <KeepIdentityBadge />}
       {authEnabled && (
         <button
           type="button"
@@ -85,5 +80,45 @@ export function UserButton() {
         </button>
       )}
     </div>
+  );
+}
+
+/**
+ * s1-lock-doors identity badge. Calls `getKeepIdentity` — the same gate
+ * predicate that just let this request through — and paints its verdict as
+ * the header chip. Renders nothing while resolving, and nothing on a refused
+ * request (the 401 surfaces as a query error), so the header never invents an
+ * identity it does not hold.
+ */
+function KeepIdentityBadge() {
+  const { data } = useQuery({
+    queryKey: ["keep-identity"],
+    queryFn: () => getKeepIdentity(),
+    retry: false,
+  });
+  if (!data || data.mode === "unauthorized") return null;
+  const { mode, login } = data;
+
+  const text =
+    mode === "tailscale"
+      ? (login?.split("@")[0] ?? "tailnet")
+      : mode === "internal"
+        ? "BOT · internal"
+        : mode === "local"
+          ? "DEV · local"
+          : "REMOTE";
+
+  const title =
+    mode === "tailscale"
+      ? `Tailscale identity · ${login}`
+      : `${mode} identity — request-level Keep gate`;
+
+  return (
+    <span
+      className="rounded-sm border border-[#ff2a6d]/60 bg-[#ff2a6d]/10 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-[#ff2a6d]"
+      title={title}
+    >
+      {text}
+    </span>
   );
 }
