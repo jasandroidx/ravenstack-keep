@@ -1,0 +1,11 @@
+import { chromium } from "../node_modules/playwright/index.mjs";
+const b = await chromium.launch({ executablePath: "/usr/bin/google-chrome", headless: true, args: ["--use-angle=swiftshader","--enable-unsafe-swiftshader","--ignore-gpu-blocklist"] });
+const p = await (await b.newContext({ viewport: { width: 1280, height: 800 } })).newPage();
+await p.goto("http://127.0.0.1:8130/", { waitUntil: "load", timeout: 90000 });
+await p.waitForSelector("canvas", { timeout: 90000 }); await p.waitForTimeout(4000);
+await p.locator("canvas").first().focus().catch(()=>{});
+await p.keyboard.down("ArrowDown"); await p.waitForTimeout(2500); await p.keyboard.up("ArrowDown");
+await p.keyboard.down("ArrowRight"); await p.waitForTimeout(1500); await p.keyboard.up("ArrowRight");
+await p.waitForTimeout(800);
+await p.screenshot({ path: "/workspace/apps/ravenstack-keep/shots/desktop-walked.png" });
+await b.close();
