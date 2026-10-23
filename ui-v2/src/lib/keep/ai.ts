@@ -51,6 +51,15 @@ export function mechanicModelName(): string {
   return process.env.KEEP_MECHANIC_MODEL?.trim() || "qwen3-coder:30b";
 }
 
+/**
+ * Optional per-request context cap (KEEP_OLLAMA_NUM_CTX). Unset = Ollama's own default.
+ * Set on small boxes where the server-wide default context would OOM the runner.
+ */
+function ollamaCtxOption(): { num_ctx?: number } {
+  const n = parseInt(process.env.KEEP_OLLAMA_NUM_CTX?.trim() || "", 10);
+  return Number.isFinite(n) && n > 0 ? { num_ctx: n } : {};
+}
+
 /** Local-first per the Keep's own cost model: Ollama on the box before any paid call. */
 async function completeOllama(system: string, user: string, maxTokens: number, model: string) {
   const base = (process.env.OLLAMA_URL?.trim() || "http://127.0.0.1:11434").replace(/\/$/, "");
@@ -69,7 +78,7 @@ async function completeOllama(system: string, user: string, maxTokens: number, m
           { role: "system", content: system },
           { role: "user", content: user },
         ],
-        options: { num_predict: maxTokens },
+        options: { num_predict: maxTokens, ...ollamaCtxOption() },
       }),
     });
     if (!res.ok) return { ok: false as const, error: `Ollama HTTP ${res.status}` };
@@ -364,6 +373,7 @@ You are Corvid, raven scout of Ravenstack Keep. Precise, source-obsessed, allerg
           stream: false,
           messages,
           tools: CORVID_TOOLS,
+          options: { ...ollamaCtxOption() },
         }),
       });
     } catch (err) {
