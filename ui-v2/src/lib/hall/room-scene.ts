@@ -74,6 +74,12 @@ export class RoomScene extends Phaser.Scene {
   constructor(opts: RoomOpts) {
     super({ key: opts.key });
     this.opts = opts;
+    // Honor the saved outfit across reloads, like HallScene does — rooms
+    // otherwise always reset to ravenlord no matter what was equipped.
+    try {
+      const saved = localStorage.getItem("ravenlord_skin");
+      if (saved && RAVENLORD_SKINS.some((sk) => sk.id === saved)) this.activeSkinId = saved;
+    } catch { /* ignore */ }
   }
 
   setDir(x: number, y: number) {
@@ -332,7 +338,8 @@ export class RoomScene extends Phaser.Scene {
       const dy = l.y - this.player.y;
       this.launcherPrompt.setVisible(dx * dx + dy * dy < 110 * 110);
     }
-    const speed = 175;
+    const wSpeed = (window as unknown as Record<string, unknown>).__keepWalkSpeed;
+    const speed = typeof wSpeed === "number" ? wSpeed : 175;
     let inputX = this.stickX;
     let inputY = this.stickY;
     if (this.cursors?.left?.isDown || this.wasd?.A?.isDown) inputX -= 1;

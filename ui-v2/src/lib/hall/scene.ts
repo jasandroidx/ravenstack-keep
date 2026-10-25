@@ -929,7 +929,8 @@ export class HallScene extends Phaser.Scene {
       return;
     }
 
-    const speed = 175;
+    const wSpeed = (window as unknown as Record<string, unknown>).__keepWalkSpeed;
+    const speed = typeof wSpeed === "number" ? wSpeed : 175;
     let inputX = this.stickX;
     let inputY = this.stickY;
 

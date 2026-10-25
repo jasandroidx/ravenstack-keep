@@ -37,11 +37,99 @@ export function KeepHall() {
   /** Gates sealed at this table, ever. Drives the wax seals left on it. */
   const sealCount = useRef(0);
   const [wardrobeOpen, setWardrobeOpen] = useState(false);
-  const [activeSkin, setActiveSkin] = useState("ravenlord");
+  const [activeSkin, setActiveSkin] = useState(() => {
+    try {
+      const saved = localStorage.getItem("ravenlord_skin");
+      if (saved && RAVENLORD_SKINS.some((sk) => sk.id === saved)) return saved;
+    } catch { /* ignore */ }
+    return "ravenlord";
+  });
   const [pulse, setPulse] = useState<KeepPulse | null>(null);
   const [pendingGates, setPendingGates] = useState(0);
   const [audioMuted, setAudioMuted] = useState(false);
   const [heraldLine, setHeraldLine] = useState<string | null>(null);
+  const [teleportOpen, setTeleportOpen] = useState(false);
+  const [sceneKey, setSceneKey] = useState("HallScene");
+  type KeepSettings = { sound: boolean; teleportAnim: boolean; walkSpeed: "slow" | "normal" | "fast"; cameraFollow: boolean };
+  const DEFAULT_SETTINGS: KeepSettings = { sound: true, teleportAnim: true, walkSpeed: "normal", cameraFollow: true };
+  const [settings, setSettings] = useState<KeepSettings>(() => {
+    try {
+      const raw = localStorage.getItem("keep-settings");
+      if (raw) return { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<KeepSettings>) };
+    } catch { /* ignore */ }
+    return DEFAULT_SETTINGS;
+  });
+  const settingsRef = useRef(settings);
+
+  function applyCameraFollow(scene: any) {
+    try {
+      const cam = scene?.cameras?.main;
+      const pl = scene?.player;
+      if (!cam || !pl) return;
+      if (settingsRef.current.cameraFollow) cam.startFollow(pl, true, 0.09, 0.09);
+      else { cam.stopFollow(); cam.centerOn(pl.x, pl.y); }
+    } catch { /* ignore */ }
+  }
+
+  function burst(scene: any, x: number, y: number) {
+    try {
+      for (let i = 0; i < 14; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const d = 30 + Math.random() * 70;
+        const c = scene.add.circle(x, y, 3 + Math.random() * 4, 0x2de2e6, 0.9).setDepth(50);
+        scene.tweens.add({
+          targets: c, x: x + Math.cos(a) * d, y: y + Math.sin(a) * d, alpha: 0,
+          duration: 500 + Math.random() * 300, ease: "Quad.easeOut",
+          onComplete: () => { try { c.destroy(); } catch { /* ignore */ } },
+        });
+      }
+    } catch { /* ignore */ }
+  }
+
+  const TELEPORT_TARGETS = [
+    { key: "HallScene", label: "Great Hall", spawn: { x: 760, y: 650 }, hero: { x: 820, y: 670 } },
+    { key: "ReconRoomScene", label: "Recon", spawn: { x: 800, y: 1400 }, hero: { x: 800, y: 340 } },
+    { key: "SearchRoomScene", label: "Search", spawn: { x: 800, y: 1400 }, hero: { x: 800, y: 800 } },
+    { key: "SploitRoomScene", label: "Sploit", spawn: { x: 800, y: 1400 }, hero: { x: 800, y: 800 } },
+    { key: "CitadelRoomScene", label: "Citadel", spawn: { x: 800, y: 1400 }, hero: { x: 800, y: 800 } },
+    { key: "TowerRoomScene", label: "Tower", spawn: { x: 800, y: 1400 }, hero: { x: 800, y: 500 } },
+  ];
+
+  function teleportTo(t: (typeof TELEPORT_TARGETS)[number]) {
+    const s = settings;
+    setTeleportOpen(false);
+    if (sceneKey === t.key) return; // already here — no pointless scene restart
+    const game = gameRef.current as any;
+    const cur = game?.scene?.getScene(sceneKey) ?? sceneRef.current;
+    const doSwitch = () => { try { cur?.scene?.start(t.key, { spawn: t.spawn }); } catch { /* ignore */ } };
+    if (!s.teleportAnim) { doSwitch(); return; }
+    try { const pl = cur?.player; if (pl) burst(cur, pl.x, pl.y); } catch { /* ignore */ }
+    if (s.sound) hallAudio.playTeleport();
+    try { cur?.cameras?.main?.fadeOut(250); } catch { /* ignore */ }
+    window.setTimeout(() => {
+      doSwitch();
+      window.setTimeout(() => {
+        try {
+          const next = game?.scene?.getScene(t.key) ?? sceneRef.current;
+          if (!next) return;
+          const pl = next.player;
+          if (pl) burst(next, pl.x, pl.y);
+          if (s.sound) hallAudio.playTeleport();
+          if (s.cameraFollow && pl && next.cameras?.main) {
+            const cam = next.cameras.main;
+            cam.stopFollow();
+            cam.pan(t.hero.x, t.hero.y, 700);
+            next.time.delayedCall(750, () => {
+              try {
+                cam.pan(pl.x, pl.y, 500);
+                next.time.delayedCall(550, () => { try { cam.startFollow(pl, true, 0.09, 0.09); } catch { /* ignore */ } });
+              } catch { /* ignore */ }
+            });
+          }
+        } catch { /* ignore */ }
+      }, 300);
+    }, 260);
+  }
 
   useEffect(() => {
     let alive = true;
@@ -87,7 +175,7 @@ export function KeepHall() {
     let timer: ReturnType<typeof setTimeout>;
     const tick = async () => {
       if (!alive) return;
-      if (!(talk || tableOpen || wardrobeOpen)) {
+      if (!(talk || tableOpen || wardrobeOpen || teleportOpen)) {
         const line = await pickHeraldLineAsync(new Date().getHours());
         if (line) {
           setHeraldLine(line.text);
@@ -101,7 +189,19 @@ export function KeepHall() {
       alive = false;
       clearTimeout(timer);
     };
-  }, [talk, tableOpen, wardrobeOpen]);
+  }, [talk, tableOpen, wardrobeOpen, teleportOpen]);
+
+  // Settings persist in localStorage and drive the live game: walk speed via
+  // a window slot the scenes read every frame, sound via hallAudio + the HUD
+  // mute button (one control, two places — this effect keeps them in sync).
+  useEffect(() => {
+    try { localStorage.setItem("keep-settings", JSON.stringify(settings)); } catch { /* ignore */ }
+    settingsRef.current = settings;
+    (window as unknown as Record<string, unknown>).__keepWalkSpeed =
+      settings.walkSpeed === "slow" ? 110 : settings.walkSpeed === "fast" ? 260 : 175;
+    setAudioMuted(!settings.sound);
+    hallAudio.enabled = settings.sound;
+  }, [settings]);
 
   function handleEquipSkin(skin: RavenlordSkin) {
     setActiveSkin(skin.id);
@@ -146,6 +246,8 @@ export function KeepHall() {
           },
           onSceneReady: (liveScene: HallScene) => {
             sceneRef.current = liveScene;
+            setSceneKey(liveScene.scene.key);
+            applyCameraFollow(liveScene);
           },
           onEnterCell: () => {
             // Stage the newest unresolved fabrication. Nothing open, nothing
@@ -213,7 +315,7 @@ export function KeepHall() {
             { x: 700, y: 1400, w: 200, h: 160 },
           ],
           solidCircles: [{ x: 800, y: 800, r: 430 }],
-          onSceneReady: (liveScene) => { sceneRef.current = liveScene; },
+          onSceneReady: (liveScene) => { sceneRef.current = liveScene; setSceneKey(liveScene.scene.key); applyCameraFollow(liveScene); },
         });
         const searchScene = new RoomScene({
           key: "SearchRoomScene",
@@ -235,7 +337,7 @@ export function KeepHall() {
             { x: 280, y: 220, w: 1040, h: 1180 },
             { x: 700, y: 1400, w: 200, h: 160 },
           ],
-          onSceneReady: (liveScene) => { sceneRef.current = liveScene; },
+          onSceneReady: (liveScene) => { sceneRef.current = liveScene; setSceneKey(liveScene.scene.key); applyCameraFollow(liveScene); },
         });
         const sploitScene = new RoomScene({
           key: "SploitRoomScene",
@@ -257,7 +359,7 @@ export function KeepHall() {
             { x: 280, y: 220, w: 1040, h: 1180 },
             { x: 700, y: 1400, w: 200, h: 160 },
           ],
-          onSceneReady: (liveScene) => { sceneRef.current = liveScene; },
+          onSceneReady: (liveScene) => { sceneRef.current = liveScene; setSceneKey(liveScene.scene.key); applyCameraFollow(liveScene); },
         });
         const citadelScene = new RoomScene({
           key: "CitadelRoomScene",
@@ -279,7 +381,7 @@ export function KeepHall() {
             { x: 280, y: 220, w: 1040, h: 1180 },
             { x: 700, y: 1400, w: 200, h: 160 },
           ],
-          onSceneReady: (liveScene) => { sceneRef.current = liveScene; },
+          onSceneReady: (liveScene) => { sceneRef.current = liveScene; setSceneKey(liveScene.scene.key); applyCameraFollow(liveScene); },
         });
         const towerScene = new RoomScene({
           key: "TowerRoomScene",
@@ -301,7 +403,7 @@ export function KeepHall() {
             { x: 280, y: 220, w: 1040, h: 1180 },
             { x: 700, y: 1400, w: 200, h: 160 },
           ],
-          onSceneReady: (liveScene) => { sceneRef.current = liveScene; },
+          onSceneReady: (liveScene) => { sceneRef.current = liveScene; setSceneKey(liveScene.scene.key); applyCameraFollow(liveScene); },
         });
         sceneRef.current = scene;
 
@@ -473,7 +575,7 @@ export function KeepHall() {
   }, []);
 
   useEffect(() => {
-    const isOpen = Boolean(talk || tableOpen || wardrobeOpen);
+    const isOpen = Boolean(talk || tableOpen || wardrobeOpen || teleportOpen);
     if (sceneRef.current) {
       sceneRef.current.paused = isOpen;
       // While a modal owns focus, Phaser's keyboard is off so typing in an
@@ -482,12 +584,12 @@ export function KeepHall() {
       // during modal text input — see PR #85).
       sceneRef.current.setKeyboardEnabled(!isOpen);
     }
-  }, [talk, tableOpen, wardrobeOpen]);
+  }, [talk, tableOpen, wardrobeOpen, teleportOpen]);
 
   useEffect(() => {
     const held = new Set<string>();
     function sync() {
-      if (talk || tableOpen || wardrobeOpen) {
+      if (talk || tableOpen || wardrobeOpen || teleportOpen) {
         sceneRef.current?.setDir(0, 0);
         return;
       }
@@ -503,25 +605,33 @@ export function KeepHall() {
         if (e.key === "Escape") {
           e.preventDefault();
           (e.target as HTMLElement)?.blur();
-          if (talk || tableOpen || wardrobeOpen) {
+          if (talk || tableOpen || wardrobeOpen || teleportOpen) {
             hallAudio.playInteract();
             setTalk(null);
             setTableOpen(false);
             setWardrobeOpen(false);
+            setTeleportOpen(false);
           }
         }
         return;
       }
-      if (talk || tableOpen || wardrobeOpen) {
+      if (talk || tableOpen || wardrobeOpen || teleportOpen) {
         if (e.key === "Escape") {
           hallAudio.playInteract();
           setTalk(null);
           setTableOpen(false);
           setWardrobeOpen(false);
+          setTeleportOpen(false);
         }
         return;
       }
       const k = e.key.toLowerCase();
+      if (k === "t" && !talk && !tableOpen && !wardrobeOpen) {
+        e.preventDefault();
+        hallAudio.playInteract();
+        setTeleportOpen((v) => !v);
+        return;
+      }
       if (k === "c") {
         e.preventDefault();
         hallAudio.playInteract();
@@ -551,7 +661,7 @@ export function KeepHall() {
       window.removeEventListener("keyup", onKey);
       sceneRef.current?.setDir(0, 0);
     };
-  }, [talk, tableOpen, wardrobeOpen]);
+  }, [talk, tableOpen, wardrobeOpen, teleportOpen]);
 
   function hold(dir: Stick) {
     return {
@@ -568,7 +678,7 @@ export function KeepHall() {
     ? `[E / SPACE] Talk to ${near.name}`
     : atTable
       ? "[E / SPACE] Sit the war table"
-      : "WASD / ARROWS to walk · [C] Ravenlord Wardrobe · Click floor to travel";
+      : "WASD / ARROWS to walk · [C] Ravenlord Wardrobe · [T] Teleport · Click floor to travel";
 
   return (
     <div className="absolute inset-0 overflow-hidden bg-[#0b0e14] overscroll-none select-none">
@@ -584,7 +694,7 @@ export function KeepHall() {
         {near ? `. Standing near ${near.name}.` : atTable ? ". Standing at the war table." : ""}
       </div>
 
-      {talk || tableOpen || wardrobeOpen ? null : (
+      {talk || tableOpen || wardrobeOpen || teleportOpen ? null : (
         <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between p-3 md:p-4">
           <div className="rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/85 px-3.5 py-2.5 shadow-[0_0_20px_rgba(0,0,0,0.6)] backdrop-blur-md">
             <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[#9aa3b2]">Ravenstack Keep</p>
@@ -604,6 +714,17 @@ export function KeepHall() {
           </div>
           <div className="pointer-events-auto flex items-center gap-2">
             <FastMCPStatusBadge />
+            <button
+              type="button"
+              onClick={() => {
+                hallAudio.playInteract();
+                setTeleportOpen(true);
+              }}
+              title="Teleport + Settings [T]"
+              className="rounded-sm border border-[#2de2e6]/60 bg-[#2de2e6]/10 px-2.5 py-2 font-mono text-xs uppercase tracking-wider text-[#2de2e6] backdrop-blur-md transition hover:bg-[#2de2e6]/25 hover:text-[#e8ecf1]"
+            >
+              📍 Teleport [T]
+            </button>
             <button
               type="button"
               onClick={() => {
@@ -629,10 +750,8 @@ export function KeepHall() {
             <button
               type="button"
               onClick={() => {
-                const next = !audioMuted;
-                setAudioMuted(next);
-                hallAudio.enabled = !next;
-                if (!next) hallAudio.playInteract();
+                setSettings((prev) => ({ ...prev, sound: !prev.sound }));
+                hallAudio.playInteract();
               }}
               title={audioMuted ? "Unmute Audio" : "Mute Audio"}
               className="rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/85 px-2.5 py-2 font-mono text-xs uppercase tracking-wider text-[#9aa3b2] backdrop-blur-md transition hover:border-[#2de2e6] hover:text-[#e8ecf1]"
@@ -676,7 +795,7 @@ export function KeepHall() {
       )}
 
       {/* D-Pad on Touch Devices */}
-      {talk || tableOpen || wardrobeOpen ? null : (
+      {talk || tableOpen || wardrobeOpen || teleportOpen ? null : (
         <div className="pointer-events-auto absolute bottom-4 left-4 z-10 grid grid-cols-3 gap-1 md:hidden">
           <span />
           <Pad aria-label="Move north" {...hold({ x: 0, y: -1 })}>▲</Pad>
@@ -688,7 +807,7 @@ export function KeepHall() {
       )}
 
       {/* Center Action & Interaction HUD Banner */}
-      {talk || tableOpen || wardrobeOpen ? null : (
+      {talk || tableOpen || wardrobeOpen || teleportOpen ? null : (
         <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2">
           <p className="rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/85 px-3.5 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[#e8ecf1] shadow-[0_0_15px_rgba(0,0,0,0.7)] backdrop-blur-md">
             {hint}
@@ -828,6 +947,129 @@ export function KeepHall() {
         </div>
       ) : null}
 
+
+
+      {/* Teleport + Settings + Outfit — one screen, opened by Teleport [T]. No Armory system. */}
+      {teleportOpen ? (
+        <div className="pointer-events-auto absolute inset-0 z-30 flex items-center justify-center bg-black/75 p-4 backdrop-blur-md">
+          <div className="max-h-full w-full max-w-4xl overflow-y-auto rounded-md border border-[#3a3f4b] bg-[#0b0e14]/95 p-6 shadow-[0_0_50px_rgba(0,0,0,0.9)] backdrop-blur-xl">
+            <div className="flex items-center justify-between border-b border-[#1e222b] pb-4">
+              <div>
+                <h2 className="font-mono text-lg font-bold tracking-wider text-[#e8ecf1]">📍 Teleport + Settings</h2>
+                <p className="font-mono text-xs text-[#9aa3b2]">
+                  Instant travel to any built room — the alternative to walking to a door. Settings and outfit live here too.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { hallAudio.playInteract(); setTeleportOpen(false); }}
+                className="rounded-sm border border-[#3a3f4b] bg-[#1e222b] px-3 py-1.5 font-mono text-xs uppercase tracking-wider text-[#9aa3b2] hover:border-[#2de2e6] hover:text-[#e8ecf1]"
+              >
+                [ESC] Close
+              </button>
+            </div>
+
+            <h3 className="mt-6 font-mono text-sm font-bold tracking-wider text-[#2de2e6]">Teleport</h3>
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
+              {TELEPORT_TARGETS.map((t) => {
+                const here = sceneKey === t.key;
+                return (
+                  <button
+                    key={t.key}
+                    type="button"
+                    disabled={here}
+                    onClick={() => teleportTo(t)}
+                    className={`rounded-sm border px-3 py-2.5 text-left font-mono text-xs transition ${
+                      here
+                        ? "cursor-default border-[#2de2e6] bg-[#2de2e6]/10 text-[#2de2e6]"
+                        : "border-[#3a3f4b] bg-[#1e222b]/50 text-[#e8ecf1] hover:border-[#2de2e6]"
+                    }`}
+                  >
+                    <span className="block font-bold">{t.label}</span>
+                    <span className="mt-0.5 block text-[10px] text-[#9aa3b2]">{here ? "YOU ARE HERE" : "Click to teleport"}</span>
+                  </button>
+                );
+              })}
+              {[1, 2, 3].map((n) => (
+                <div key={`reserved-${n}`} className="rounded-sm border border-[#3a3f4b]/60 bg-[#1e222b]/30 px-3 py-2.5 font-mono text-xs">
+                  <span className="block font-bold text-[#6b7280]">RESERVED</span>
+                  <span className="mt-0.5 block text-[10px] text-[#6b7280]">Empty, no page assigned · LOCKED</span>
+                </div>
+              ))}
+            </div>
+
+            <h3 className="mt-8 font-mono text-sm font-bold tracking-wider text-[#2de2e6]">Settings</h3>
+            <div className="mt-3 space-y-3 font-mono text-xs text-[#e8ecf1]">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span>Sound</span>
+                <span className="flex gap-2">
+                  <button type="button" onClick={() => setSettings((p) => ({ ...p, sound: true }))}
+                    className={`rounded-sm border px-3 py-1.5 ${settings.sound ? "border-[#2de2e6] bg-[#2de2e6]/20 text-[#2de2e6]" : "border-[#3a3f4b] text-[#9aa3b2]"}`}>On</button>
+                  <button type="button" onClick={() => setSettings((p) => ({ ...p, sound: false }))}
+                    className={`rounded-sm border px-3 py-1.5 ${!settings.sound ? "border-[#2de2e6] bg-[#2de2e6]/20 text-[#2de2e6]" : "border-[#3a3f4b] text-[#9aa3b2]"}`}>Off</button>
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span>Teleport animation (fade + burst + camera pan)</span>
+                <span className="flex gap-2">
+                  <button type="button" onClick={() => setSettings((p) => ({ ...p, teleportAnim: true }))}
+                    className={`rounded-sm border px-3 py-1.5 ${settings.teleportAnim ? "border-[#2de2e6] bg-[#2de2e6]/20 text-[#2de2e6]" : "border-[#3a3f4b] text-[#9aa3b2]"}`}>On</button>
+                  <button type="button" onClick={() => setSettings((p) => ({ ...p, teleportAnim: false }))}
+                    className={`rounded-sm border px-3 py-1.5 ${!settings.teleportAnim ? "border-[#2de2e6] bg-[#2de2e6]/20 text-[#2de2e6]" : "border-[#3a3f4b] text-[#9aa3b2]"}`}>Off</button>
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span>Walk speed</span>
+                <span className="flex gap-2">
+                  {(["slow", "normal", "fast"] as const).map((w) => (
+                    <button key={w} type="button" onClick={() => setSettings((p) => ({ ...p, walkSpeed: w }))}
+                      className={`rounded-sm border px-3 py-1.5 capitalize ${settings.walkSpeed === w ? "border-[#2de2e6] bg-[#2de2e6]/20 text-[#2de2e6]" : "border-[#3a3f4b] text-[#9aa3b2]"}`}>{w}</button>
+                  ))}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span>Camera follow</span>
+                <span className="flex gap-2">
+                  <button type="button" onClick={() => { setSettings((p) => ({ ...p, cameraFollow: true })); }}
+                    className={`rounded-sm border px-3 py-1.5 ${settings.cameraFollow ? "border-[#2de2e6] bg-[#2de2e6]/20 text-[#2de2e6]" : "border-[#3a3f4b] text-[#9aa3b2]"}`}>On</button>
+                  <button type="button" onClick={() => { setSettings((p) => ({ ...p, cameraFollow: false })); }}
+                    className={`rounded-sm border px-3 py-1.5 ${!settings.cameraFollow ? "border-[#2de2e6] bg-[#2de2e6]/20 text-[#2de2e6]" : "border-[#3a3f4b] text-[#9aa3b2]"}`}>Off</button>
+                </span>
+              </div>
+              <p className="text-[10px] text-[#6b7280]">Settings persist in localStorage and survive reloads. Sound off still plays the animation, silently.</p>
+            </div>
+
+            <h3 className="mt-8 font-mono text-sm font-bold tracking-wider text-[#2de2e6]">Outfit / Armor</h3>
+            <p className="mt-1 font-mono text-[11px] text-[#9aa3b2]">
+              Player sheets in the Keep&apos;s sprite registry — no invented wardrobe, no stats, no inventory. More outfits come from new sprite sheets.
+            </p>
+            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
+              {RAVENLORD_SKINS.map((skin) => {
+                const isEquipped = activeSkin === skin.id;
+                return (
+                  <div key={skin.id} className={`flex flex-col justify-between rounded-sm border p-4 ${isEquipped ? "border-[#2de2e6] bg-[#2de2e6]/10" : "border-[#3a3f4b] bg-[#1e222b]/50"}`}>
+                    <div>
+                      <div className="my-2 flex h-24 items-center justify-center rounded-sm border border-[#3a3f4b]/60 bg-[#0b0e14]">
+                        <img src={skin.src} alt={skin.name} className="h-20 w-auto object-none object-top" style={{ imageRendering: "pixelated" }} />
+                      </div>
+                      <h4 className="font-mono text-xs font-bold text-[#e8ecf1]">{skin.name}</h4>
+                      <p className="mt-1 font-mono text-[10px] text-[#9aa3b2]">{skin.title}</p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isEquipped}
+                      onClick={() => handleEquipSkin(skin)}
+                      className={`mt-4 h-8 w-full rounded-sm font-mono text-[11px] font-bold uppercase tracking-wider ${isEquipped ? "cursor-default border border-[#2de2e6]/40 bg-[#2de2e6]/20 text-[#2de2e6]" : "bg-[#e8ecf1] text-[#0b0e14] hover:bg-[#2de2e6]"}`}
+                    >
+                      {isEquipped ? "Equipped" : "Equip"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {tableOpen ? (
         <div className="pointer-events-auto absolute inset-x-0 bottom-0 z-20 border-t border-[#3a3f4b] bg-[#0b0e14]/95 p-6 backdrop-blur-xl">
