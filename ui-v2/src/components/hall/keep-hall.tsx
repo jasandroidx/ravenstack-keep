@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ButtonHTMLAttributes, type PointerEve
 import { Link, useNavigate } from "@tanstack/react-router";
 import { TalkSheet } from "@/components/hall/talk-sheet";
 import type { HallScene } from "@/lib/hall/scene";
+import { RoomScene } from "@/lib/hall/room-scene";
 import { RAVENLORD_SKINS, type HallNpc, type RavenlordSkin } from "@/lib/hall/world";
 import { getKeepSnapshot } from "@/lib/keep/server";
 import type { KeepPulse } from "@/lib/keep/pulse";
@@ -22,7 +23,7 @@ export function KeepHall() {
     destroy: (removeCanvas: boolean) => void;
     scale: { resize: (w: number, h: number) => void; stopListeners?: () => void };
   } | null>(null);
-  const sceneRef = useRef<HallScene | null>(null);
+  const sceneRef = useRef<any>(null);
   const hallStateRef = useRef<HallState | null>(null);
   const [zone, setZone] = useState("Great Hall");
   const [lock, setLock] = useState("live");
@@ -129,19 +130,22 @@ export function KeepHall() {
         const { HallScene } = await import("@/lib/hall/scene");
         if (dead || !host.current || created || gameRef.current) return;
 
-        const scene = new HallScene({
-          onZone: (name, nextLock) => {
+        const hallEvents = {
+          onZone: (name: string, nextLock: string) => {
             setZone(name);
             setLock(nextLock);
           },
-          onPrompt: (npc, table) => {
+          onPrompt: (npc: HallNpc | null, table: boolean) => {
             setNear(npc);
             setAtTable(table);
           },
-          onTalk: (npc) => {
+          onTalk: (npc: HallNpc) => {
             pickBarkAsync(npc.id, hallStateRef.current).then(setBark);
             setTalk(npc);
             setTableOpen(false);
+          },
+          onSceneReady: (liveScene: HallScene) => {
+            sceneRef.current = liveScene;
           },
           onEnterCell: () => {
             // Stage the newest unresolved fabrication. Nothing open, nothing
@@ -165,6 +169,46 @@ export function KeepHall() {
             setTalk(null);
             setTableOpen(true);
           },
+        };
+        const scene = new HallScene(hallEvents, {
+          key: "HallScene",
+          spawn: { x: 760, y: 650 },
+          portals: [
+            { id: "stairs-to-yard-test", x: 820, y: 670, w: 160, h: 70, targetScene: "HallTestCloneScene", targetSpawn: { x: 760, y: 500 }, label: "TEST DOOR → CLONE" },
+            { id: "library-to-recon", x: 300, y: 200, w: 120, h: 60, targetScene: "ReconRoomScene", targetSpawn: { x: 800, y: 1400 }, label: "RECON →" },
+          ],
+        });
+        const cloneScene = new HallScene(hallEvents, {
+          key: "HallTestCloneScene",
+          spawn: { x: 760, y: 500 },
+          portals: [
+            { id: "clone-return", x: 740, y: 450, w: 160, h: 70, targetScene: "HallScene", targetSpawn: { x: 760, y: 650 }, label: "RETURN → HALL" },
+          ],
+        });
+        const reconScene = new RoomScene({
+          key: "ReconRoomScene",
+          mapSrc: "/hall/rooms/recon.jpg",
+          mapW: 1600,
+          mapH: 1600,
+          spawn: { x: 800, y: 1400 },
+          portals: [
+            { id: "recon-return", x: 700, y: 1450, w: 200, h: 150, targetScene: "HallScene", targetSpawn: { x: 360, y: 280 }, label: "RETURN → HALL" },
+          ],
+          furniture: [
+            { id: "radar", label: "RADAR — BRIEF SCANNER", info: "Raven Recon :8446 — live backend, /health ok 2026-10-25. Brief scanner: run_brief + surveillance logs.", x: 800, y: 800, radius: 120 },
+            { id: "mirror-1", label: "SCRYING MIRROR", info: "FIXTURE — no live fetch. Scrying mirror.", x: 200, y: 450, radius: 80 },
+            { id: "mirror-2", label: "SCRYING MIRROR", info: "FIXTURE — no live fetch. Scrying mirror.", x: 200, y: 800, radius: 80 },
+            { id: "mirror-3", label: "SCRYING MIRROR", info: "FIXTURE — no live fetch. Scrying mirror.", x: 200, y: 1150, radius: 80 },
+            { id: "shelf-1", label: "LOG SHELF", info: "FIXTURE — no live fetch. Surveillance log shelf.", x: 1450, y: 650, radius: 80 },
+            { id: "shelf-2", label: "LOG SHELF", info: "FIXTURE — no live fetch. Surveillance log shelf.", x: 1450, y: 1050, radius: 80 },
+            { id: "spyglass", label: "SPYGLASS PERCH", info: "FIXTURE — no live fetch. Spyglass perch.", x: 1400, y: 250, radius: 80 },
+          ],
+          walk: [
+            { x: 280, y: 220, w: 1040, h: 1180 },
+            { x: 700, y: 1400, w: 200, h: 160 },
+          ],
+          solidCircles: [{ x: 800, y: 800, r: 430 }],
+          onSceneReady: (liveScene) => { sceneRef.current = liveScene; },
         });
         sceneRef.current = scene;
 
@@ -183,7 +227,7 @@ export function KeepHall() {
           loader: {
             imageLoadType: "HTMLImageElement",
           },
-          scene,
+          scene: [scene, cloneScene, reconScene],
         });
         gameRef.current = game;
         host.current.querySelector("canvas")?.focus();

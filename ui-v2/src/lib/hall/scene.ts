@@ -17,6 +17,7 @@ import {
   type HallNpc,
 } from "./world";
 import { hallAudio } from "./audio";
+import { portalAt, type PortalTrigger } from "./portal";
 import { calculateVelocity, determineFacing, type Facing } from "./locomotion";
 
 export type HallEvents = {
@@ -27,6 +28,8 @@ export type HallEvents = {
   onSkinChange?: (skinId: string) => void;
   /** Player stepped into the Quarantine Cell. */
   onEnterCell?: () => void;
+  /** A scene finished create() — React must point its ref at the live scene. */
+  onSceneReady?: (scene: HallScene) => void;
 };
 
 /** Slicing dimensions in PNG source (128x160 -> 4x4 grid of 32x40) */
@@ -92,6 +95,7 @@ export class HallScene extends Phaser.Scene {
   private stickY = 0;
   private lastFacing: Facing = "down";
   private stepTimer = 0;
+  private debugFrame = 0;
   private wasMoving = false;
   private oracleThinking = false;
 
@@ -123,12 +127,24 @@ export class HallScene extends Phaser.Scene {
   private freezeMs = 0;
 
   public paused = false;
+  private portalOpts: { key: string; spawn: { x: number; y: number }; portals: PortalTrigger[] };
+  private isTransitioning = false;
+  private portalExitRequired = false;
+  private portalGraceUntil = 0;
 
   /** True once create() finished wiring up the scene objects. */
   public ready = false;
 
-  constructor(eventsOut: HallEvents) {
-    super({ key: "HallScene" });
+  constructor(
+    eventsOut: HallEvents,
+    opts?: { key?: string; spawn?: { x: number; y: number }; portals?: PortalTrigger[] },
+  ) {
+    super({ key: opts?.key ?? "HallScene" });
+    this.portalOpts = {
+      key: opts?.key ?? "HallScene",
+      spawn: opts?.spawn ?? PLAYER_SPAWN,
+      portals: opts?.portals ?? [],
+    };
     this.eventsOut = eventsOut;
     try {
       const saved = localStorage.getItem("ravenlord_skin");
@@ -144,6 +160,7 @@ export class HallScene extends Phaser.Scene {
     this.stickX = x;
     this.stickY = y;
     if (x || y) this.dest = null;
+    try { (window as unknown as Record<string, unknown>).__keepLastDir = { x, y, t: Date.now() }; } catch { /* no window */ }
   }
 
   preload() {
@@ -169,12 +186,40 @@ export class HallScene extends Phaser.Scene {
     }
   }
 
-  create() {
+  create(data?: { spawn?: { x: number; y: number } }) {
+    const spawn = data?.spawn ?? this.portalOpts.spawn;
+    this.isTransitioning = false;
+    this.portalExitRequired = this.portalOpts.portals.some(
+      (p) => spawn.x >= p.x && spawn.x <= p.x + p.w && spawn.y >= p.y && spawn.y <= p.y + p.h,
+    );
+    this.portalGraceUntil = 0;
     this.cameras.main.setBackgroundColor(PALETTE.bg);
     this.add.image(0, 0, "keep-map").setOrigin(0, 0).setDisplaySize(MAP_W, MAP_H).setDepth(0);
+    for (const p of this.portalOpts.portals) {
+      this.add
+        .rectangle(p.x + p.w / 2, p.y + p.h / 2, p.w, p.h)
+        .setStrokeStyle(4, 0x2de2e6, 0.95)
+        .setDepth(3);
+      this.add
+        .text(p.x + p.w / 2, p.y - 8, p.label ?? "DOOR", {
+          fontFamily: "monospace", fontSize: "14px", color: "#2de2e6",
+          backgroundColor: "#0b0e14cc", padding: { x: 6, y: 3 },
+        })
+        .setOrigin(0.5, 1)
+        .setDepth(3);
+    }
+    if (this.scene.key !== "HallScene") {
+      this.add
+        .text(MAP_W / 2, 56, "HALL TEST CLONE — return door below", {
+          fontFamily: "monospace", fontSize: "20px", color: "#ffc857",
+          backgroundColor: "#0b0e14cc", padding: { x: 10, y: 6 },
+        })
+        .setOrigin(0.5, 0)
+        .setDepth(30);
+    }
     this.physics.world.setBounds(0, 0, MAP_W, MAP_H);
     this.cameras.main.setBounds(0, 0, MAP_W, MAP_H);
-    this.cameras.main.centerOn(PLAYER_SPAWN.x, PLAYER_SPAWN.y);
+    this.cameras.main.centerOn(spawn.x, spawn.y);
     this.cameras.main.setZoom(1.45);
     this.cameras.main.setRoundPixels(true);
 
@@ -318,10 +363,10 @@ export class HallScene extends Phaser.Scene {
     // no-op safely on an empty array, so nothing else needed changing.
 
     // Player Shadow & Sprite
-    this.shadow = this.add.ellipse(PLAYER_SPAWN.x, PLAYER_SPAWN.y + 2, 28, 10, 0x000000, 0.42).setDepth(13);
+    this.shadow = this.add.ellipse(spawn.x, spawn.y + 2, 28, 10, 0x000000, 0.42).setDepth(13);
 
     this.player = this.physics.add
-      .sprite(PLAYER_SPAWN.x, PLAYER_SPAWN.y, `skin-${this.activeSkinId}`, 0)
+      .sprite(spawn.x, spawn.y, `skin-${this.activeSkinId}`, 0)
       .setDisplaySize(OP_W, OP_H)
       .setDepth(14);
 
@@ -396,6 +441,7 @@ export class HallScene extends Phaser.Scene {
         this.dest = { x: w.x, y: w.y };
         this.pendingApproach = null;
         this.reticle.setPosition(w.x, w.y).setVisible(true);
+        try { (window as unknown as Record<string, unknown>).__keepLastClick = { x: w.x, y: w.y, dest: this.dest, t: Date.now() }; } catch { /* no window */ }
       }
     });
 
@@ -413,6 +459,27 @@ export class HallScene extends Phaser.Scene {
     // scene's create() runs on Phaser's async boot. Signals that the objects
     // below are all live before external code touches them.
     this.ready = true;
+    this.portalGraceUntil = (this.time?.now ?? 0) + 800;
+    try {
+      (window as unknown as Record<string, unknown>).__keepSceneKey = this.scene.key;
+      (window as unknown as Record<string, unknown>).__keepSpawn = spawn;
+    } catch { /* headless / no window */ }
+    this.cameras.main.fadeIn(250);
+    try {
+      (window as unknown as Record<string, unknown>).__keepPlayer = { x: spawn.x, y: spawn.y, vx: 0, vy: 0, paused: false, dest: null, stickX: 0, stickY: 0, sceneKey: this.scene.key };
+    } catch { /* no window */ }
+    this.eventsOut.onSceneReady?.(this);
+  }
+
+  private triggerPortal(p: PortalTrigger) {
+    if (this.isTransitioning || !this.player) return;
+    this.isTransitioning = true;
+    this.player.setVelocity(0, 0);
+    this.dest = null;
+    this.cameras.main.fadeOut(250);
+    this.cameras.main.once("camerafadeoutcomplete", () => {
+      this.scene.start(p.targetScene, { spawn: p.targetSpawn });
+    });
   }
 
   public pulseTorch() {
@@ -774,6 +841,7 @@ export class HallScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number) {
+    try { (window as unknown as Record<string, unknown>).__keepFrame = ((window as unknown as Record<string, number>).__keepFrame ?? 0) + 1; } catch { /* no window */ }
     if (this.freezeMs > 0) {
       this.freezeMs -= delta;
       this.player?.setVelocity(0, 0);
@@ -925,6 +993,11 @@ export class HallScene extends Phaser.Scene {
     const finalVy = canMoveY ? targetVel.y : 0;
 
     this.player.setVelocity(finalVx, finalVy);
+    if ((this.debugFrame++ % 30) === 0) {
+      try {
+        (window as unknown as Record<string, unknown>).__keepPlayer = { x: this.player.x, y: this.player.y, vx: finalVx, vy: finalVy, paused: this.paused, dest: this.dest, stickX: this.stickX, stickY: this.stickY, sceneKey: this.scene.key, body: !!this.player.body };
+      } catch { /* no window */ }
+    }
 
     const isMoving = finalVx !== 0 || finalVy !== 0;
 
@@ -967,6 +1040,16 @@ export class HallScene extends Phaser.Scene {
       this.applyFacingAnim("walk", true);
     } else {
       this.applyFacingAnim("idle", true);
+    }
+
+    // Portal doors (debounced: fade once, spawn-exit required, grace after create).
+    if (this.portalExitRequired) {
+      if (!portalAt(this.portalOpts.portals, this.player.x, this.player.y)) {
+        this.portalExitRequired = false;
+      }
+    } else if (!this.isTransitioning && time >= this.portalGraceUntil) {
+      const door = portalAt(this.portalOpts.portals, this.player.x, this.player.y);
+      if (door) this.triggerPortal(door);
     }
 
     // Zone Transition Triggers
