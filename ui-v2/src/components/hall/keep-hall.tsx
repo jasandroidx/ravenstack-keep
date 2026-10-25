@@ -9,7 +9,7 @@ import type { KeepPulse } from "@/lib/keep/pulse";
 import { hallAudio } from "@/lib/hall/audio";
 import { pickHeraldLineAsync } from "@/lib/hall/herald";
 import { WarTablePanel } from "@/components/keep/war-table-panel";
-import { getHallState, getPendingGates, listQuarantine } from "@/lib/keep/server";
+import { getHallState, getPendingGates, listQuarantine, talkInHall } from "@/lib/keep/server";
 import { pickBarkAsync, type HallState } from "@/lib/hall/barks";
 import { FastMCPStatusBadge } from "@/components/keep/fastmcp-status-badge";
 import { toast } from "sonner";
@@ -47,6 +47,8 @@ export function KeepHall() {
   const [pulse, setPulse] = useState<KeepPulse | null>(null);
   const [pendingGates, setPendingGates] = useState(0);
   const [audioMuted, setAudioMuted] = useState(false);
+  const [askText, setAskText] = useState("");
+  const [asking, setAsking] = useState(false);
   const [heraldLine, setHeraldLine] = useState<string | null>(null);
   const [teleportOpen, setTeleportOpen] = useState(false);
   const [sceneKey, setSceneKey] = useState("HallScene");
@@ -202,6 +204,26 @@ export function KeepHall() {
     setAudioMuted(!settings.sound);
     hallAudio.enabled = settings.sound;
   }, [settings]);
+
+  // Ask a walking NPC a real question: the answer lands in a speech bubble
+  // above that NPC via the existing talkInHall leg (FreeLLMAPI-first). If the
+  // model is down, or the player is signed out (talkInHall needs auth), there
+  // is no error bubble and no fake answer — the button just resets and the
+  // preset timer lines keep working.
+  async function askNpc() {
+    if (!near || asking) return;
+    const q = askText.trim();
+    if (!q) return;
+    setAsking(true);
+    try {
+      const res = await talkInHall({ data: { agent: near.id, message: q } });
+      if (res.ok) {
+        sceneRef.current?.showBubble(near.id, res.reply);
+        setAskText("");
+      }
+    } catch { /* no error bubble, no fake answer */ }
+    finally { setAsking(false); }
+  }
 
   function handleEquipSkin(skin: RavenlordSkin) {
     setActiveSkin(skin.id);
@@ -813,6 +835,7 @@ export function KeepHall() {
             {hint}
           </p>
           {near || atTable ? (
+            <>
             <button
               type="button"
               className="pointer-events-auto rounded-sm bg-[#2de2e6] px-3.5 py-2 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-[#0b0e14] shadow-[0_0_15px_rgba(45,226,230,0.4)] transition hover:bg-[#2de2e6]/90"
@@ -827,6 +850,28 @@ export function KeepHall() {
             >
               Engage [E]
             </button>
+            {near && (near as any).actor && near.id !== "oracle" ? (
+              <span className="pointer-events-auto flex items-center gap-1">
+                <input
+                  value={askText}
+                  onChange={(e) => setAskText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") void askNpc(); }}
+                  onFocus={() => sceneRef.current?.setKeyboardEnabled(false)}
+                  onBlur={() => sceneRef.current?.setKeyboardEnabled(true)}
+                  placeholder={`Ask ${near.name}…`}
+                  className="h-9 w-48 rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/85 px-2 font-mono text-xs text-[#e8ecf1] backdrop-blur-md"
+                />
+                <button
+                  type="button"
+                  disabled={asking}
+                  onClick={() => void askNpc()}
+                  className="h-9 rounded-sm bg-[#e8ecf1] px-3 font-mono text-[11px] font-bold uppercase tracking-wider text-[#0b0e14] transition hover:bg-[#2de2e6] disabled:opacity-50"
+                >
+                  {asking ? "…" : "Ask"}
+                </button>
+              </span>
+            ) : null}
+            </>
           ) : null}
         </div>
       )}

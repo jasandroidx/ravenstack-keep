@@ -20,6 +20,53 @@ import { hallAudio } from "./audio";
 import { portalAt, type PortalTrigger } from "./portal";
 import { calculateVelocity, determineFacing, type Facing } from "./locomotion";
 
+type NpcWalker = {
+  npc: HallNpc;
+  spr: Phaser.GameObjects.Sprite;
+  tag: Phaser.GameObjects.Text | null;
+  shadow: Phaser.GameObjects.Ellipse;
+  target: { x: number; y: number } | null;
+  pauseUntil: number;
+  facing: Facing;
+  bubble: Phaser.GameObjects.Text | null;
+  bubbleUntil: number;
+  lineIdx: number;
+  proxUntil: number;
+};
+
+const NPC_SPEED = 60;
+
+/** Preset lines only — these work with no model at all. No live numbers,
+ *  no invented status: Raziel's lines are generic Keep truths, and his
+ *  "What's live?" action already reports real status when asked. There is
+ *  no Ravenlord NPC (the Ravenlord is the player), so Keep-status lines
+ *  live on Raziel, the orchestrator. */
+const NPC_LINES: Record<string, string[]> = {
+  valerie: [
+    "Workshop's cold until you forge it — but I can still diagnose. Numbered steps, reversible, no secrets.",
+    "REA rule one: own code or open source. Commercial binaries don't get decompiled here.",
+    "Tiny binary first. A small test already burned ~907KB of tool output — big ones wait for your yes.",
+    "Ghidra and Java stay on the laptop until you say the download's fine.",
+  ],
+  raziel: [
+    "The hall is live. Doors stay sealed until you approve a Spec.",
+    "One map. One URL. Wake it or it sleeps.",
+    "Walk it. The rooms you built are the ones that answer.",
+    "Human remains the final gate — I don't fire anything on my own.",
+  ],
+  corvid: [
+    "Roost first. Cited digest only — no rumor, no invented numbers.",
+    "Point me at a source and I come back with citations, or I say unknown.",
+    "If it isn't in the source, it isn't in my answer.",
+  ],
+};
+
+const NPC_PROX_LINES: Record<string, string> = {
+  valerie: "Need a diagnosis, or a decompile plan? Both start small.",
+  raziel: "The Keep holds. What are you walking toward?",
+  corvid: "Got a source? I'll cite it or say unknown.",
+};
+
 export type HallEvents = {
   onZone: (name: string, lock: string) => void;
   onPrompt: (npc: HallNpc | null, atTable: boolean) => void;
@@ -88,6 +135,12 @@ export class HallScene extends Phaser.Scene {
   /** NPC the player clicked: once they reach the walkable approach tile, the
    *  NPC's dialogue opens automatically. Cleared by manual input. */
   private pendingApproach: HallNpc | null = null;
+  /** Walking NPCs (Hall only). Reset in create() — scene instances are
+   *  reused on portal return, so stale sprite refs would touch destroyed
+   *  objects (the black-canvas bug class). */
+  private npcWalkers = new Map<string, NpcWalker>();
+  private nextSpeechAt = 0;
+  private speechIdx = 0;
   /** How long the player has been wedged with an active dest (prop or wall
    *  between them and the click). Clears so they don't grind an edge. */
   private destStallMs = 0;
@@ -195,6 +248,9 @@ export class HallScene extends Phaser.Scene {
     // (the Oracle chains are the observed case: their setTo threw on a
     // destroyed line, freezing the returned Hall at a black canvas).
     this.oracleChains = [];
+    this.npcWalkers.clear();
+    this.nextSpeechAt = 0;
+    this.speechIdx = 0;
     this.isTransitioning = false;
     this.portalExitRequired = this.portalOpts.portals.some(
       (p) => spawn.x >= p.x && spawn.x <= p.x + p.w && spawn.y >= p.y && spawn.y <= p.y + p.h,
@@ -257,14 +313,17 @@ export class HallScene extends Phaser.Scene {
       mk(`${skin.id}-idle-up`, [{ key: texKey, frame: 12 }], 1, 0);
     }
 
-    // Static NPC Sprites
+    // NPC sprites. Every actor NPC except the Oracle eye walks: waypoint
+    // wander, same walkable/solid rules as the player, no pathfinding lib.
     for (const npc of HALL_NPCS) {
+      let spr: Phaser.GameObjects.Sprite | null = null;
+      let shadow: Phaser.GameObjects.Ellipse | null = null;
       if (npc.actor) {
-        const spr = this.add
+        spr = this.add
           .sprite(npc.x, npc.y, `actor-${npc.id}`, 0)
           .setDisplaySize(OP_W, OP_H)
           .setDepth(5);
-        this.add
+        shadow = this.add
           .ellipse(npc.x, npc.y + OP_H / 2 - 2, 28, 10, 0x000000, 0.45)
           .setDepth(4);
 
@@ -276,13 +335,42 @@ export class HallScene extends Phaser.Scene {
             repeat: -1,
           });
         }
+        // Direction anims for walkers only (actor sheets are 128x160, 4x4
+        // at 32x40 like the player: down 0-3, left 4-7, right 8-11, up 12-15).
+        // The Oracle eye sheet is 96x96, a different layout — excluded.
+        if (npc.id !== "oracle") {
+          const dirs: { dir: Facing; start: number; end: number; idle: number }[] = [
+            { dir: "down", start: 0, end: 3, idle: 0 },
+            { dir: "left", start: 4, end: 7, idle: 4 },
+            { dir: "right", start: 8, end: 11, idle: 8 },
+            { dir: "up", start: 12, end: 15, idle: 12 },
+          ];
+          for (const d of dirs) {
+            if (!this.anims.exists(`npc-walk-${npc.id}-${d.dir}`)) {
+              this.anims.create({
+                key: `npc-walk-${npc.id}-${d.dir}`,
+                frames: this.anims.generateFrameNumbers(`actor-${npc.id}`, { start: d.start, end: d.end }),
+                frameRate: 6,
+                repeat: -1,
+              });
+            }
+            if (!this.anims.exists(`npc-idle-${npc.id}-${d.dir}`)) {
+              this.anims.create({
+                key: `npc-idle-${npc.id}-${d.dir}`,
+                frames: [{ key: `actor-${npc.id}`, frame: d.idle }],
+                frameRate: 1,
+              });
+            }
+          }
+        }
         spr.play(`npc-idle-${npc.id}`);
       }
 
       // Small pixel name tag above every character. The Oracle paints its own
       // proverb above the eye, so it is left to speak for itself.
+      let tag: Phaser.GameObjects.Text | null = null;
       if (npc.actor && npc.id !== "oracle") {
-        this.add
+        tag = this.add
           .text(npc.x, npc.y - OP_H / 2 - 6, npc.name, {
             fontFamily: "monospace",
             fontSize: "8px",
@@ -293,6 +381,12 @@ export class HallScene extends Phaser.Scene {
           .setOrigin(0.5, 1)
           .setDepth(12)
           .setAlpha(0.92);
+      }
+      if (npc.actor && npc.id !== "oracle" && spr && shadow) {
+        this.npcWalkers.set(npc.id, {
+          npc, spr, tag, shadow, target: null, pauseUntil: 0, facing: "down",
+          bubble: null, bubbleUntil: 0, lineIdx: 0, proxUntil: 0,
+        });
       }
     }
 
@@ -830,6 +924,114 @@ export class HallScene extends Phaser.Scene {
     else this.input.keyboard.disableGlobalCapture();
   }
 
+
+  /** Show a speech bubble above a walking NPC. Callers keep it to one
+   *  bubble at a time (see npcBubbleActive). Used by the timer, proximity
+   *  lines, and the React ask box (live answers). */
+  public showBubble(npcId: string, text: string, ms = 4500) {
+    const w = this.npcWalkers.get(npcId);
+    if (!w) return;
+    if (w.bubble) { try { w.bubble.destroy(); } catch { /* ignore */ } w.bubble = null; }
+    w.bubble = this.add.text(w.spr.x, w.spr.y - OP_H / 2 - 30, text, {
+      fontFamily: "monospace", fontSize: "12px", color: "#e8ecf1", align: "center",
+      backgroundColor: "#0b0e14e6", padding: { x: 8, y: 5 },
+      wordWrap: { width: 220 },
+    }).setOrigin(0.5, 1).setDepth(30);
+    w.bubbleUntil = this.time.now + ms;
+  }
+
+  private npcBubbleActive(): boolean {
+    for (const w of this.npcWalkers.values()) if (w.bubble) return true;
+    return false;
+  }
+
+  private pickWaypoint(): { x: number; y: number } | null {
+    for (let i = 0; i < 12; i++) {
+      const x = 120 + Math.random() * (MAP_W - 240);
+      const y = 120 + Math.random() * (MAP_H - 240);
+      if (walkable(x, y)) return { x, y };
+    }
+    return null;
+  }
+
+  private faceToward(w: NpcWalker, dx: number, dy: number) {
+    const facing: Facing = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? "right" : "left") : (dy >= 0 ? "down" : "up");
+    if (facing !== w.facing || w.spr.anims.currentAnim?.key !== `npc-idle-${w.npc.id}-${facing}`) {
+      w.facing = facing;
+      if (this.anims.exists(`npc-idle-${w.npc.id}-${facing}`)) w.spr.play(`npc-idle-${w.npc.id}-${facing}`);
+    }
+  }
+
+  private updateNpcWander(time: number, delta: number) {
+    if (!this.player) return;
+    if (this.nextSpeechAt === 0) this.nextSpeechAt = time + 20000 + Math.random() * 20000;
+    const step = (NPC_SPEED * delta) / 1000;
+    for (const w of this.npcWalkers.values()) {
+      if (w.bubble) {
+        w.bubble.setPosition(w.spr.x, w.spr.y - OP_H / 2 - 30);
+        if (time > w.bubbleUntil) { try { w.bubble.destroy(); } catch { /* ignore */ } w.bubble = null; }
+      }
+      const dx = this.player.x - w.spr.x;
+      const dy = this.player.y - w.spr.y;
+      if (dx * dx + dy * dy < 140 * 140) {
+        // Close: stop wandering, face the player, proximity line (30s cooldown).
+        w.target = null;
+        this.faceToward(w, dx, dy);
+        if (time > w.proxUntil && !this.npcBubbleActive()) {
+          const line = NPC_PROX_LINES[w.npc.id];
+          if (line) this.showBubble(w.npc.id, line);
+          w.proxUntil = time + 30000;
+        }
+        continue;
+      }
+      if (w.target) {
+        const tx = w.target.x - w.spr.x;
+        const ty = w.target.y - w.spr.y;
+        if (tx * tx + ty * ty < 64) {
+          w.target = null;
+          w.pauseUntil = time + 1500 + Math.random() * 2500;
+          if (this.anims.exists(`npc-idle-${w.npc.id}-${w.facing}`)) w.spr.play(`npc-idle-${w.npc.id}-${w.facing}`);
+          continue;
+        }
+        const facing: Facing = Math.abs(tx) >= Math.abs(ty) ? (tx >= 0 ? "right" : "left") : (ty >= 0 ? "down" : "up");
+        let nx = w.spr.x;
+        let ny = w.spr.y;
+        const mx = Math.max(-step, Math.min(step, tx));
+        const my = Math.max(-step, Math.min(step, ty));
+        if (walkable(w.spr.x + mx, w.spr.y)) nx = w.spr.x + mx;
+        if (walkable(nx, w.spr.y + my)) ny = w.spr.y + my;
+        w.spr.setPosition(nx, ny);
+        w.shadow.setPosition(nx, ny + OP_H / 2 - 2);
+        w.tag?.setPosition(nx, ny - OP_H / 2 - 6);
+        if (facing !== w.facing || w.spr.anims.currentAnim?.key !== `npc-walk-${w.npc.id}-${facing}`) {
+          w.facing = facing;
+          if (this.anims.exists(`npc-walk-${w.npc.id}-${facing}`)) w.spr.play(`npc-walk-${w.npc.id}-${facing}`);
+        }
+        continue;
+      }
+      if (time > w.pauseUntil) {
+        w.target = this.pickWaypoint();
+        if (!w.target) w.pauseUntil = time + 2000;
+      } else if (this.anims.exists(`npc-idle-${w.npc.id}-${w.facing}`) && w.spr.anims.currentAnim?.key !== `npc-idle-${w.npc.id}-${w.facing}`) {
+        w.spr.play(`npc-idle-${w.npc.id}-${w.facing}`);
+      }
+    }
+    // Timer speech: one NPC at a time, every 20-40s, cycling preset lines.
+    if (time >= this.nextSpeechAt && !this.npcBubbleActive()) {
+      const walkers = [...this.npcWalkers.values()];
+      if (walkers.length > 0) {
+        const w = walkers[this.speechIdx % walkers.length];
+        this.speechIdx += 1;
+        const lines = NPC_LINES[w.npc.id] ?? [];
+        if (lines.length > 0) {
+          this.showBubble(w.npc.id, lines[w.lineIdx % lines.length]);
+          w.lineIdx += 1;
+        }
+      }
+      this.nextSpeechAt = time + 20000 + Math.random() * 20000;
+    }
+  }
+
   update(time: number, delta: number) {
     try { (window as unknown as Record<string, unknown>).__keepFrame = ((window as unknown as Record<string, number>).__keepFrame ?? 0) + 1; } catch { /* no window */ }
     if (this.freezeMs > 0) {
@@ -928,6 +1130,7 @@ export class HallScene extends Phaser.Scene {
       this.player?.setVelocity(0, 0);
       return;
     }
+    this.updateNpcWander(time, delta);
 
     const wSpeed = (window as unknown as Record<string, unknown>).__keepWalkSpeed;
     const speed = typeof wSpeed === "number" ? wSpeed : 175;
