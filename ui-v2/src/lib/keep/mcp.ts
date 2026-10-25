@@ -5,7 +5,7 @@
  * Server-only. Env is read inside functions so this never lands in a browser bundle.
  *
  * Env:
- *   MCP_BASE_URL   e.g. http://127.0.0.1:8100/mcp  (KEEP_MCP_URL also accepted).
+ *   MCP_BASE_URL   e.g. http://127.0.0.1:8110/mcp  (KEEP_MCP_URL also accepted).
  *                  Prefer localhost/Tailscale. Never commit a Funnel URL.
  *   MCP_AUTH_TOKEN optional bearer. Never logged, never returned to the client.
  *   MCP_TIMEOUT_MS default 20000.
@@ -16,7 +16,7 @@
 
 import { errorText, isAbortError, isConnectionError } from "./net";
 
-const DEFAULT_BASE = "http://127.0.0.1:8100/mcp";
+const DEFAULT_BASE = "http://127.0.0.1:8110/mcp";
 const DEFAULT_TIMEOUT_MS = 20_000;
 const PROTOCOL_VERSION = "2025-06-18";
 

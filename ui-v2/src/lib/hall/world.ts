@@ -264,9 +264,8 @@ export const HALL_NPCS: HallNpc[] = [
     state: "idle",
     greeting:
       "Every claim in here was asserted by one of your models and was not supported by its own evidence. Nothing is deleted. Read them before you trust the next answer.",
-    href: "/quarantine",
     actions: [
-      { id: "open-cell", label: "Open the cell", href: "/quarantine" },
+      { id: "open-cell", label: "Open the cell" },
       {
         id: "why",
         label: "Why keep them?",
@@ -319,12 +318,12 @@ export const ZONES: Zone[] = [
   { id: "library", name: "Library", lock: "unforged", rect: { x: 140, y: 120, w: 380, h: 540 }, href: "/oracle" },
   { id: "great-hall", name: "Great Hall", lock: "live", rect: { x: 540, y: 220, w: 720, h: 470 } },
   { id: "gallery-arch", name: "The Grand Gallery", lock: "live", rect: { x: 600, y: 230, w: 100, h: 80 }, href: "/gallery" },
-  { id: "watchtower", name: "Watchtower", lock: "unforged", rect: { x: 700, y: 40, w: 400, h: 190 }, href: "/sentinel" },
+  { id: "watchtower", name: "Watchtower", lock: "unforged", rect: { x: 700, y: 40, w: 400, h: 190 } },
   { id: "workshop", name: "Workshop", lock: "unforged", rect: { x: 1310, y: 60, w: 420, h: 680 }, href: "/mechanic" },
   { id: "yard", name: "Yard", lock: "unforged", rect: { x: 620, y: 700, w: 540, h: 260 } },
   // The cell sits in the east corner of the yard, deliberately in the open.
   // Fabrications are not filed away out of sight.
-  { id: "quarantine", name: "The Quarantine Cell", lock: "live", rect: { x: 1030, y: 745, w: 130, h: 190 }, href: "/quarantine" },
+  { id: "quarantine", name: "The Quarantine Cell", lock: "live", rect: { x: 1030, y: 745, w: 130, h: 190 } },
 ];
 
 /**

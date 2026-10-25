@@ -188,6 +188,13 @@ export class HallScene extends Phaser.Scene {
 
   create(data?: { spawn?: { x: number; y: number } }) {
     const spawn = data?.spawn ?? this.portalOpts.spawn;
+    // Scene restart cleanup (black-canvas-after-return fix): this scene
+    // instance is REUSED on portal return, so create() runs again on the
+    // same instance. Any array filled in create() must be reset here, or
+    // update() keeps touching destroyed GameObjects from the previous run
+    // (the Oracle chains are the observed case: their setTo threw on a
+    // destroyed line, freezing the returned Hall at a black canvas).
+    this.oracleChains = [];
     this.isTransitioning = false;
     this.portalExitRequired = this.portalOpts.portals.some(
       (p) => spawn.x >= p.x && spawn.x <= p.x + p.w && spawn.y >= p.y && spawn.y <= p.y + p.h,
@@ -234,50 +241,20 @@ export class HallScene extends Phaser.Scene {
     // up 12-15) -- right is NOT a mirror of left, see applyFacingAnim.
     for (const skin of RAVENLORD_SKINS) {
       const texKey = `skin-${skin.id}`;
-      this.anims.create({
-        key: `${skin.id}-walk-down`,
-        frames: this.anims.generateFrameNumbers(texKey, { start: 0, end: 3 }),
-        frameRate: 8,
-        repeat: -1,
-      });
-      this.anims.create({
-        key: `${skin.id}-walk-left`,
-        frames: this.anims.generateFrameNumbers(texKey, { start: 4, end: 7 }),
-        frameRate: 8,
-        repeat: -1,
-      });
-      this.anims.create({
-        key: `${skin.id}-walk-right`,
-        frames: this.anims.generateFrameNumbers(texKey, { start: 8, end: 11 }),
-        frameRate: 8,
-        repeat: -1,
-      });
-      this.anims.create({
-        key: `${skin.id}-walk-up`,
-        frames: this.anims.generateFrameNumbers(texKey, { start: 12, end: 15 }),
-        frameRate: 8,
-        repeat: -1,
-      });
-      this.anims.create({
-        key: `${skin.id}-idle-down`,
-        frames: [{ key: texKey, frame: 0 }],
-        frameRate: 1,
-      });
-      this.anims.create({
-        key: `${skin.id}-idle-left`,
-        frames: [{ key: texKey, frame: 4 }],
-        frameRate: 1,
-      });
-      this.anims.create({
-        key: `${skin.id}-idle-right`,
-        frames: [{ key: texKey, frame: 8 }],
-        frameRate: 1,
-      });
-      this.anims.create({
-        key: `${skin.id}-idle-up`,
-        frames: [{ key: texKey, frame: 12 }],
-        frameRate: 1,
-      });
+      // AnimationManager is global per Game, not per Scene: on portal
+      // return this create() runs again, so guard every create or Phaser
+      // logs "AnimationManager key already exists" for every key.
+      const mk = (key: string, frames: unknown, frameRate: number, repeat: number) => {
+        if (!this.anims.exists(key)) this.anims.create({ key, frames: frames as never, frameRate, repeat });
+      };
+      mk(`${skin.id}-walk-down`, this.anims.generateFrameNumbers(texKey, { start: 0, end: 3 }), 8, -1);
+      mk(`${skin.id}-walk-left`, this.anims.generateFrameNumbers(texKey, { start: 4, end: 7 }), 8, -1);
+      mk(`${skin.id}-walk-right`, this.anims.generateFrameNumbers(texKey, { start: 8, end: 11 }), 8, -1);
+      mk(`${skin.id}-walk-up`, this.anims.generateFrameNumbers(texKey, { start: 12, end: 15 }), 8, -1);
+      mk(`${skin.id}-idle-down`, [{ key: texKey, frame: 0 }], 1, 0);
+      mk(`${skin.id}-idle-left`, [{ key: texKey, frame: 4 }], 1, 0);
+      mk(`${skin.id}-idle-right`, [{ key: texKey, frame: 8 }], 1, 0);
+      mk(`${skin.id}-idle-up`, [{ key: texKey, frame: 12 }], 1, 0);
     }
 
     // Static NPC Sprites
@@ -291,12 +268,14 @@ export class HallScene extends Phaser.Scene {
           .ellipse(npc.x, npc.y + OP_H / 2 - 2, 28, 10, 0x000000, 0.45)
           .setDepth(4);
 
-        this.anims.create({
-          key: `npc-idle-${npc.id}`,
-          frames: this.anims.generateFrameNumbers(`actor-${npc.id}`, { start: 0, end: 3 }),
-          frameRate: 3,
-          repeat: -1,
-        });
+        if (!this.anims.exists(`npc-idle-${npc.id}`)) {
+          this.anims.create({
+            key: `npc-idle-${npc.id}`,
+            frames: this.anims.generateFrameNumbers(`actor-${npc.id}`, { start: 0, end: 3 }),
+            frameRate: 3,
+            repeat: -1,
+          });
+        }
         spr.play(`npc-idle-${npc.id}`);
       }
 
@@ -917,7 +896,7 @@ export class HallScene extends Phaser.Scene {
       ];
       for (let i = 0; i < this.oracleChains.length; i++) {
         const a = chainAnchors[i];
-        if (a && this.oracleChains[i]) this.oracleChains[i].setTo(a.x, a.y, eyeX, eyeY);
+        if (a && this.oracleChains[i]?.active) this.oracleChains[i].setTo(a.x, a.y, eyeX, eyeY);
       }
       this.oracleEye.setRotation(Math.sin(this.oracleDriftT * 1.7) * 0.05);
 

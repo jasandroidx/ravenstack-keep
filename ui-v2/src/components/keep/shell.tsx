@@ -9,9 +9,7 @@ const NAV = [
   { to: "/", label: "Keep" },
   { to: "/table", label: "Table" },
   { to: "/oracle", label: "Oracle" },
-  { to: "/sentinel", label: "Sentinel" },
   { to: "/mechanic", label: "Mechanic" },
-  { to: "/stack", label: "Stack" },
 ];
 
 function AuthSlot() {

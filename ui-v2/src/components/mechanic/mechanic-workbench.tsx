@@ -40,8 +40,8 @@ const QUICK_CHIPS: QuickChip[] = [
     probe: "gateway",
   },
   {
-    id: "probe-8100",
-    label: "Probe FastMCP :8100",
+    id: "probe-8110",
+    label: "Probe FastMCP :8110",
     icon: "🔌",
     probe: "sitrep",
   },
@@ -51,7 +51,7 @@ const QUICK_CHIPS: QuickChip[] = [
     icon: "📋",
     prompt: "Analyze the attached container log crash dump. Pinpoint the root cause failure, memory pressure, or permission error.",
     logs: `[ERROR] 2026-08-24 08:14:22 [openclaw.gateway] Failed to bind ws://127.0.0.1:18789: Address already in use
-[CRITICAL] 2026-08-24 08:14:23 [fastmcp.transport] Tool bridge connection refused on 127.0.0.1:8100
+[CRITICAL] 2026-08-24 08:14:23 [fastmcp.transport] Tool bridge connection refused on 127.0.0.1:8110
 [WARN] 2026-08-24 08:14:25 [fs.perms] /root/ReClaw-2.0/config/openclaw.yaml owned by root:root, expected uid 1000`,
   },
   {
@@ -146,7 +146,7 @@ export function MechanicWorkbench({ initialConcern }: { initialConcern?: string 
   // checked. The bridge check is getStackHealth() -- the same
   // executeFastMCPTool() path the header's FastMCPStatusBadge uses -- not
   // getRoutingStatus()'s mcp.reachable, which reads a different client
-  // (mcp.ts, MCP_BASE_URL/KEEP_MCP_URL, defaults to 127.0.0.1:8100) that is
+  // (mcp.ts, MCP_BASE_URL/KEEP_MCP_URL, defaults to 127.0.0.1:8110) that is
   // never reachable from a hosted deploy and would read "unreachable" here
   // even while the header badge is genuinely connected.
   useEffect(() => {

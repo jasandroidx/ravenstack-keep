@@ -176,6 +176,10 @@ export function KeepHall() {
           portals: [
             { id: "stairs-to-yard-test", x: 820, y: 670, w: 160, h: 70, targetScene: "HallTestCloneScene", targetSpawn: { x: 760, y: 500 }, label: "TEST DOOR → CLONE" },
             { id: "library-to-recon", x: 300, y: 200, w: 120, h: 60, targetScene: "ReconRoomScene", targetSpawn: { x: 800, y: 1400 }, label: "RECON →" },
+            { id: "workshop-to-search", x: 1500, y: 300, w: 120, h: 60, targetScene: "SearchRoomScene", targetSpawn: { x: 800, y: 1400 }, label: "SEARCH →" },
+            { id: "yard-to-sploit", x: 1000, y: 800, w: 120, h: 60, targetScene: "SploitRoomScene", targetSpawn: { x: 800, y: 1400 }, label: "SPLOIT →" },
+            { id: "hall-to-citadel", x: 600, y: 600, w: 120, h: 60, targetScene: "CitadelRoomScene", targetSpawn: { x: 800, y: 1400 }, label: "CITADEL →" },
+            { id: "yard-to-tower", x: 700, y: 800, w: 120, h: 60, targetScene: "TowerRoomScene", targetSpawn: { x: 800, y: 1400 }, label: "TOWER →" },
           ],
         });
         const cloneScene = new HallScene(hallEvents, {
@@ -191,6 +195,7 @@ export function KeepHall() {
           mapW: 1600,
           mapH: 1600,
           spawn: { x: 800, y: 1400 },
+          launcher: { label: "RAVEN RECON", url: "https://ravenserve.tail20a090.ts.net:8446", kind: "radar", x: 800, y: 340 },
           portals: [
             { id: "recon-return", x: 700, y: 1450, w: 200, h: 150, targetScene: "HallScene", targetSpawn: { x: 360, y: 280 }, label: "RETURN → HALL" },
           ],
@@ -210,6 +215,94 @@ export function KeepHall() {
           solidCircles: [{ x: 800, y: 800, r: 430 }],
           onSceneReady: (liveScene) => { sceneRef.current = liveScene; },
         });
+        const searchScene = new RoomScene({
+          key: "SearchRoomScene",
+          mapSrc: "/hall/tiles/floor_dim.png",
+          mapW: 1600,
+          mapH: 1600,
+          spawn: { x: 800, y: 1400 },
+          launcher: { label: "RAVENSEARCH", url: "https://ravenserve.tail20a090.ts.net:8490", kind: "desk", x: 800, y: 800 },
+          portals: [
+            { id: "search-return", x: 700, y: 1450, w: 200, h: 150, targetScene: "HallScene", targetSpawn: { x: 1500, y: 380 }, label: "RETURN → HALL" },
+          ],
+          furniture: [
+            { id: "painting", label: "ROOM PAINTING — PLACEHOLDER", info: "PLACEHOLDER floor tile, not a painted room. Painting UNPROVEN — do not treat as final art.", x: 800, y: 200, radius: 60 },
+            { id: "query-desk", label: "QUERY DESK — SEARCH BOX", info: "RavenSearch :8490 — search box. Live search is at :8490 via SearXNG:8888 (25 results, 0 unresponsive 2026-10-25); result scrolls are not fetched in-room.", x: 800, y: 800, radius: 120 },
+            { id: "scrolls", label: "RESULT SCROLLS", info: "FIXTURE in-room label — real results live at :8490, not fetched in-room.", x: 300, y: 600, radius: 80 },
+            { id: "gears", label: "ENGINE GEARS", info: "FIXTURE in-room label — engine is SearXNG:8888, live and answering.", x: 1300, y: 600, radius: 80 },
+          ],
+          walk: [
+            { x: 280, y: 220, w: 1040, h: 1180 },
+            { x: 700, y: 1400, w: 200, h: 160 },
+          ],
+          onSceneReady: (liveScene) => { sceneRef.current = liveScene; },
+        });
+        const sploitScene = new RoomScene({
+          key: "SploitRoomScene",
+          mapSrc: "/hall/tiles/floor_dim.png",
+          mapW: 1600,
+          mapH: 1600,
+          spawn: { x: 800, y: 1400 },
+          launcher: { label: "RAVENSPLOIT", url: "https://ravenserve.tail20a090.ts.net:8487", kind: "terminal", x: 800, y: 800 },
+          portals: [
+            { id: "sploit-return", x: 700, y: 1450, w: 200, h: 150, targetScene: "HallScene", targetSpawn: { x: 1000, y: 880 }, label: "RETURN → HALL" },
+          ],
+          furniture: [
+            { id: "painting", label: "ROOM PAINTING — PLACEHOLDER", info: "PLACEHOLDER floor tile, not a painted room. Painting UNPROVEN — do not treat as final art.", x: 800, y: 200, radius: 60 },
+            { id: "msfconsole", label: "STONE MSFCONSOLE TERMINAL", info: "RavenSploit :8487, backend :8797, msfrpcd listening 127.0.0.1:55553. Exploit mode human-gated, never auto-fired.", x: 800, y: 800, radius: 120 },
+            { id: "benches", label: "TOOL BENCHES", info: "nmap, msfvenom, nuclei, zap, nikto, ffuf, gobuster, sqlmap — tool doors at :8487. FIXTURE in-room labels, tools run at :8487.", x: 300, y: 600, radius: 80 },
+            { id: "recipes", label: "RECIPE BOOKS + EXPLOIT CARDS", info: "FIXTURE in-room labels — guided recipes and cards live at :8487. ZAP run + exploit-confirm flow still unfired.", x: 1300, y: 600, radius: 80 },
+          ],
+          walk: [
+            { x: 280, y: 220, w: 1040, h: 1180 },
+            { x: 700, y: 1400, w: 200, h: 160 },
+          ],
+          onSceneReady: (liveScene) => { sceneRef.current = liveScene; },
+        });
+        const citadelScene = new RoomScene({
+          key: "CitadelRoomScene",
+          mapSrc: "/hall/tiles/floor_dim.png",
+          mapW: 1600,
+          mapH: 1600,
+          spawn: { x: 800, y: 1400 },
+          launcher: { label: "RAVEN CITADEL", url: "https://ravenserve.tail20a090.ts.net:8443", kind: "circle", x: 800, y: 800 },
+          portals: [
+            { id: "citadel-return", x: 700, y: 1450, w: 200, h: 150, targetScene: "HallScene", targetSpawn: { x: 600, y: 680 }, label: "RETURN → HALL" },
+          ],
+          furniture: [
+            { id: "painting", label: "ROOM PAINTING — PLACEHOLDER", info: "PLACEHOLDER floor tile, not a painted room. Painting UNPROVEN — do not treat as final art.", x: 800, y: 200, radius: 60 },
+            { id: "runic-circle", label: "RUNIC CIRCLE — GRADIO CHAT", info: "Citadel :8443 — FreeLLMAPI-native chat. Live chat is at :8443, not fetched in-room.", x: 800, y: 800, radius: 120 },
+            { id: "pedestals", label: "FOCUS PEDESTALS", info: "FIXTURE in-room labels — model routes. Glow only while a route answers, per the layout rule; no live glow is faked here.", x: 300, y: 600, radius: 80 },
+            { id: "arch", label: "CONTAINMENT ARCH", info: "FIXTURE in-room label — session inspection, human-gated.", x: 1300, y: 600, radius: 80 },
+          ],
+          walk: [
+            { x: 280, y: 220, w: 1040, h: 1180 },
+            { x: 700, y: 1400, w: 200, h: 160 },
+          ],
+          onSceneReady: (liveScene) => { sceneRef.current = liveScene; },
+        });
+        const towerScene = new RoomScene({
+          key: "TowerRoomScene",
+          mapSrc: "/hall/tiles/floor_dim.png",
+          mapW: 1600,
+          mapH: 1600,
+          spawn: { x: 800, y: 1400 },
+          launcher: { label: "RAVEN TOWER", url: "https://ravenserve.tail20a090.ts.net:8445", kind: "beacon", x: 800, y: 500 },
+          portals: [
+            { id: "tower-return", x: 700, y: 1450, w: 200, h: 150, targetScene: "HallScene", targetSpawn: { x: 700, y: 880 }, label: "RETURN → HALL" },
+          ],
+          furniture: [
+            { id: "painting", label: "ROOM PAINTING — PLACEHOLDER", info: "PLACEHOLDER floor tile, not a painted room. Painting UNPROVEN — do not treat as final art.", x: 800, y: 200, radius: 60 },
+            { id: "scope", label: "LOOKOUT SCOPE", info: "Raven Tower :8445 — its own furniture only. This room does not contain the other Raven Pages.", x: 800, y: 500, radius: 100 },
+            { id: "beacon", label: "SIGNAL BEACON", info: "Raven Tower :8445 — signal beacon, its own furniture only.", x: 1200, y: 800, radius: 80 },
+            { id: "desk", label: "CONTROL DESK", info: "Raven Tower :8445 — control desk, its own furniture only.", x: 400, y: 800, radius: 80 },
+          ],
+          walk: [
+            { x: 280, y: 220, w: 1040, h: 1180 },
+            { x: 700, y: 1400, w: 200, h: 160 },
+          ],
+          onSceneReady: (liveScene) => { sceneRef.current = liveScene; },
+        });
         sceneRef.current = scene;
 
         created = true;
@@ -227,7 +320,7 @@ export function KeepHall() {
           loader: {
             imageLoadType: "HTMLImageElement",
           },
-          scene: [scene, cloneScene, reconScene],
+          scene: [scene, cloneScene, reconScene, searchScene, sploitScene, citadelScene, towerScene],
         });
         gameRef.current = game;
         host.current.querySelector("canvas")?.focus();

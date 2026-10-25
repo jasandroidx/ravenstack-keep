@@ -105,7 +105,7 @@ export function FastMCPGatewayStreamer() {
           >
             <option value="all">ALL SERVICES</option>
             <option value="gateway">GATEWAY (:18789)</option>
-            <option value="fastmcp">FASTMCP (:8100)</option>
+            <option value="fastmcp">FASTMCP (:8110)</option>
             <option value="reclaw_api">RECLAW API (:8000)</option>
             <option value="ollama">OLLAMA (:11434)</option>
           </select>

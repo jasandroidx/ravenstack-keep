@@ -5,16 +5,19 @@
  * explicit", so local is the default and cloud is a fallback that requires a key.
  *
  * Env:
- *   KEEP_MODEL_ROUTE  local-first (default) | local | cloud-first | cloud
+ *   KEEP_MODEL_ROUTE  local-first (default) | local | cloud-first | cloud | freellmapi | freellmapi-first
  *   KEEP_ALLOW_CLOUD  0 disables the cloud leg outright, key present or not
  *   KEEP_CLOUD_MODEL  default gemini-3.7-flash (inherited — verify against the SDK)
  *   GEMINI_API_KEY / GOOGLE_GENAI_API_KEY  cloud credential
+ *   KEEP_FREELLMAPI_URL  default http://127.0.0.1:3011 (ravenserve-local FreeLLMAPI)
+ *   KEEP_FREELLMAPI_MODEL  default "auto"
+ *   KEEP_FREELLMAPI_KEY  FreeLLMAPI API key, never printed or returned
  */
 
 import { listOllamaModels, ollamaBaseUrl, ollamaChat, resolveLocalModel } from "./ollama";
 
-export type Route = "local-first" | "local" | "cloud-first" | "cloud";
-export type Provider = "local" | "cloud";
+export type Route = "local-first" | "local" | "cloud-first" | "cloud" | "freellmapi" | "freellmapi-first";
+export type Provider = "local" | "cloud" | "freellmapi";
 
 export type CompleteOk = { ok: true; text: string; provider: Provider; model: string };
 export type CompleteErr = { ok: false; error: string; hint?: string; detail?: string };
@@ -29,8 +32,24 @@ function env(name: string): string {
 
 export function route(): Route {
   const raw = env("KEEP_MODEL_ROUTE").toLowerCase();
-  if (raw === "local" || raw === "cloud" || raw === "cloud-first" || raw === "local-first") return raw;
+  if (raw === "local" || raw === "cloud" || raw === "cloud-first" || raw === "local-first" || raw === "freellmapi" || raw === "freellmapi-first") return raw;
   return "local-first";
+}
+
+export function freellmapiBase(): string {
+  return (env("KEEP_FREELLMAPI_URL") || "http://127.0.0.1:3011").replace(/\/$/, "");
+}
+
+export function freellmapiKey(): string {
+  return env("KEEP_FREELLMAPI_KEY");
+}
+
+export function freellmapiModel(): string {
+  return env("KEEP_FREELLMAPI_MODEL") || "auto";
+}
+
+export function freellmapiAllowed(): boolean {
+  return Boolean(freellmapiKey());
 }
 
 export function cloudKey(): string {
@@ -116,6 +135,44 @@ async function completeCloud(
   }
 }
 
+async function completeFreellmapi(
+  system: string,
+  user: string,
+  maxTokens: number,
+  opts: { temperature?: number },
+): Promise<CompleteResult> {
+  if (!freellmapiKey()) {
+    return { ok: false, error: "No FreeLLMAPI key set", hint: "Set KEEP_FREELLMAPI_KEY." };
+  }
+  const base = freellmapiBase();
+  const model = freellmapiModel();
+  try {
+    const res = await fetch(`${base}/v1/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${freellmapiKey()}` },
+      signal: AbortSignal.timeout(90000),
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        max_tokens: maxTokens,
+        temperature: opts.temperature ?? 0.4,
+        stream: false,
+      }),
+    });
+    if (!res.ok) return { ok: false, error: `FreeLLMAPI HTTP ${res.status}` };
+    const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const text = data.choices?.[0]?.message?.content?.trim() ?? "";
+    if (!text) return { ok: false, error: `Empty response from FreeLLMAPI model ${model}` };
+    return { ok: true, text, provider: "freellmapi", model };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: `FreeLLMAPI unreachable: ${message}` };
+  }
+}
+
 /**
  * Run a prompt through the configured route. Both legs failing returns both
  * reasons — a bare "it didn't work" is what made this app unreadable.
@@ -128,7 +185,7 @@ export async function complete(
 ): Promise<CompleteResult> {
   const r = route();
   const legs: Provider[] =
-    r === "local" ? ["local"] : r === "cloud" ? ["cloud"] : r === "cloud-first" ? ["cloud", "local"] : ["local", "cloud"];
+    r === "local" ? ["local"] : r === "cloud" ? ["cloud"] : r === "cloud-first" ? ["cloud", "local"] : r === "freellmapi" ? ["freellmapi"] : r === "freellmapi-first" ? ["freellmapi", "local", "cloud"] : ["local", "cloud"];
 
   const failures: string[] = [];
   const details: string[] = [];
@@ -138,7 +195,9 @@ export async function complete(
     const res =
       leg === "local"
         ? await completeLocal(system, user, maxTokens, opts)
-        : await completeCloud(system, user, maxTokens, opts);
+        : leg === "freellmapi"
+          ? await completeFreellmapi(system, user, maxTokens, opts)
+          : await completeCloud(system, user, maxTokens, opts);
     if (res.ok) return res;
     failures.push(res.error);
     if (res.detail) details.push(`${leg}: ${res.detail}`);
@@ -166,6 +225,11 @@ export type RoutingStatus = {
   };
   cloud: {
     allowed: boolean;
+    keyPresent: boolean;
+    model: string;
+  };
+  freellmapi: {
+    base: string;
     keyPresent: boolean;
     model: string;
   };
@@ -198,5 +262,6 @@ export async function routingStatus(): Promise<RoutingStatus> {
     route: route(),
     local: { base, reachable: listed.ok, models, selected, error, hint },
     cloud: { allowed: cloudAllowed(), keyPresent: Boolean(cloudKey()), model: cloudModel() },
+    freellmapi: { base: freellmapiBase(), keyPresent: freellmapiAllowed(), model: freellmapiModel() },
   };
 }

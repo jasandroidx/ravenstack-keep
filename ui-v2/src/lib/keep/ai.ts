@@ -93,18 +93,55 @@ async function completeOllama(system: string, user: string, maxTokens: number, m
 }
 
 /**
- * Local Ollama only. The operator removed the Gemini key deliberately --
- * every text-completion surface in the Keep (Oracle, Forge, the Round Table,
- * Sentinel, Mechanic's inline form, hall dialogue, portrait lore) runs on the
- * box's own models or not at all. getGenAI() and the Gemini/Nano Banana SDK
- * calls below still exist ONLY inside generatePortraitImage, which has no
- * local substitute for actual pixel generation -- see that function's own
- * comment. No other function in this file may call getGenAI() again.
+ * FreeLLMAPI first (operator order 2026-10-25), Ollama fallback, Gemini never
+ * for text. Every text-completion surface in the Keep (Oracle, Forge, the
+ * Round Table, Sentinel, Mechanic's inline form, hall dialogue, portrait
+ * lore) tries FreeLLMAPI (KEEP_FREELLMAPI_URL, model KEEP_FREELLMAPI_MODEL
+ * default "auto", key KEEP_FREELLMAPI_KEY, never printed) and falls back to
+ * the box's Ollama when it fails or no key is set. The Ollama leg is kept,
+ * not deleted — it is the fallback while the box is offline. getGenAI() and
+ * the Gemini/Nano Banana SDK calls below still exist ONLY inside
+ * generatePortraitImage, which has no local substitute for actual pixel
+ * generation -- see that function's own comment. No other function in this
+ * file may call getGenAI() again.
  *
  * Every caller runs on the talk plane (KEEP_TALK_MODEL) except Valerie's
  * workbench, which passes its own model explicitly -- see diagnoseMechanicWorkbench.
  */
+async function completeFreellmapi(system: string, user: string, maxTokens: number) {
+  const key = (process.env.KEEP_FREELLMAPI_KEY || "").trim();
+  if (!key) return { ok: false as const, error: "No FreeLLMAPI key set" };
+  const base = (process.env.KEEP_FREELLMAPI_URL || "http://127.0.0.1:3011").replace(/\/$/, "");
+  const model = (process.env.KEEP_FREELLMAPI_MODEL || "auto").trim();
+  try {
+    const res = await fetch(`${base}/v1/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      signal: AbortSignal.timeout(90000),
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        max_tokens: maxTokens,
+        stream: false,
+      }),
+    });
+    if (!res.ok) return { ok: false as const, error: `FreeLLMAPI HTTP ${res.status}` };
+    const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const text = data.choices?.[0]?.message?.content?.trim() ?? "";
+    if (!text) return { ok: false as const, error: "Empty model response from FreeLLMAPI" };
+    return { ok: true as const, text };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false as const, error: `FreeLLMAPI unreachable: ${message}` };
+  }
+}
+
 async function complete(system: string, user: string, maxTokens = 1800, model = talkModelName()) {
+  const viaFree = await completeFreellmapi(system, user, maxTokens);
+  if (viaFree.ok) return viaFree;
   return completeOllama(system, user, maxTokens, model);
 }
 

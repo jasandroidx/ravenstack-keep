@@ -18,7 +18,6 @@ export const ROOMS: Room[] = [
     modelDefault: "local",
     col: 2,
     row: 1,
-    href: "/sentinel",
     image: "/watchtower.jpg",
   },
   {

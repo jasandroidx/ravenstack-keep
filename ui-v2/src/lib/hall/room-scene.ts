@@ -17,8 +17,22 @@ export type RoomFurniture = {
   radius: number;
 };
 
+export type RoomLauncher = {
+  /** Page name shown in the prompt, e.g. "RAVEN RECON". */
+  label: string;
+  /** Tailnet URL opened in a new tab on E / click. */
+  url: string;
+  /** Animation style: radar sweep, desk unfurl, terminal flicker, rune ring, beacon sweep. */
+  kind: "radar" | "desk" | "terminal" | "circle" | "beacon";
+  x: number;
+  y: number;
+};
+
 export type RoomOpts = {
   key: string;
+  /** ONE animated hero item per room. Walks up, prompt, E/click opens url in a new tab.
+   *  Never a physics body, never a collider — it cannot block walking. */
+  launcher?: RoomLauncher;
   mapSrc: string;
   mapW: number;
   mapH: number;
@@ -53,6 +67,7 @@ export class RoomScene extends Phaser.Scene {
   private portalGraceUntil = 0;
   private infoText: Phaser.GameObjects.Text | null = null;
   private infoBg: Phaser.GameObjects.Rectangle | null = null;
+  private launcherPrompt: Phaser.GameObjects.Text | null = null;
   public paused = false;
   public ready = false;
 
@@ -137,6 +152,71 @@ export class RoomScene extends Phaser.Scene {
         backgroundColor: "#0b0e14cc", padding: { x: 5, y: 2 },
       }).setOrigin(0.5, 1).setDepth(3);
     }
+
+    // ONE animated hero launcher per room (Jason's launcher design, 2026-10-25).
+    // Code-drawn primitives only — room paintings are still UNPROVEN placeholders
+    // where the map is a floor tile, and no animation is faked in a screenshot:
+    // these tweens loop for real. No physics body, no collider: walking is never blocked.
+    if (this.opts.launcher) {
+      const l = this.opts.launcher;
+      this.add.text(l.x, l.y - 78, l.label, {
+        fontFamily: "monospace", fontSize: "14px", color: "#ffc857",
+        backgroundColor: "#0b0e14cc", padding: { x: 5, y: 2 },
+      }).setOrigin(0.5, 1).setDepth(3);
+      if (l.kind === "radar") {
+        const c = this.add.container(l.x, l.y, [
+          this.add.circle(0, 0, 46, 0x0b0e14, 0.55).setStrokeStyle(2, 0x2de2e6, 0.95),
+          this.add.circle(0, 0, 46, 0x2de2e6, 0.12),
+          this.add.rectangle(23, 0, 46, 3, 0x39ff14),
+          this.add.circle(0, 0, 5, 0x39ff14),
+        ]).setDepth(3);
+        this.tweens.add({ targets: c, angle: 360, duration: 4000, repeat: -1, ease: "linear" });
+        const glow = c.list[1] as Phaser.GameObjects.Arc;
+        this.tweens.add({ targets: glow, alpha: 0.3, duration: 1600, yoyo: true, repeat: -1 });
+      } else if (l.kind === "desk") {
+        this.add.rectangle(l.x, l.y, 110, 56, 0x1a2233).setStrokeStyle(2, 0x2de2e6, 0.95).setDepth(3);
+        const scrolls = this.add.container(l.x, l.y - 28, [
+          this.add.rectangle(0, 8, 90, 6, 0xe8ecf1),
+          this.add.rectangle(0, 20, 70, 6, 0xe8ecf1),
+          this.add.rectangle(0, 32, 80, 6, 0xe8ecf1),
+        ]).setDepth(3);
+        scrolls.setScale(1, 0.6);
+        this.tweens.add({ targets: scrolls, scaleY: 1, duration: 1800, yoyo: true, repeat: -1, ease: "sine.inOut" });
+        const typing = this.add.rectangle(l.x + 44, l.y + 20, 12, 6, 0x39ff14).setDepth(3);
+        this.tweens.add({ targets: typing, alpha: 0.15, duration: 700, yoyo: true, repeat: -1 });
+      } else if (l.kind === "terminal") {
+        const glowRect = this.add.rectangle(l.x, l.y, 120, 70, 0x39ff14, 0.08).setDepth(3);
+        this.tweens.add({ targets: glowRect, alpha: 0.2, duration: 1500, yoyo: true, repeat: -1 });
+        this.add.rectangle(l.x, l.y, 120, 70, 0x0b0e14).setStrokeStyle(2, 0x39ff14, 0.95).setDepth(3);
+        const termText = this.add.text(l.x, l.y, ">_ msfconsole", {
+          fontFamily: "monospace", fontSize: "14px", color: "#39ff14",
+        }).setOrigin(0.5).setDepth(3);
+        this.time.addEvent({ delay: 140, loop: true, callback: () => { termText.setAlpha(0.7 + Math.random() * 0.3); } });
+      } else if (l.kind === "circle") {
+        const c = this.add.container(l.x, l.y, [
+          this.add.circle(0, 0, 52, 0x0b0e14, 0.55).setStrokeStyle(2, 0xffc857, 0.95),
+          this.add.circle(0, 0, 52, 0xffc857, 0.12),
+          this.add.text(0, 0, "ᚠᚢᚦᚨᚱᚲ", { fontFamily: "monospace", fontSize: "20px", color: "#ffc857" }).setOrigin(0.5),
+        ]).setDepth(3);
+        this.tweens.add({ targets: c, angle: 360, duration: 14000, repeat: -1, ease: "linear" });
+        const glow = c.list[1] as Phaser.GameObjects.Arc;
+        this.tweens.add({ targets: glow, alpha: 0.3, duration: 1600, yoyo: true, repeat: -1 });
+      } else if (l.kind === "beacon") {
+        const c = this.add.container(l.x, l.y, [
+          this.add.triangle(0, 0, 0, 0, 100, -20, 100, 20, 0xffc857, 0.30),
+          this.add.circle(0, 0, 18, 0x0b0e14, 0.8).setStrokeStyle(2, 0xffc857, 0.95),
+          this.add.text(34, -30, "✦", { fontFamily: "monospace", fontSize: "18px", color: "#ffc857" }).setOrigin(0.5),
+        ]).setDepth(3);
+        c.setAngle(-25);
+        this.tweens.add({ targets: c, angle: 25, duration: 3000, yoyo: true, repeat: -1, ease: "sine.inOut" });
+        const glint = c.list[2] as Phaser.GameObjects.Text;
+        this.tweens.add({ targets: glint, alpha: 0.2, duration: 900, yoyo: true, repeat: -1 });
+      }
+      this.launcherPrompt = this.add.text(l.x, l.y - 100, `E / CLICK — OPEN ${l.label}\n${l.url}`, {
+        fontFamily: "monospace", fontSize: "13px", color: "#39ff14", align: "center",
+        backgroundColor: "#0b0e14e6", padding: { x: 8, y: 5 },
+      }).setOrigin(0.5, 1).setDepth(40).setVisible(false);
+    }
     this.add.text(this.opts.mapW / 2, 40, this.opts.key, {
       fontFamily: "monospace", fontSize: "22px", color: "#ffc857",
       backgroundColor: "#0b0e14cc", padding: { x: 10, y: 6 },
@@ -172,6 +252,17 @@ export class RoomScene extends Phaser.Scene {
     this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
       if (this.paused) return;
       const w = this.cameras.main.getWorldPoint(p.x, p.y);
+      if (this.opts.launcher) {
+        const l = this.opts.launcher;
+        const pdx = l.x - this.player.x;
+        const pdy = l.y - this.player.y;
+        const cdx = l.x - w.x;
+        const cdy = l.y - w.y;
+        if (pdx * pdx + pdy * pdy < 130 * 130 && cdx * cdx + cdy * cdy < 70 * 70) {
+          try { window.open(l.url, "_blank", "noopener"); } catch { /* no window */ }
+          return;
+        }
+      }
       if (this.walkable(w.x, w.y)) this.dest = { x: w.x, y: w.y };
     });
 
@@ -195,6 +286,15 @@ export class RoomScene extends Phaser.Scene {
     });
     if (this.infoText) { this.infoText.destroy(); this.infoText = null; }
     if (this.infoBg) { this.infoBg.destroy(); this.infoBg = null; }
+    if (this.opts.launcher) {
+      const l = this.opts.launcher;
+      const dx = l.x - this.player.x;
+      const dy = l.y - this.player.y;
+      if (dx * dx + dy * dy < 130 * 130) {
+        try { window.open(l.url, "_blank", "noopener"); } catch { /* no window */ }
+        return;
+      }
+    }
     if (!near) return;
     const cam = this.cameras.main;
     this.infoBg = this.add.rectangle(cam.width / 2, cam.height - 90, Math.min(640, cam.width - 40), 90, 0x0b0e14, 0.92).setDepth(40).setScrollFactor(0);
@@ -226,6 +326,12 @@ export class RoomScene extends Phaser.Scene {
   update(time: number, delta: number) {
     try { (window as unknown as Record<string, unknown>).__keepFrame = ((window as unknown as Record<string, number>).__keepFrame ?? 0) + 1; } catch { /* no window */ }
     if (!this.player?.body || this.paused) { this.player?.setVelocity(0, 0); return; }
+    if (this.launcherPrompt && this.opts.launcher) {
+      const l = this.opts.launcher;
+      const dx = l.x - this.player.x;
+      const dy = l.y - this.player.y;
+      this.launcherPrompt.setVisible(dx * dx + dy * dy < 110 * 110);
+    }
     const speed = 175;
     let inputX = this.stickX;
     let inputY = this.stickY;

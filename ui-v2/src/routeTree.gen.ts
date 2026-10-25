@@ -15,8 +15,6 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as MechanicRouteImport } from './routes/mechanic'
 import { Route as OracleRouteImport } from './routes/oracle'
 import { Route as RoomsRouteImport } from './routes/rooms'
-import { Route as SentinelRouteImport } from './routes/sentinel'
-import { Route as StackRouteImport } from './routes/stack'
 import { Route as TableRouteImport } from './routes/table'
 import { Route as RoomsIndexRouteImport } from './routes/rooms.index'
 import { Route as RoomsSlugRouteImport } from './routes/rooms.$slug'
@@ -52,16 +50,6 @@ const RoomsRoute = RoomsRouteImport.update({
   path: '/rooms',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SentinelRoute = SentinelRouteImport.update({
-  id: '/sentinel',
-  path: '/sentinel',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const StackRoute = StackRouteImport.update({
-  id: '/stack',
-  path: '/stack',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const TableRoute = TableRouteImport.update({
   id: '/table',
   path: '/table',
@@ -90,8 +78,6 @@ export interface FileRoutesByFullPath {
   '/mechanic': typeof MechanicRoute
   '/oracle': typeof OracleRoute
   '/rooms': typeof RoomsRouteWithChildren
-  '/sentinel': typeof SentinelRoute
-  '/stack': typeof StackRoute
   '/table': typeof TableRoute
   '/rooms/$slug': typeof RoomsSlugRoute
   '/rooms/': typeof RoomsIndexRoute
@@ -103,8 +89,6 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/mechanic': typeof MechanicRoute
   '/oracle': typeof OracleRoute
-  '/sentinel': typeof SentinelRoute
-  '/stack': typeof StackRoute
   '/table': typeof TableRoute
   '/rooms/$slug': typeof RoomsSlugRoute
   '/rooms': typeof RoomsIndexRoute
@@ -118,8 +102,6 @@ export interface FileRoutesById {
   '/mechanic': typeof MechanicRoute
   '/oracle': typeof OracleRoute
   '/rooms': typeof RoomsRouteWithChildren
-  '/sentinel': typeof SentinelRoute
-  '/stack': typeof StackRoute
   '/table': typeof TableRoute
   '/rooms/$slug': typeof RoomsSlugRoute
   '/rooms/': typeof RoomsIndexRoute
@@ -134,8 +116,6 @@ export interface FileRouteTypes {
     | '/mechanic'
     | '/oracle'
     | '/rooms'
-    | '/sentinel'
-    | '/stack'
     | '/table'
     | '/rooms/$slug'
     | '/rooms/'
@@ -147,8 +127,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/mechanic'
     | '/oracle'
-    | '/sentinel'
-    | '/stack'
     | '/table'
     | '/rooms/$slug'
     | '/rooms'
@@ -161,8 +139,6 @@ export interface FileRouteTypes {
     | '/mechanic'
     | '/oracle'
     | '/rooms'
-    | '/sentinel'
-    | '/stack'
     | '/table'
     | '/rooms/$slug'
     | '/rooms/'
@@ -176,8 +152,6 @@ export interface RootRouteChildren {
   MechanicRoute: typeof MechanicRoute
   OracleRoute: typeof OracleRoute
   RoomsRoute: typeof RoomsRouteWithChildren
-  SentinelRoute: typeof SentinelRoute
-  StackRoute: typeof StackRoute
   TableRoute: typeof TableRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
@@ -224,20 +198,6 @@ declare module '@tanstack/react-router' {
       path: '/rooms'
       fullPath: '/rooms'
       preLoaderRoute: typeof RoomsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sentinel': {
-      id: '/sentinel'
-      path: '/sentinel'
-      fullPath: '/sentinel'
-      preLoaderRoute: typeof SentinelRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/stack': {
-      id: '/stack'
-      path: '/stack'
-      fullPath: '/stack'
-      preLoaderRoute: typeof StackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/table': {
@@ -290,8 +250,6 @@ const rootRouteChildren: RootRouteChildren = {
   MechanicRoute: MechanicRoute,
   OracleRoute: OracleRoute,
   RoomsRoute: RoomsRouteWithChildren,
-  SentinelRoute: SentinelRoute,
-  StackRoute: StackRoute,
   TableRoute: TableRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
