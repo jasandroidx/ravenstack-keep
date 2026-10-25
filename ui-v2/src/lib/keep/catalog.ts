@@ -53,23 +53,6 @@ export const ROOMS: Room[] = [
     image: "/keep-hall.jpg",
   },
   {
-    slug: "alchemy-lab",
-    name: "Alchemy Lab",
-    wing: "Forge",
-    occupant: "Clawforge",
-    role: "Architect / anvil",
-    lock: "live",
-    specStatus: "approved",
-    purpose:
-      "Draft complete Agent Specs and room provisions, then stop for human approval before any install or unlock.",
-    kill: "Retire after two structural draft failures, role consolidation, or 90 days unused.",
-    modelDefault: "local",
-    col: 3,
-    row: 2,
-    href: "/forge",
-    image: "/workshop.jpg",
-  },
-  {
     slug: "roost",
     name: "The Roost",
     wing: "Knowledge",
