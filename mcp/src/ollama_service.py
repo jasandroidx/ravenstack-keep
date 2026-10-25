@@ -63,11 +63,17 @@ def _call_ollama(
         "model": target_model,
         "prompt": prompt,
         "stream": False,
+        # Box: qwen3 is a thinking model; without this the 120-token budget is spent inside <think>.
+        "think": False,
         "options": {
             "num_predict": 120,
             "temperature": 0.7,
         },
     }
+    # Optional context cap for small boxes (unset = Ollama default).
+    _ctx = os.environ.get("KEEP_OLLAMA_NUM_CTX", "").strip()
+    if _ctx.isdigit() and int(_ctx) > 0:
+        payload["options"]["num_ctx"] = int(_ctx)
     if system:
         payload["system"] = system
 

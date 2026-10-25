@@ -296,10 +296,24 @@ export function TalkSheet({
 
   return (
     <div className="pointer-events-auto absolute inset-0 z-30 flex flex-col justify-end bg-black/65 backdrop-blur-sm transition-all duration-300">
-      {/* Background Painted Scene Vignette */}
-      <div className="absolute inset-0 -z-10 opacity-30">
-        <img src={npc.talkScene ?? TALK_SRC} alt="" className="h-full w-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0b0e14] via-[#0b0e14]/75 to-transparent" />
+      {/* Background Painted Scene Vignette — the talk scene is shown whole
+          (object-contain) on a blurred, dimmed copy of the same image so no
+          part of the painting is cropped away. */}
+      <div className="absolute inset-0 -z-10 overflow-hidden bg-[#05020d]">
+        <img
+          src={npc.talkScene ?? TALK_SRC}
+          alt=""
+          aria-hidden="true"
+          className="h-full w-full scale-110 object-cover opacity-40 blur-xl"
+        />
+        <img
+          src={npc.talkScene ?? TALK_SRC}
+          alt=""
+          className={`absolute inset-0 h-full w-full ${
+            npc.talkFit === "cover" ? "object-cover" : "object-contain"
+          }`}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0b0e14] via-[#0b0e14]/60 to-transparent" />
       </div>
 
       {/* Top Controls Bar */}
@@ -392,11 +406,7 @@ export function TalkSheet({
                 <div
                   className={`relative h-28 w-28 overflow-hidden rounded-sm border-2 ${roleTheme.border} bg-[#1e222b] transition-all duration-300 ${roleTheme.glow} ${portraitAnimClass}`}
                 >
-                  <img
-                    src={npc.portrait ?? npc.actor ?? "/hall/sprites/ravenlord.png"}
-                    alt={npc.name}
-                    className="h-full w-full object-cover object-center pixelated transition-transform duration-300"
-                  />
+                  <DialogueThumb npc={npc} />
 
                   {/* Laser Scanline on Inquisitive / Diagnostic Reaction */}
                   {emotion === "inquisitive" && (
@@ -644,6 +654,50 @@ export function TalkSheet({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Character portrait for a dialogue. Prefers the painted portrait where one
+ * exists (only the Oracle and Valerie have art). Otherwise the actor sheet is
+ * cropped to its FIRST sprite frame via CSS (all Hall actor sheets are 128x160
+ * 4x4 grids, so 400% crops a 32x40 cell) — never the raw grid. NPCs without
+ * any art get a pixel monogram chip instead.
+ */
+function DialogueThumb({ npc }: { npc: HallNpc }) {
+  if (npc.portrait) {
+    return (
+      <img
+        src={npc.portrait}
+        alt={npc.name}
+        className="h-full w-full object-cover object-center pixelated transition-transform duration-300"
+      />
+    );
+  }
+  if (npc.actor) {
+    return (
+      <div
+        role="img"
+        aria-label={npc.name}
+        className="h-full w-full pixelated transition-transform duration-300"
+        style={{
+          backgroundImage: `url(${npc.actor})`,
+          backgroundSize: "400% 400%",
+          backgroundPosition: "0% 0%",
+        }}
+      />
+    );
+  }
+  const initials = npc.name
+    .split(" ")
+    .map((word) => word[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 3);
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-[#0e1118] font-mono text-sm font-bold uppercase tracking-widest text-[#9aa3b2]">
+      {initials || "NPC"}
     </div>
   );
 }

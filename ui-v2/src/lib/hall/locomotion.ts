@@ -99,8 +99,7 @@ export function isFacingTarget(
   }
 
   // Allow secondary adjacent facing if within half angle
-  const dist = Math.sqrt(distSq);
-  if (dist === 0) return true;
+  if (distSq === 0) return true;
 
   let fx = 0;
   let fy = 0;
@@ -109,8 +108,8 @@ export function isFacingTarget(
   else if (facing === "up") fy = -1;
   else if (facing === "down") fy = 1;
 
-  // Dot product
-  const dot = (dx * fx + dy * fy) / dist;
+  // PERF: use squared distance to avoid Math.sqrt in game loop
+  const dp = dx * fx + dy * fy;
   const minDot = Math.cos((maxAngleDeg * Math.PI) / 180 / 2);
-  return dot >= minDot;
+  return dp >= 0 && dp * dp >= distSq * (minDot * minDot);
 }

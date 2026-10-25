@@ -49,4 +49,54 @@ describe("Keep components accessibility test", () => {
       "FastMCPStatusBadge button should have focus-visible styling"
     );
   });
+
+  test("MaestroDialogue has accessible close button with aria-label, focus-visible styling, and Escape key listener", () => {
+    const filePath = path.join(process.cwd(), "src/components/gallery/maestro-dialogue.tsx");
+    const content = fs.readFileSync(filePath, "utf-8");
+
+    assert.ok(
+      content.includes('aria-label="Close dialogue"'),
+      "MaestroDialogue close button should have descriptive aria-label"
+    );
+    assert.ok(
+      content.includes("focus-visible:ring-2"),
+      "MaestroDialogue close button should have focus-visible styling"
+    );
+    assert.ok(
+      content.includes('e.key === "Escape"'),
+      "MaestroDialogue should handle Escape key to close"
+    );
+  });
+
+  test("PortraitStudioModal has accessible close button with aria-label, focus-visible styling, and Escape key listener", () => {
+    const filePath = path.join(process.cwd(), "src/components/gallery/portrait-studio-modal.tsx");
+    const content = fs.readFileSync(filePath, "utf-8");
+
+    assert.ok(
+      content.includes('aria-label="Close studio"'),
+      "PortraitStudioModal close button should have descriptive aria-label"
+    );
+    assert.ok(
+      content.includes("focus-visible:ring-2"),
+      "PortraitStudioModal close button should have focus-visible styling"
+    );
+    assert.ok(
+      content.includes('e.key === "Escape"'),
+      "PortraitStudioModal should handle Escape key to close"
+    );
+  });
+
+  test("GoogleDriveExplorer file preview has accessible close button with aria-label and focus-visible styling", () => {
+    const filePath = path.join(process.cwd(), "src/components/drive/drive-explorer.tsx");
+    const content = fs.readFileSync(filePath, "utf-8");
+
+    assert.ok(
+      content.includes('aria-label="Close file preview"'),
+      "GoogleDriveExplorer close preview button should have descriptive aria-label"
+    );
+    assert.ok(
+      content.includes("focus-visible:ring-2"),
+      "GoogleDriveExplorer close preview button should have focus-visible styling"
+    );
+  });
 });
