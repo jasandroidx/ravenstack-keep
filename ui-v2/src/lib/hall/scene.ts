@@ -945,7 +945,27 @@ export class HallScene extends Phaser.Scene {
     return false;
   }
 
-  private pickWaypoint(): { x: number; y: number } | null {
+  // Valerie stays in the Workshop. Workshop floor in world.ts WALK is
+  // 1340,190,370,500; inset 30px so she never clips walls, benches, or doors.
+  // The zone rect (1310,60,420,680) is NOT the walkable floor — it includes
+  // the benches strip and the hall↔workshop corridor, so it is not used here.
+  private static readonly VALERIE_WORKSHOP = { x: 1370, y: 220, w: 310, h: 440 };
+
+  private inWorkshop(x: number, y: number): boolean {
+    const r = (this.constructor as typeof HallScene).VALERIE_WORKSHOP;
+    return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+  }
+
+  private pickWaypoint(npcId?: string): { x: number; y: number } | null {
+    if (npcId === "valerie") {
+      const r = (this.constructor as typeof HallScene).VALERIE_WORKSHOP;
+      for (let i = 0; i < 24; i++) {
+        const x = r.x + Math.random() * r.w;
+        const y = r.y + Math.random() * r.h;
+        if (walkable(x, y)) return { x, y };
+      }
+      return null;
+    }
     for (let i = 0; i < 12; i++) {
       const x = 120 + Math.random() * (MAP_W - 240);
       const y = 120 + Math.random() * (MAP_H - 240);
@@ -989,7 +1009,14 @@ export class HallScene extends Phaser.Scene {
         const ty = w.target.y - w.spr.y;
         if (tx * tx + ty * ty < 64) {
           w.target = null;
-          w.pauseUntil = time + 1500 + Math.random() * 2500;
+          if (w.npc.id === "valerie" && Math.random() < 0.4) {
+            // Work pause: longer, facing up toward the workshop benches.
+            // No new art — pause + facing change only.
+            w.pauseUntil = time + 6000 + Math.random() * 6000;
+            this.faceToward(w, 0, -1);
+          } else {
+            w.pauseUntil = time + 1500 + Math.random() * 2500;
+          }
           if (this.anims.exists(`npc-idle-${w.npc.id}-${w.facing}`)) w.spr.play(`npc-idle-${w.npc.id}-${w.facing}`);
           continue;
         }
@@ -1000,6 +1027,11 @@ export class HallScene extends Phaser.Scene {
         const my = Math.max(-step, Math.min(step, ty));
         if (walkable(w.spr.x + mx, w.spr.y)) nx = w.spr.x + mx;
         if (walkable(nx, w.spr.y + my)) ny = w.spr.y + my;
+        if (w.npc.id === "valerie") {
+          // Hard confinement: never accept a step that leaves the workshop.
+          if (!this.inWorkshop(nx, w.spr.y)) nx = w.spr.x;
+          if (!this.inWorkshop(nx, ny)) ny = w.spr.y;
+        }
         w.spr.setPosition(nx, ny);
         w.shadow.setPosition(nx, ny + OP_H / 2 - 2);
         w.tag?.setPosition(nx, ny - OP_H / 2 - 6);
@@ -1010,12 +1042,18 @@ export class HallScene extends Phaser.Scene {
         continue;
       }
       if (time > w.pauseUntil) {
-        w.target = this.pickWaypoint();
+        w.target = this.pickWaypoint(w.npc.id);
         if (!w.target) w.pauseUntil = time + 2000;
       } else if (this.anims.exists(`npc-idle-${w.npc.id}-${w.facing}`) && w.spr.anims.currentAnim?.key !== `npc-idle-${w.npc.id}-${w.facing}`) {
         w.spr.play(`npc-idle-${w.npc.id}-${w.facing}`);
       }
     }
+    try {
+      (window as unknown as Record<string, unknown>).__keepNpcs = [...this.npcWalkers.values()].map((v) => ({
+        id: v.npc.id, x: Math.round(v.spr.x), y: Math.round(v.spr.y),
+        facing: v.facing, target: v.target, paused: time < v.pauseUntil,
+      }));
+    } catch { /* ignore */ }
     // Timer speech: one NPC at a time, every 20-40s, cycling preset lines.
     if (time >= this.nextSpeechAt && !this.npcBubbleActive()) {
       const walkers = [...this.npcWalkers.values()];
