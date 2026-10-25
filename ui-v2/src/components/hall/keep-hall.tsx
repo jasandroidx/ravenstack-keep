@@ -759,17 +759,6 @@ export function KeepHall() {
             <button
               type="button"
               onClick={() => {
-                hallAudio.playInteract();
-                setWardrobeOpen(true);
-              }}
-              title="Open Ravenlord Armor Wardrobe [C]"
-              className="rounded-sm border border-[#ffc857]/60 bg-[#ffc857]/10 px-2.5 py-2 font-mono text-xs uppercase tracking-wider text-[#ffc857] backdrop-blur-md transition hover:bg-[#ffc857]/25 hover:text-[#e8ecf1]"
-            >
-              🛡️ Armor [C]
-            </button>
-            <button
-              type="button"
-              onClick={() => {
                 hallAudio.playOracleGaze();
                 navigate({ to: "/oracle" });
               }}
@@ -802,12 +791,6 @@ export function KeepHall() {
               className="rounded-sm border border-[#2de2e6]/60 bg-[#2de2e6]/10 px-3 py-2 font-mono text-xs uppercase tracking-[0.14em] text-[#2de2e6] backdrop-blur-md transition hover:bg-[#2de2e6]/25"
             >
               Gallery
-            </Link>
-            <Link
-              to="/rooms"
-              className="rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/85 px-3 py-2 font-mono text-xs uppercase tracking-[0.14em] text-[#9aa3b2] backdrop-blur-md transition hover:text-[#e8ecf1]"
-            >
-              Ledger
             </Link>
             <Link
               to="/table"
