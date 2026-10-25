@@ -8,6 +8,16 @@ const FRAME_H = 40;
 const OP_W = 54;
 const OP_H = 68;
 
+/** A finished art sprite drawn on a furniture marker or hero item.
+ *  src is a public asset URL (Set A only unless a Set B pack lands);
+ *  sheet makes it an animated strip (frame size + frame list + rate). */
+export type RoomSprite = {
+  src: string;
+  w: number;
+  h: number;
+  sheet?: { fw: number; fh: number; frames: number[]; rate: number };
+};
+
 export type RoomFurniture = {
   id: string;
   label: string;
@@ -15,6 +25,7 @@ export type RoomFurniture = {
   x: number;
   y: number;
   radius: number;
+  sprite?: RoomSprite;
 };
 
 export type RoomLauncher = {
@@ -26,6 +37,8 @@ export type RoomLauncher = {
   kind: "radar" | "desk" | "terminal" | "circle" | "beacon";
   x: number;
   y: number;
+  /** Optional art sprite drawn under the code-drawn hero animation. */
+  sprite?: RoomSprite;
 };
 
 export type RoomOpts = {
@@ -39,6 +52,10 @@ export type RoomOpts = {
   spawn: { x: number; y: number };
   portals: PortalTrigger[];
   furniture: RoomFurniture[];
+  /** Ambient animated wall torches (Set A torch sheet, frames 6-11). */
+  torches?: { x: number; y: number }[];
+  /** Ambient animated braziers (Set A campfire sheet, all 40 frames). */
+  braziers?: { x: number; y: number }[];
   walk: { x: number; y: number; w: number; h: number }[];
   /** Solid circles, e.g. a central pedestal. */
   solidCircles?: { x: number; y: number; r: number }[];
@@ -128,6 +145,29 @@ export class RoomScene extends Phaser.Scene {
     for (const skin of RAVENLORD_SKINS) {
       this.load.spritesheet(`skin-${skin.id}`, skin.src, { frameWidth: FRAME_W, frameHeight: FRAME_H });
     }
+    const spriteSrcs: { key: string; sprite: RoomSprite }[] = [];
+    this.opts.furniture.forEach((f, i) => { if (f.sprite) spriteSrcs.push({ key: `spr-${this.opts.key}-f${i}`, sprite: f.sprite }); });
+    if (this.opts.launcher?.sprite) spriteSrcs.push({ key: `spr-${this.opts.key}-hero`, sprite: this.opts.launcher.sprite });
+    for (const s of spriteSrcs) {
+      if (s.sprite.sheet) this.load.spritesheet(s.key, s.sprite.src, { frameWidth: s.sprite.sheet.fw, frameHeight: s.sprite.sheet.fh });
+      else this.load.image(s.key, s.sprite.src);
+    }
+    if (this.opts.torches?.length) this.load.spritesheet("fx-torch", "/assets/fx/torch.png", { frameWidth: 32, frameHeight: 32 });
+    if (this.opts.braziers?.length) this.load.spritesheet("fx-campfire", "/assets/fx/campfire.png", { frameWidth: 32, frameHeight: 32 });
+  }
+
+  /** Draw a furniture/hero sprite; animated sheets loop (guarded anim create). */
+  private addRoomSprite(key: string, sprite: RoomSprite, x: number, y: number, depth: number) {
+    if (sprite.sheet) {
+      const animKey = `anim-${key}`;
+      if (!this.anims.exists(animKey)) {
+        this.anims.create({ key: animKey, frames: this.anims.generateFrameNumbers(key, { frames: sprite.sheet.frames }), frameRate: sprite.sheet.rate, repeat: -1 });
+      }
+      const spr = this.add.sprite(x, y, key).setDisplaySize(sprite.w, sprite.h).setDepth(depth);
+      spr.play(animKey);
+      return spr;
+    }
+    return this.add.image(x, y, key).setDisplaySize(sprite.w, sprite.h).setDepth(depth);
   }
 
   create(data?: { spawn?: { x: number; y: number } }) {
@@ -151,12 +191,34 @@ export class RoomScene extends Phaser.Scene {
         backgroundColor: "#0b0e14cc", padding: { x: 6, y: 3 },
       }).setOrigin(0.5, 1).setDepth(3);
     }
-    for (const f of this.opts.furniture) {
+    for (const [i, f] of this.opts.furniture.entries()) {
+      if (f.sprite) this.addRoomSprite(`spr-${this.opts.key}-f${i}`, f.sprite, f.x, f.y, 2);
       this.add.circle(f.x, f.y, f.radius, 0x2de2e6, 0.08).setDepth(3);
       this.add.text(f.x, f.y - f.radius - 6, f.label, {
         fontFamily: "monospace", fontSize: "14px", color: "#e8ecf1",
         backgroundColor: "#0b0e14cc", padding: { x: 5, y: 2 },
       }).setOrigin(0.5, 1).setDepth(3);
+    }
+
+    // Ambient animated torches + braziers (Set A sheets, looped for real).
+    if (this.opts.torches?.length) {
+      if (!this.anims.exists("torch-flame")) {
+        this.anims.create({ key: "torch-flame", frames: this.anims.generateFrameNumbers("fx-torch", { frames: [6, 7, 8, 9, 10, 11] }), frameRate: 8, repeat: -1 });
+      }
+      for (const t of this.opts.torches) {
+        const spr = this.add.sprite(t.x, t.y, "fx-torch").setDisplaySize(48, 48).setDepth(2);
+        spr.play("torch-flame");
+      }
+    }
+    if (this.opts.braziers?.length) {
+      if (!this.anims.exists("campfire-flame")) {
+        const frames = Array.from({ length: 40 }, (_, i) => i);
+        this.anims.create({ key: "campfire-flame", frames: this.anims.generateFrameNumbers("fx-campfire", { frames }), frameRate: 10, repeat: -1 });
+      }
+      for (const b of this.opts.braziers) {
+        const spr = this.add.sprite(b.x, b.y, "fx-campfire").setDisplaySize(64, 64).setDepth(2);
+        spr.play("campfire-flame");
+      }
     }
 
     // ONE animated hero launcher per room (Jason's launcher design, 2026-10-25).
@@ -165,6 +227,7 @@ export class RoomScene extends Phaser.Scene {
     // these tweens loop for real. No physics body, no collider: walking is never blocked.
     if (this.opts.launcher) {
       const l = this.opts.launcher;
+      if (l.sprite) this.addRoomSprite(`spr-${this.opts.key}-hero`, l.sprite, l.x, l.y, 1);
       this.add.text(l.x, l.y - 78, l.label, {
         fontFamily: "monospace", fontSize: "14px", color: "#ffc857",
         backgroundColor: "#0b0e14cc", padding: { x: 5, y: 2 },

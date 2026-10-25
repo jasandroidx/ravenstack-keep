@@ -320,6 +320,7 @@ export function KeepHall() {
           mapH: 1600,
           spawn: { x: 800, y: 1400 },
           launcher: { label: "RAVEN RECON", url: "https://ravenserve.tail20a090.ts.net:8446", kind: "radar", x: 800, y: 340 },
+          torches: [{ x: 320, y: 260 }, { x: 1280, y: 260 }],
           portals: [
             { id: "recon-return", x: 700, y: 1450, w: 200, h: 150, targetScene: "HallScene", targetSpawn: { x: 360, y: 280 }, label: "RETURN → HALL" },
           ],
@@ -346,6 +347,7 @@ export function KeepHall() {
           mapH: 1600,
           spawn: { x: 800, y: 1400 },
           launcher: { label: "RAVENSEARCH", url: "https://ravenserve.tail20a090.ts.net:8490", kind: "desk", x: 800, y: 800 },
+          torches: [{ x: 320, y: 260 }, { x: 1280, y: 260 }],
           portals: [
             { id: "search-return", x: 700, y: 1450, w: 200, h: 150, targetScene: "HallScene", targetSpawn: { x: 1500, y: 380 }, label: "RETURN → HALL" },
           ],
@@ -354,6 +356,8 @@ export function KeepHall() {
             { id: "query-desk", label: "QUERY DESK — SEARCH BOX", info: "RavenSearch :8490 — search box. Live search is at :8490 via SearXNG:8888 (25 results, 0 unresponsive 2026-10-25); result scrolls are not fetched in-room.", x: 800, y: 800, radius: 120 },
             { id: "scrolls", label: "RESULT SCROLLS", info: "FIXTURE in-room label — real results live at :8490, not fetched in-room.", x: 300, y: 600, radius: 80 },
             { id: "gears", label: "ENGINE GEARS", info: "FIXTURE in-room label — engine is SearXNG:8888, live and answering.", x: 1300, y: 600, radius: 80 },
+            { id: "bookshelf", label: "BOOKSHELF", info: "Top-Down Retro Interior bookshelf, Set A. Search references live at :8490.", x: 500, y: 400, radius: 60, sprite: { src: "/assets/furniture/bookshelf.png", w: 96, h: 96 } },
+            { id: "table", label: "READING TABLE", info: "Top-Down Retro Interior table, Set A.", x: 1100, y: 400, radius: 60, sprite: { src: "/assets/furniture/table.png", w: 96, h: 64 } },
           ],
           walk: [
             { x: 280, y: 220, w: 1040, h: 1180 },
@@ -368,6 +372,8 @@ export function KeepHall() {
           mapH: 1600,
           spawn: { x: 800, y: 1400 },
           launcher: { label: "RAVENSPLOIT", url: "https://ravenserve.tail20a090.ts.net:8487", kind: "terminal", x: 800, y: 800 },
+          torches: [{ x: 320, y: 260 }, { x: 1280, y: 260 }],
+          braziers: [{ x: 400, y: 1100 }, { x: 1200, y: 1100 }],
           portals: [
             { id: "sploit-return", x: 700, y: 1450, w: 200, h: 150, targetScene: "HallScene", targetSpawn: { x: 1000, y: 880 }, label: "RETURN → HALL" },
           ],
@@ -389,7 +395,8 @@ export function KeepHall() {
           mapW: 1600,
           mapH: 1600,
           spawn: { x: 800, y: 1400 },
-          launcher: { label: "RAVEN CITADEL", url: "https://ravenserve.tail20a090.ts.net:8443", kind: "circle", x: 800, y: 800 },
+          launcher: { label: "RAVEN CITADEL", url: "https://ravenserve.tail20a090.ts.net:8443", kind: "circle", x: 800, y: 800, sprite: { src: "/assets/fx/portal.png", w: 128, h: 128, sheet: { fw: 64, fh: 64, frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], rate: 6 } } },
+          torches: [{ x: 320, y: 260 }, { x: 1280, y: 260 }],
           portals: [
             { id: "citadel-return", x: 700, y: 1450, w: 200, h: 150, targetScene: "HallScene", targetSpawn: { x: 600, y: 680 }, label: "RETURN → HALL" },
           ],
@@ -412,6 +419,8 @@ export function KeepHall() {
           mapH: 1600,
           spawn: { x: 800, y: 1400 },
           launcher: { label: "RAVEN TOWER", url: "https://ravenserve.tail20a090.ts.net:8445", kind: "beacon", x: 800, y: 500 },
+          torches: [{ x: 320, y: 260 }, { x: 1280, y: 260 }],
+          braziers: [{ x: 400, y: 1100 }, { x: 1200, y: 1100 }],
           portals: [
             { id: "tower-return", x: 700, y: 1450, w: 200, h: 150, targetScene: "HallScene", targetSpawn: { x: 700, y: 880 }, label: "RETURN → HALL" },
           ],
