@@ -229,10 +229,9 @@ export class HallScene extends Phaser.Scene {
       .setDepth(25)
       .setBlendMode(Phaser.BlendModes.ADD);
 
-    // Register directional animations for ALL Ravenlord Skins. Only down/left/up
-    // are drawn; "right" is the left row mirrored via setFlipX (see
-    // applyFacingAnim) so turning left<->right is the same character turning,
-    // not a swap to a separately-drawn sprite.
+    // Register directional animations for ALL Ravenlord Skins. All four
+    // directions are drawn in the sheet (down 0-3, left 4-7, right 8-11,
+    // up 12-15) -- right is NOT a mirror of left, see applyFacingAnim.
     for (const skin of RAVENLORD_SKINS) {
       const texKey = `skin-${skin.id}`;
       this.anims.create({
@@ -244,6 +243,12 @@ export class HallScene extends Phaser.Scene {
       this.anims.create({
         key: `${skin.id}-walk-left`,
         frames: this.anims.generateFrameNumbers(texKey, { start: 4, end: 7 }),
+        frameRate: 8,
+        repeat: -1,
+      });
+      this.anims.create({
+        key: `${skin.id}-walk-right`,
+        frames: this.anims.generateFrameNumbers(texKey, { start: 8, end: 11 }),
         frameRate: 8,
         repeat: -1,
       });
@@ -261,6 +266,11 @@ export class HallScene extends Phaser.Scene {
       this.anims.create({
         key: `${skin.id}-idle-left`,
         frames: [{ key: texKey, frame: 4 }],
+        frameRate: 1,
+      });
+      this.anims.create({
+        key: `${skin.id}-idle-right`,
+        frames: [{ key: texKey, frame: 8 }],
         frameRate: 1,
       });
       this.anims.create({
@@ -519,15 +529,16 @@ export class HallScene extends Phaser.Scene {
   }
 
   /**
-   * "Right" has no drawn frames of its own -- it's the left row mirrored, so
-   * the player visibly turns instead of swapping to a differently-drawn
-   * sprite when crossing left<->right.
+   * All four directions have their own drawn row (right = frames 8-11).
+   * Never mirror: flipping the left row gives a wrong right (641-700 of
+   * 1280 pixels differ per frame from the drawn right row), which is
+   * exactly the sideways snap Jason reported. Play the facing's own
+   * anim; ignoreIfPlaying keeps the cycle running when facing is unchanged.
    */
   private applyFacingAnim(prefix: "walk" | "idle", ignoreIfPlaying = false) {
     const facing = this.lastFacing;
-    this.player.setFlipX(facing === "right");
-    const animFacing = facing === "right" ? "left" : facing;
-    this.safePlayAnim(this.player, `${this.activeSkinId}-${prefix}-${animFacing}`, ignoreIfPlaying);
+    this.player.setFlipX(false);
+    this.safePlayAnim(this.player, `${this.activeSkinId}-${prefix}-${facing}`, ignoreIfPlaying);
   }
 
   private loadVisits() {

@@ -10,14 +10,10 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as DriveRouteImport } from './routes/drive'
-import { Route as DutyRouteImport } from './routes/duty'
-import { Route as ForgeRouteImport } from './routes/forge'
 import { Route as GalleryRouteImport } from './routes/gallery'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MechanicRouteImport } from './routes/mechanic'
 import { Route as OracleRouteImport } from './routes/oracle'
-import { Route as QuarantineRouteImport } from './routes/quarantine'
 import { Route as RoomsRouteImport } from './routes/rooms'
 import { Route as SentinelRouteImport } from './routes/sentinel'
 import { Route as StackRouteImport } from './routes/stack'
@@ -29,21 +25,6 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DriveRoute = DriveRouteImport.update({
-  id: '/drive',
-  path: '/drive',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DutyRoute = DutyRouteImport.update({
-  id: '/duty',
-  path: '/duty',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ForgeRoute = ForgeRouteImport.update({
-  id: '/forge',
-  path: '/forge',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GalleryRoute = GalleryRouteImport.update({
@@ -64,11 +45,6 @@ const MechanicRoute = MechanicRouteImport.update({
 const OracleRoute = OracleRouteImport.update({
   id: '/oracle',
   path: '/oracle',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const QuarantineRoute = QuarantineRouteImport.update({
-  id: '/quarantine',
-  path: '/quarantine',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RoomsRoute = RoomsRouteImport.update({
@@ -109,14 +85,10 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/drive': typeof DriveRoute
-  '/duty': typeof DutyRoute
-  '/forge': typeof ForgeRoute
   '/gallery': typeof GalleryRoute
   '/login': typeof LoginRoute
   '/mechanic': typeof MechanicRoute
   '/oracle': typeof OracleRoute
-  '/quarantine': typeof QuarantineRoute
   '/rooms': typeof RoomsRouteWithChildren
   '/sentinel': typeof SentinelRoute
   '/stack': typeof StackRoute
@@ -127,14 +99,10 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/drive': typeof DriveRoute
-  '/duty': typeof DutyRoute
-  '/forge': typeof ForgeRoute
   '/gallery': typeof GalleryRoute
   '/login': typeof LoginRoute
   '/mechanic': typeof MechanicRoute
   '/oracle': typeof OracleRoute
-  '/quarantine': typeof QuarantineRoute
   '/sentinel': typeof SentinelRoute
   '/stack': typeof StackRoute
   '/table': typeof TableRoute
@@ -145,14 +113,10 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/drive': typeof DriveRoute
-  '/duty': typeof DutyRoute
-  '/forge': typeof ForgeRoute
   '/gallery': typeof GalleryRoute
   '/login': typeof LoginRoute
   '/mechanic': typeof MechanicRoute
   '/oracle': typeof OracleRoute
-  '/quarantine': typeof QuarantineRoute
   '/rooms': typeof RoomsRouteWithChildren
   '/sentinel': typeof SentinelRoute
   '/stack': typeof StackRoute
@@ -165,14 +129,10 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/drive'
-    | '/duty'
-    | '/forge'
     | '/gallery'
     | '/login'
     | '/mechanic'
     | '/oracle'
-    | '/quarantine'
     | '/rooms'
     | '/sentinel'
     | '/stack'
@@ -183,14 +143,10 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/drive'
-    | '/duty'
-    | '/forge'
     | '/gallery'
     | '/login'
     | '/mechanic'
     | '/oracle'
-    | '/quarantine'
     | '/sentinel'
     | '/stack'
     | '/table'
@@ -200,14 +156,10 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/drive'
-    | '/duty'
-    | '/forge'
     | '/gallery'
     | '/login'
     | '/mechanic'
     | '/oracle'
-    | '/quarantine'
     | '/rooms'
     | '/sentinel'
     | '/stack'
@@ -219,14 +171,10 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  DriveRoute: typeof DriveRoute
-  DutyRoute: typeof DutyRoute
-  ForgeRoute: typeof ForgeRoute
   GalleryRoute: typeof GalleryRoute
   LoginRoute: typeof LoginRoute
   MechanicRoute: typeof MechanicRoute
   OracleRoute: typeof OracleRoute
-  QuarantineRoute: typeof QuarantineRoute
   RoomsRoute: typeof RoomsRouteWithChildren
   SentinelRoute: typeof SentinelRoute
   StackRoute: typeof StackRoute
@@ -241,27 +189,6 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/drive': {
-      id: '/drive'
-      path: '/drive'
-      fullPath: '/drive'
-      preLoaderRoute: typeof DriveRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/duty': {
-      id: '/duty'
-      path: '/duty'
-      fullPath: '/duty'
-      preLoaderRoute: typeof DutyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/forge': {
-      id: '/forge'
-      path: '/forge'
-      fullPath: '/forge'
-      preLoaderRoute: typeof ForgeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/gallery': {
@@ -290,13 +217,6 @@ declare module '@tanstack/react-router' {
       path: '/oracle'
       fullPath: '/oracle'
       preLoaderRoute: typeof OracleRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/quarantine': {
-      id: '/quarantine'
-      path: '/quarantine'
-      fullPath: '/quarantine'
-      preLoaderRoute: typeof QuarantineRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/rooms': {
@@ -365,14 +285,10 @@ const RoomsRouteWithChildren = RoomsRoute._addFileChildren(RoomsRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  DriveRoute: DriveRoute,
-  DutyRoute: DutyRoute,
-  ForgeRoute: ForgeRoute,
   GalleryRoute: GalleryRoute,
   LoginRoute: LoginRoute,
   MechanicRoute: MechanicRoute,
   OracleRoute: OracleRoute,
-  QuarantineRoute: QuarantineRoute,
   RoomsRoute: RoomsRouteWithChildren,
   SentinelRoute: SentinelRoute,
   StackRoute: StackRoute,

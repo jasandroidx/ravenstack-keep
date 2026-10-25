@@ -147,10 +147,10 @@ export class RoomScene extends Phaser.Scene {
       if (!this.anims.exists(`${skin.id}-walk-down`)) {
         this.anims.create({ key: `${skin.id}-walk-down`, frames: this.anims.generateFrameNumbers(texKey, { start: 0, end: 3 }), frameRate: 8, repeat: -1 });
         this.anims.create({ key: `${skin.id}-walk-left`, frames: this.anims.generateFrameNumbers(texKey, { start: 4, end: 7 }), frameRate: 8, repeat: -1 });
-        this.anims.create({ key: `${skin.id}-walk-up`, frames: this.anims.generateFrameNumbers(texKey, { start: 12, end: 15 }), frameRate: 8, repeat: -1 });
+        this.anims.create({ key: `${skin.id}-walk-right`, frames: this.anims.generateFrameNumbers(texKey, { start: 8, end: 11 }), frameRate: 8, repeat: -1 }); this.anims.create({ key: `${skin.id}-walk-up`, frames: this.anims.generateFrameNumbers(texKey, { start: 12, end: 15 }), frameRate: 8, repeat: -1 });
         this.anims.create({ key: `${skin.id}-idle-down`, frames: [{ key: texKey, frame: 0 }], frameRate: 1 });
         this.anims.create({ key: `${skin.id}-idle-left`, frames: [{ key: texKey, frame: 4 }], frameRate: 1 });
-        this.anims.create({ key: `${skin.id}-idle-up`, frames: [{ key: texKey, frame: 12 }], frameRate: 1 });
+        this.anims.create({ key: `${skin.id}-idle-right`, frames: [{ key: texKey, frame: 8 }], frameRate: 1 }); this.anims.create({ key: `${skin.id}-idle-up`, frames: [{ key: texKey, frame: 12 }], frameRate: 1 });
       }
     }
 
@@ -217,9 +217,9 @@ export class RoomScene extends Phaser.Scene {
 
   private applyFacingAnim(prefix: "walk" | "idle") {
     const facing = this.lastFacing;
-    this.player.setFlipX(facing === "right");
-    const animFacing = facing === "right" ? "left" : facing;
-    const key = `${this.activeSkinId}-${prefix}-${animFacing}`;
+    // Right has its own drawn row (frames 8-11) -- never mirror left.
+    this.player.setFlipX(false);
+    const key = `${this.activeSkinId}-${prefix}-${facing}`;
     if (this.anims.exists(key)) this.player.play(key, true);
   }
 
