@@ -206,18 +206,84 @@ export async function executeFastMCPTool<T = JsonValue>(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), stage.timeoutMs);
     try {
-      const res = await fetch(stage.url, {
+      // FastMCP 4 streamable-http requires a session: initialize first,
+      // capture Mcp-Session-Id, send notifications/initialized, then call.
+      // If initialize fails (older gateway), fall through and try the
+      // direct call anyway, preserving the old behaviour.
+      const baseHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+        // Streamable HTTP servers reply with SSE. Advertising only
+        // application/json gets a 406 from some, and a body we cannot read
+        // from others.
+        Accept: "application/json, text/event-stream",
+      };
+      let sessionId = "";
+      const initRes = await fetch(stage.url, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          // Streamable HTTP servers reply with SSE. Advertising only
-          // application/json gets a 406 from some, and a body we cannot read
-          // from others.
-          Accept: "application/json, text/event-stream",
-        },
+        headers: baseHeaders,
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: `init-${Date.now()}`,
+          method: "initialize",
+          params: {
+            protocolVersion: "2025-06-18",
+            capabilities: {},
+            clientInfo: { name: "ravenstack-keep-hall", version: "0.1.0" },
+          },
+        }),
+        signal: controller.signal,
+      });
+      if (initRes.ok) {
+        sessionId = initRes.headers.get("mcp-session-id") ?? "";
+        await initRes.text().catch(() => "");
+        if (sessionId) {
+          await fetch(stage.url, {
+            method: "POST",
+            headers: { ...baseHeaders, "Mcp-Session-Id": sessionId },
+            body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }),
+            signal: controller.signal,
+          }).catch(() => undefined);
+        }
+      } else {
+        attempts.push(`${stage.label}: initialize HTTP ${initRes.status}`);
+      }
+      const callHeaders: Record<string, string> = { ...baseHeaders, "MCP-Protocol-Version": "2025-06-18" };
+      if (sessionId) callHeaders["Mcp-Session-Id"] = sessionId;
+      let res = await fetch(stage.url, {
+        method: "POST",
+        headers: callHeaders,
         body: body(),
         signal: controller.signal,
       });
+      if (!res.ok && (res.status === 400 || res.status === 404) && sessionId) {
+        // Session dropped: re-handshake exactly once, then retry.
+        const retryInit = await fetch(stage.url, {
+          method: "POST",
+          headers: baseHeaders,
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: `init-${Date.now()}`,
+            method: "initialize",
+            params: {
+              protocolVersion: "2025-06-18",
+              capabilities: {},
+              clientInfo: { name: "ravenstack-keep-hall", version: "0.1.0" },
+            },
+          }),
+          signal: controller.signal,
+        });
+        const retrySession = retryInit.headers.get("mcp-session-id") ?? "";
+        await retryInit.text().catch(() => "");
+        if (retrySession) {
+          callHeaders["Mcp-Session-Id"] = retrySession;
+          res = await fetch(stage.url, {
+            method: "POST",
+            headers: callHeaders,
+            body: body(),
+            signal: controller.signal,
+          });
+        }
+      }
 
       if (res.ok) {
         const json = (await readMcpBody(res)) as { result?: unknown } | null;
