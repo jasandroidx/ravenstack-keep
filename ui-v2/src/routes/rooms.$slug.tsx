@@ -47,12 +47,6 @@ function RoomPage() {
             This room is visible so the Keep remembers the capability. Take it to Clawforge before it becomes real.
           </p>
           <p className="mt-4 text-sm text-subtle">Kill note: {room.kill}</p>
-          <Link
-            to="/forge"
-            className="mt-6 inline-flex h-11 items-center rounded-sm bg-accent px-4 text-sm font-medium text-accent-fg"
-          >
-            Forge a Spec
-          </Link>
         </div>
       )}
       <div className="mt-10">

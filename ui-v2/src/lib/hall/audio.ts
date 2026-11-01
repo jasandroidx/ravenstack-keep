@@ -162,6 +162,44 @@ class HallAudioEngine {
   }
 
   /**
+   * TELEPORT: synthesized whoosh + portal chime. No audio asset file —
+   * oscillator sweep up for the whoosh, two sine blips for the chime.
+   * Respects enabled (the sound toggle): silent when off.
+   */
+  public playTeleport(): void {
+    if (!this.enabled) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    const t = ctx.currentTime;
+    const whoosh = ctx.createOscillator();
+    const whooshGain = ctx.createGain();
+    whoosh.type = "sine";
+    whoosh.frequency.setValueAtTime(300, t);
+    whoosh.frequency.exponentialRampToValueAtTime(1400, t + 0.5);
+    whooshGain.gain.setValueAtTime(0.001, t);
+    whooshGain.gain.linearRampToValueAtTime(0.08, t + 0.15);
+    whooshGain.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+    whoosh.connect(whooshGain);
+    whooshGain.connect(ctx.destination);
+    whoosh.start(t);
+    whoosh.stop(t + 0.56);
+
+    const chime = ctx.createOscillator();
+    const chimeGain = ctx.createGain();
+    chime.type = "sine";
+    chime.frequency.setValueAtTime(880, t + 0.1);
+    chime.frequency.exponentialRampToValueAtTime(1320, t + 0.35);
+    chimeGain.gain.setValueAtTime(0.001, t + 0.1);
+    chimeGain.gain.linearRampToValueAtTime(0.05, t + 0.18);
+    chimeGain.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+    chime.connect(chimeGain);
+    chimeGain.connect(ctx.destination);
+    chime.start(t + 0.1);
+    chime.stop(t + 0.46);
+  }
+
+  /**
    * THE ORACLE: Ghostly Spectral Apparition Manifestation Sound
    * Deep sub rumble, eerie dissonant dual-drone, spectral whisper, and rattling iron chains
    */

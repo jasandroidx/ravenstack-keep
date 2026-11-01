@@ -17,7 +17,55 @@ import {
   type HallNpc,
 } from "./world";
 import { hallAudio } from "./audio";
+import { portalAt, type PortalTrigger } from "./portal";
 import { calculateVelocity, determineFacing, type Facing } from "./locomotion";
+
+type NpcWalker = {
+  npc: HallNpc;
+  spr: Phaser.GameObjects.Sprite;
+  tag: Phaser.GameObjects.Text | null;
+  shadow: Phaser.GameObjects.Ellipse;
+  target: { x: number; y: number } | null;
+  pauseUntil: number;
+  facing: Facing;
+  bubble: Phaser.GameObjects.Text | null;
+  bubbleUntil: number;
+  lineIdx: number;
+  proxUntil: number;
+};
+
+const NPC_SPEED = 60;
+
+/** Preset lines only — these work with no model at all. No live numbers,
+ *  no invented status: Raziel's lines are generic Keep truths, and his
+ *  "What's live?" action already reports real status when asked. There is
+ *  no Ravenlord NPC (the Ravenlord is the player), so Keep-status lines
+ *  live on Raziel, the orchestrator. */
+const NPC_LINES: Record<string, string[]> = {
+  valerie: [
+    "Workshop's cold until you forge it — but I can still diagnose. Numbered steps, reversible, no secrets.",
+    "REA rule one: own code or open source. Commercial binaries don't get decompiled here.",
+    "Tiny binary first. A small test already burned ~907KB of tool output — big ones wait for your yes.",
+    "Ghidra and Java stay on the laptop until you say the download's fine.",
+  ],
+  raziel: [
+    "The hall is live. Doors stay sealed until you approve a Spec.",
+    "One map. One URL. Wake it or it sleeps.",
+    "Walk it. The rooms you built are the ones that answer.",
+    "Human remains the final gate — I don't fire anything on my own.",
+  ],
+  corvid: [
+    "Roost first. Cited digest only — no rumor, no invented numbers.",
+    "Point me at a source and I come back with citations, or I say unknown.",
+    "If it isn't in the source, it isn't in my answer.",
+  ],
+};
+
+const NPC_PROX_LINES: Record<string, string> = {
+  valerie: "Need a diagnosis, or a decompile plan? Both start small.",
+  raziel: "The Keep holds. What are you walking toward?",
+  corvid: "Got a source? I'll cite it or say unknown.",
+};
 
 export type HallEvents = {
   onZone: (name: string, lock: string) => void;
@@ -27,6 +75,8 @@ export type HallEvents = {
   onSkinChange?: (skinId: string) => void;
   /** Player stepped into the Quarantine Cell. */
   onEnterCell?: () => void;
+  /** A scene finished create() — React must point its ref at the live scene. */
+  onSceneReady?: (scene: HallScene) => void;
 };
 
 /** Slicing dimensions in PNG source (128x160 -> 4x4 grid of 32x40) */
@@ -82,10 +132,23 @@ export class HallScene extends Phaser.Scene {
   private lastZone = "";
   private lastPrompt = "";
   private dest: { x: number; y: number } | null = null;
+  /** NPC the player clicked: once they reach the walkable approach tile, the
+   *  NPC's dialogue opens automatically. Cleared by manual input. */
+  private pendingApproach: HallNpc | null = null;
+  /** Walking NPCs (Hall only). Reset in create() — scene instances are
+   *  reused on portal return, so stale sprite refs would touch destroyed
+   *  objects (the black-canvas bug class). */
+  private npcWalkers = new Map<string, NpcWalker>();
+  private nextSpeechAt = 0;
+  private speechIdx = 0;
+  /** How long the player has been wedged with an active dest (prop or wall
+   *  between them and the click). Clears so they don't grind an edge. */
+  private destStallMs = 0;
   private stickX = 0;
   private stickY = 0;
   private lastFacing: Facing = "down";
   private stepTimer = 0;
+  private debugFrame = 0;
   private wasMoving = false;
   private oracleThinking = false;
 
@@ -117,12 +180,24 @@ export class HallScene extends Phaser.Scene {
   private freezeMs = 0;
 
   public paused = false;
+  private portalOpts: { key: string; spawn: { x: number; y: number }; portals: PortalTrigger[] };
+  private isTransitioning = false;
+  private portalExitRequired = false;
+  private portalGraceUntil = 0;
 
   /** True once create() finished wiring up the scene objects. */
   public ready = false;
 
-  constructor(eventsOut: HallEvents) {
-    super({ key: "HallScene" });
+  constructor(
+    eventsOut: HallEvents,
+    opts?: { key?: string; spawn?: { x: number; y: number }; portals?: PortalTrigger[] },
+  ) {
+    super({ key: opts?.key ?? "HallScene" });
+    this.portalOpts = {
+      key: opts?.key ?? "HallScene",
+      spawn: opts?.spawn ?? PLAYER_SPAWN,
+      portals: opts?.portals ?? [],
+    };
     this.eventsOut = eventsOut;
     try {
       const saved = localStorage.getItem("ravenlord_skin");
@@ -138,6 +213,7 @@ export class HallScene extends Phaser.Scene {
     this.stickX = x;
     this.stickY = y;
     if (x || y) this.dest = null;
+    try { (window as unknown as Record<string, unknown>).__keepLastDir = { x, y, t: Date.now() }; } catch { /* no window */ }
   }
 
   preload() {
@@ -163,12 +239,50 @@ export class HallScene extends Phaser.Scene {
     }
   }
 
-  create() {
+  create(data?: { spawn?: { x: number; y: number } }) {
+    const spawn = data?.spawn ?? this.portalOpts.spawn;
+    // Scene restart cleanup (black-canvas-after-return fix): this scene
+    // instance is REUSED on portal return, so create() runs again on the
+    // same instance. Any array filled in create() must be reset here, or
+    // update() keeps touching destroyed GameObjects from the previous run
+    // (the Oracle chains are the observed case: their setTo threw on a
+    // destroyed line, freezing the returned Hall at a black canvas).
+    this.oracleChains = [];
+    this.npcWalkers.clear();
+    this.nextSpeechAt = 0;
+    this.speechIdx = 0;
+    this.isTransitioning = false;
+    this.portalExitRequired = this.portalOpts.portals.some(
+      (p) => spawn.x >= p.x && spawn.x <= p.x + p.w && spawn.y >= p.y && spawn.y <= p.y + p.h,
+    );
+    this.portalGraceUntil = 0;
     this.cameras.main.setBackgroundColor(PALETTE.bg);
     this.add.image(0, 0, "keep-map").setOrigin(0, 0).setDisplaySize(MAP_W, MAP_H).setDepth(0);
+    for (const p of this.portalOpts.portals) {
+      this.add
+        .rectangle(p.x + p.w / 2, p.y + p.h / 2, p.w, p.h)
+        .setStrokeStyle(4, 0x2de2e6, 0.95)
+        .setDepth(3);
+      this.add
+        .text(p.x + p.w / 2, p.y - 8, p.label ?? "DOOR", {
+          fontFamily: "monospace", fontSize: "14px", color: "#2de2e6",
+          backgroundColor: "#0b0e14cc", padding: { x: 6, y: 3 },
+        })
+        .setOrigin(0.5, 1)
+        .setDepth(3);
+    }
+    if (this.scene.key !== "HallScene") {
+      this.add
+        .text(MAP_W / 2, 56, "HALL TEST CLONE — return door below", {
+          fontFamily: "monospace", fontSize: "20px", color: "#ffc857",
+          backgroundColor: "#0b0e14cc", padding: { x: 10, y: 6 },
+        })
+        .setOrigin(0.5, 0)
+        .setDepth(30);
+    }
     this.physics.world.setBounds(0, 0, MAP_W, MAP_H);
     this.cameras.main.setBounds(0, 0, MAP_W, MAP_H);
-    this.cameras.main.centerOn(PLAYER_SPAWN.x, PLAYER_SPAWN.y);
+    this.cameras.main.centerOn(spawn.x, spawn.y);
     this.cameras.main.setZoom(1.45);
     this.cameras.main.setRoundPixels(true);
 
@@ -178,65 +292,101 @@ export class HallScene extends Phaser.Scene {
       .setDepth(25)
       .setBlendMode(Phaser.BlendModes.ADD);
 
-    // Register directional animations for ALL Ravenlord Skins. Only down/left/up
-    // are drawn; "right" is the left row mirrored via setFlipX (see
-    // applyFacingAnim) so turning left<->right is the same character turning,
-    // not a swap to a separately-drawn sprite.
+    // Register directional animations for ALL Ravenlord Skins. All four
+    // directions are drawn in the sheet (down 0-3, left 4-7, right 8-11,
+    // up 12-15) -- right is NOT a mirror of left, see applyFacingAnim.
     for (const skin of RAVENLORD_SKINS) {
       const texKey = `skin-${skin.id}`;
-      this.anims.create({
-        key: `${skin.id}-walk-down`,
-        frames: this.anims.generateFrameNumbers(texKey, { start: 0, end: 3 }),
-        frameRate: 8,
-        repeat: -1,
-      });
-      this.anims.create({
-        key: `${skin.id}-walk-left`,
-        frames: this.anims.generateFrameNumbers(texKey, { start: 4, end: 7 }),
-        frameRate: 8,
-        repeat: -1,
-      });
-      this.anims.create({
-        key: `${skin.id}-walk-up`,
-        frames: this.anims.generateFrameNumbers(texKey, { start: 12, end: 15 }),
-        frameRate: 8,
-        repeat: -1,
-      });
-      this.anims.create({
-        key: `${skin.id}-idle-down`,
-        frames: [{ key: texKey, frame: 0 }],
-        frameRate: 1,
-      });
-      this.anims.create({
-        key: `${skin.id}-idle-left`,
-        frames: [{ key: texKey, frame: 4 }],
-        frameRate: 1,
-      });
-      this.anims.create({
-        key: `${skin.id}-idle-up`,
-        frames: [{ key: texKey, frame: 12 }],
-        frameRate: 1,
-      });
+      // AnimationManager is global per Game, not per Scene: on portal
+      // return this create() runs again, so guard every create or Phaser
+      // logs "AnimationManager key already exists" for every key.
+      const mk = (key: string, frames: unknown, frameRate: number, repeat: number) => {
+        if (!this.anims.exists(key)) this.anims.create({ key, frames: frames as never, frameRate, repeat });
+      };
+      mk(`${skin.id}-walk-down`, this.anims.generateFrameNumbers(texKey, { start: 0, end: 3 }), 8, -1);
+      mk(`${skin.id}-walk-left`, this.anims.generateFrameNumbers(texKey, { start: 4, end: 7 }), 8, -1);
+      mk(`${skin.id}-walk-right`, this.anims.generateFrameNumbers(texKey, { start: 8, end: 11 }), 8, -1);
+      mk(`${skin.id}-walk-up`, this.anims.generateFrameNumbers(texKey, { start: 12, end: 15 }), 8, -1);
+      mk(`${skin.id}-idle-down`, [{ key: texKey, frame: 0 }], 1, 0);
+      mk(`${skin.id}-idle-left`, [{ key: texKey, frame: 4 }], 1, 0);
+      mk(`${skin.id}-idle-right`, [{ key: texKey, frame: 8 }], 1, 0);
+      mk(`${skin.id}-idle-up`, [{ key: texKey, frame: 12 }], 1, 0);
     }
 
-    // Static NPC Sprites
+    // NPC sprites. Every actor NPC except the Oracle eye walks: waypoint
+    // wander, same walkable/solid rules as the player, no pathfinding lib.
     for (const npc of HALL_NPCS) {
+      let spr: Phaser.GameObjects.Sprite | null = null;
+      let shadow: Phaser.GameObjects.Ellipse | null = null;
       if (npc.actor) {
-        const spr = this.add
+        spr = this.add
           .sprite(npc.x, npc.y, `actor-${npc.id}`, 0)
           .setDisplaySize(OP_W, OP_H)
           .setDepth(5);
-        this.add
+        shadow = this.add
           .ellipse(npc.x, npc.y + OP_H / 2 - 2, 28, 10, 0x000000, 0.45)
           .setDepth(4);
 
-        this.anims.create({
-          key: `npc-idle-${npc.id}`,
-          frames: this.anims.generateFrameNumbers(`actor-${npc.id}`, { start: 0, end: 3 }),
-          frameRate: 3,
-          repeat: -1,
-        });
+        if (!this.anims.exists(`npc-idle-${npc.id}`)) {
+          this.anims.create({
+            key: `npc-idle-${npc.id}`,
+            frames: this.anims.generateFrameNumbers(`actor-${npc.id}`, { start: 0, end: 3 }),
+            frameRate: 3,
+            repeat: -1,
+          });
+        }
+        // Direction anims for walkers only (actor sheets are 128x160, 4x4
+        // at 32x40 like the player: down 0-3, left 4-7, right 8-11, up 12-15).
+        // The Oracle eye sheet is 96x96, a different layout — excluded.
+        if (npc.id !== "oracle") {
+          const dirs: { dir: Facing; start: number; end: number; idle: number }[] = [
+            { dir: "down", start: 0, end: 3, idle: 0 },
+            { dir: "left", start: 4, end: 7, idle: 4 },
+            { dir: "right", start: 8, end: 11, idle: 8 },
+            { dir: "up", start: 12, end: 15, idle: 12 },
+          ];
+          for (const d of dirs) {
+            if (!this.anims.exists(`npc-walk-${npc.id}-${d.dir}`)) {
+              this.anims.create({
+                key: `npc-walk-${npc.id}-${d.dir}`,
+                frames: this.anims.generateFrameNumbers(`actor-${npc.id}`, { start: d.start, end: d.end }),
+                frameRate: 6,
+                repeat: -1,
+              });
+            }
+            if (!this.anims.exists(`npc-idle-${npc.id}-${d.dir}`)) {
+              this.anims.create({
+                key: `npc-idle-${npc.id}-${d.dir}`,
+                frames: [{ key: `actor-${npc.id}`, frame: d.idle }],
+                frameRate: 1,
+              });
+            }
+          }
+        }
         spr.play(`npc-idle-${npc.id}`);
+      }
+
+      // Small pixel name tag above every character. The Oracle paints its own
+      // proverb above the eye, so it is left to speak for itself.
+      let tag: Phaser.GameObjects.Text | null = null;
+      if (npc.actor && npc.id !== "oracle") {
+        tag = this.add
+          .text(npc.x, npc.y - OP_H / 2 - 6, npc.name, {
+            fontFamily: "monospace",
+            fontSize: "8px",
+            color: "#e8ecf1",
+            backgroundColor: "#0b0e14aa",
+            padding: { x: 3, y: 1 },
+          })
+          .setOrigin(0.5, 1)
+          .setDepth(12)
+          .setAlpha(0.92);
+      }
+      if (npc.actor && npc.id !== "oracle" && spr && shadow) {
+        this.npcWalkers.set(npc.id, {
+          npc, spr, tag, shadow, target: null, pauseUntil: 0, facing: "down",
+          bubble: null, bubbleUntil: 0, lineIdx: 0, proxUntil: 0,
+        });
       }
     }
 
@@ -289,20 +439,17 @@ export class HallScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(11);
 
-    // Dynamic Point Lights
-    for (const cfg of HALL_LIGHTS) {
-      const light = this.add.pointlight(cfg.x, cfg.y, cfg.color, cfg.radius, cfg.intensity);
-      light.setDepth(12);
-      this.hallLights.push(light);
-      this.lightBase.push(cfg.intensity);
-      this.lightPhase.push(Math.random() * Math.PI * 2);
-    }
+    // Dynamic Point Lights — removed. The pointlight sprites rendered as flat,
+    // harshly-edged color blobs overlapping the painted background rather than
+    // a soft torch glow (looked broken, not atmospheric). this.hallLights stays
+    // permanently empty; the flicker-update loop and pulseTorch() below already
+    // no-op safely on an empty array, so nothing else needed changing.
 
     // Player Shadow & Sprite
-    this.shadow = this.add.ellipse(PLAYER_SPAWN.x, PLAYER_SPAWN.y + 2, 28, 10, 0x000000, 0.42).setDepth(13);
+    this.shadow = this.add.ellipse(spawn.x, spawn.y + 2, 28, 10, 0x000000, 0.42).setDepth(13);
 
     this.player = this.physics.add
-      .sprite(PLAYER_SPAWN.x, PLAYER_SPAWN.y, `skin-${this.activeSkinId}`, 0)
+      .sprite(spawn.x, spawn.y, `skin-${this.activeSkinId}`, 0)
       .setDisplaySize(OP_W, OP_H)
       .setDepth(14);
 
@@ -333,6 +480,11 @@ export class HallScene extends Phaser.Scene {
     this.cameras.main.setDeadzone(200, 130);
     this.cameras.main.setZoom(1.45);
 
+    // Spawn fully on-screen: the first painted frames may precede the final
+    // sized resize, which can leave the player half-cut under the HUD bar.
+    // Snap the camera onto the player one frame in, then let the follow ease.
+    this.time.delayedCall(32, () => this.centerCameraOnPlayer());
+
     if (this.input.keyboard) {
       this.cursors = this.input.keyboard.createCursorKeys();
       this.wasd = this.input.keyboard.addKeys("W,A,S,D") as typeof this.wasd;
@@ -351,23 +503,28 @@ export class HallScene extends Phaser.Scene {
       if (this.paused) return;
       const w = this.cameras.main.getWorldPoint(p.x, p.y);
       const hit = npcAtPoint(w.x, w.y);
-      // PERFORMANCE: Using squared distance calculation rather than Math.hypot
-      // Math.hypot can be a measurable performance bottleneck in a game loop context
+      // PERF: squared distance avoids Math.hypot in the hot path
       const dx = w.x - this.player.x;
       const dy = w.y - this.player.y;
       const distSqToPlayer = dx * dx + dy * dy;
-      if (hit && distSqToPlayer < 8100) { // 90 * 90
-        if (hit.id === "oracle") {
-          hallAudio.playOracleGaze();
-        } else {
-          hallAudio.playInteract();
+      if (hit) {
+        if (hit.id === "oracle") hallAudio.playOracleGaze();
+        else hallAudio.playInteract();
+        if (distSqToPlayer < 8100) {
+          // Already at the NPC: talk immediately. E/Space does the same.
+          this.eventsOut.onTalk(hit);
+          return;
         }
-        this.eventsOut.onTalk(hit);
+        // Far NPC: walk the player next to them, then open the dialogue.
+        this.pendingApproach = null;
+        this.approach(hit);
         return;
       }
       if (walkable(w.x, w.y)) {
         this.dest = { x: w.x, y: w.y };
+        this.pendingApproach = null;
         this.reticle.setPosition(w.x, w.y).setVisible(true);
+        try { (window as unknown as Record<string, unknown>).__keepLastClick = { x: w.x, y: w.y, dest: this.dest, t: Date.now() }; } catch { /* no window */ }
       }
     });
 
@@ -385,6 +542,27 @@ export class HallScene extends Phaser.Scene {
     // scene's create() runs on Phaser's async boot. Signals that the objects
     // below are all live before external code touches them.
     this.ready = true;
+    this.portalGraceUntil = (this.time?.now ?? 0) + 800;
+    try {
+      (window as unknown as Record<string, unknown>).__keepSceneKey = this.scene.key;
+      (window as unknown as Record<string, unknown>).__keepSpawn = spawn;
+    } catch { /* headless / no window */ }
+    this.cameras.main.fadeIn(250);
+    try {
+      (window as unknown as Record<string, unknown>).__keepPlayer = { x: spawn.x, y: spawn.y, vx: 0, vy: 0, paused: false, dest: null, stickX: 0, stickY: 0, sceneKey: this.scene.key };
+    } catch { /* no window */ }
+    this.eventsOut.onSceneReady?.(this);
+  }
+
+  private triggerPortal(p: PortalTrigger) {
+    if (this.isTransitioning || !this.player) return;
+    this.isTransitioning = true;
+    this.player.setVelocity(0, 0);
+    this.dest = null;
+    this.cameras.main.fadeOut(250);
+    this.cameras.main.once("camerafadeoutcomplete", () => {
+      this.scene.start(p.targetScene, { spawn: p.targetSpawn });
+    });
   }
 
   public pulseTorch() {
@@ -424,15 +602,16 @@ export class HallScene extends Phaser.Scene {
   }
 
   /**
-   * "Right" has no drawn frames of its own -- it's the left row mirrored, so
-   * the player visibly turns instead of swapping to a differently-drawn
-   * sprite when crossing left<->right.
+   * All four directions have their own drawn row (right = frames 8-11).
+   * Never mirror: flipping the left row gives a wrong right (641-700 of
+   * 1280 pixels differ per frame from the drawn right row), which is
+   * exactly the sideways snap Jason reported. Play the facing's own
+   * anim; ignoreIfPlaying keeps the cycle running when facing is unchanged.
    */
   private applyFacingAnim(prefix: "walk" | "idle", ignoreIfPlaying = false) {
     const facing = this.lastFacing;
-    this.player.setFlipX(facing === "right");
-    const animFacing = facing === "right" ? "left" : facing;
-    this.safePlayAnim(this.player, `${this.activeSkinId}-${prefix}-${animFacing}`, ignoreIfPlaying);
+    this.player.setFlipX(false);
+    this.safePlayAnim(this.player, `${this.activeSkinId}-${prefix}-${facing}`, ignoreIfPlaying);
   }
 
   private loadVisits() {
@@ -691,7 +870,208 @@ export class HallScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Clicked a far NPC: set a walkable approach tile inside the NPC's talk
+   * radius and remember to open their dialogue on arrival. Picks the point
+   * on the player's side of the NPC first, then any nearest walkable tile.
+   */
+  private approach(npc: HallNpc) {
+    if (!this.player || !walkable(npc.x, npc.y)) return;
+    const dx = this.player.x - npc.x;
+    const dy = this.player.y - npc.y;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    const targetDist = npc.radius + 10;
+    let tx = npc.x + (dx / dist) * targetDist;
+    let ty = npc.y + (dy / dist) * targetDist;
+    if (!walkable(tx, ty)) {
+      let best: { x: number; y: number; dSq: number } | null = null;
+      for (let a = 0; a < 32; a++) {
+        const ang = (a / 32) * Math.PI * 2;
+        const cx = npc.x + Math.cos(ang) * targetDist;
+        const cy = npc.y + Math.sin(ang) * targetDist;
+        if (!walkable(cx, cy)) continue;
+        const ddx = cx - this.player.x;
+        const ddy = cy - this.player.y;
+        const dSq = ddx * ddx + ddy * ddy;
+        if (!best || dSq < best.dSq) best = { x: cx, y: cy, dSq };
+      }
+      if (!best) return;
+      tx = best.x;
+      ty = best.y;
+    }
+    this.dest = { x: tx, y: ty };
+    this.pendingApproach = npc;
+    this.reticle.setPosition(tx, ty).setVisible(true);
+  }
+
+  /** Snap the camera back onto the player (spawn / post-resize). */
+  public centerCameraOnPlayer() {
+    if (this.player && this.cameras.main) {
+      this.cameras.main.centerOn(this.player.x, this.player.y);
+    }
+  }
+
+  /**
+   * Enable or disable Phaser's keyboard while React owns the focus (talk /
+   * table / wardrobe modals). Instead of fully pausing the scene, the keyboard
+   * plugin is switched off so typing in an input never fires E/Space/ESC into
+   * the game, then re-enabled (with global capture) when a modal closes.
+   */
+  public setKeyboardEnabled(on: boolean) {
+    if (!this.input?.keyboard) return;
+    this.input.keyboard.enabled = on;
+    if (on) this.input.keyboard.enableGlobalCapture();
+    else this.input.keyboard.disableGlobalCapture();
+  }
+
+
+  /** Show a speech bubble above a walking NPC. Callers keep it to one
+   *  bubble at a time (see npcBubbleActive). Used by the timer, proximity
+   *  lines, and the React ask box (live answers). */
+  public showBubble(npcId: string, text: string, ms = 4500) {
+    const w = this.npcWalkers.get(npcId);
+    if (!w) return;
+    if (w.bubble) { try { w.bubble.destroy(); } catch { /* ignore */ } w.bubble = null; }
+    w.bubble = this.add.text(w.spr.x, w.spr.y - OP_H / 2 - 30, text, {
+      fontFamily: "monospace", fontSize: "12px", color: "#e8ecf1", align: "center",
+      backgroundColor: "#0b0e14e6", padding: { x: 8, y: 5 },
+      wordWrap: { width: 220 },
+    }).setOrigin(0.5, 1).setDepth(30);
+    w.bubbleUntil = this.time.now + ms;
+  }
+
+  private npcBubbleActive(): boolean {
+    for (const w of this.npcWalkers.values()) if (w.bubble) return true;
+    return false;
+  }
+
+  // Valerie stays in the Workshop. Workshop floor in world.ts WALK is
+  // 1340,190,370,500; inset 30px so she never clips walls, benches, or doors.
+  // The zone rect (1310,60,420,680) is NOT the walkable floor — it includes
+  // the benches strip and the hall↔workshop corridor, so it is not used here.
+  private static readonly VALERIE_WORKSHOP = { x: 1370, y: 220, w: 310, h: 440 };
+
+  private inWorkshop(x: number, y: number): boolean {
+    const r = (this.constructor as typeof HallScene).VALERIE_WORKSHOP;
+    return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+  }
+
+  private pickWaypoint(npcId?: string): { x: number; y: number } | null {
+    if (npcId === "valerie") {
+      const r = (this.constructor as typeof HallScene).VALERIE_WORKSHOP;
+      for (let i = 0; i < 24; i++) {
+        const x = r.x + Math.random() * r.w;
+        const y = r.y + Math.random() * r.h;
+        if (walkable(x, y)) return { x, y };
+      }
+      return null;
+    }
+    for (let i = 0; i < 12; i++) {
+      const x = 120 + Math.random() * (MAP_W - 240);
+      const y = 120 + Math.random() * (MAP_H - 240);
+      if (walkable(x, y)) return { x, y };
+    }
+    return null;
+  }
+
+  private faceToward(w: NpcWalker, dx: number, dy: number) {
+    const facing: Facing = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? "right" : "left") : (dy >= 0 ? "down" : "up");
+    if (facing !== w.facing || w.spr.anims.currentAnim?.key !== `npc-idle-${w.npc.id}-${facing}`) {
+      w.facing = facing;
+      if (this.anims.exists(`npc-idle-${w.npc.id}-${facing}`)) w.spr.play(`npc-idle-${w.npc.id}-${facing}`);
+    }
+  }
+
+  private updateNpcWander(time: number, delta: number) {
+    if (!this.player) return;
+    if (this.nextSpeechAt === 0) this.nextSpeechAt = time + 20000 + Math.random() * 20000;
+    const step = (NPC_SPEED * delta) / 1000;
+    for (const w of this.npcWalkers.values()) {
+      if (w.bubble) {
+        w.bubble.setPosition(w.spr.x, w.spr.y - OP_H / 2 - 30);
+        if (time > w.bubbleUntil) { try { w.bubble.destroy(); } catch { /* ignore */ } w.bubble = null; }
+      }
+      const dx = this.player.x - w.spr.x;
+      const dy = this.player.y - w.spr.y;
+      if (dx * dx + dy * dy < 140 * 140) {
+        // Close: stop wandering, face the player, proximity line (30s cooldown).
+        w.target = null;
+        this.faceToward(w, dx, dy);
+        if (time > w.proxUntil && !this.npcBubbleActive()) {
+          const line = NPC_PROX_LINES[w.npc.id];
+          if (line) this.showBubble(w.npc.id, line);
+          w.proxUntil = time + 30000;
+        }
+        continue;
+      }
+      if (w.target) {
+        const tx = w.target.x - w.spr.x;
+        const ty = w.target.y - w.spr.y;
+        if (tx * tx + ty * ty < 64) {
+          w.target = null;
+          if (w.npc.id === "valerie" && Math.random() < 0.4) {
+            // Work pause: longer, facing up toward the workshop benches.
+            // No new art — pause + facing change only.
+            w.pauseUntil = time + 6000 + Math.random() * 6000;
+            this.faceToward(w, 0, -1);
+          } else {
+            w.pauseUntil = time + 1500 + Math.random() * 2500;
+          }
+          if (this.anims.exists(`npc-idle-${w.npc.id}-${w.facing}`)) w.spr.play(`npc-idle-${w.npc.id}-${w.facing}`);
+          continue;
+        }
+        const facing: Facing = Math.abs(tx) >= Math.abs(ty) ? (tx >= 0 ? "right" : "left") : (ty >= 0 ? "down" : "up");
+        let nx = w.spr.x;
+        let ny = w.spr.y;
+        const mx = Math.max(-step, Math.min(step, tx));
+        const my = Math.max(-step, Math.min(step, ty));
+        if (walkable(w.spr.x + mx, w.spr.y)) nx = w.spr.x + mx;
+        if (walkable(nx, w.spr.y + my)) ny = w.spr.y + my;
+        if (w.npc.id === "valerie") {
+          // Hard confinement: never accept a step that leaves the workshop.
+          if (!this.inWorkshop(nx, w.spr.y)) nx = w.spr.x;
+          if (!this.inWorkshop(nx, ny)) ny = w.spr.y;
+        }
+        w.spr.setPosition(nx, ny);
+        w.shadow.setPosition(nx, ny + OP_H / 2 - 2);
+        w.tag?.setPosition(nx, ny - OP_H / 2 - 6);
+        if (facing !== w.facing || w.spr.anims.currentAnim?.key !== `npc-walk-${w.npc.id}-${facing}`) {
+          w.facing = facing;
+          if (this.anims.exists(`npc-walk-${w.npc.id}-${facing}`)) w.spr.play(`npc-walk-${w.npc.id}-${facing}`);
+        }
+        continue;
+      }
+      if (time > w.pauseUntil) {
+        w.target = this.pickWaypoint(w.npc.id);
+        if (!w.target) w.pauseUntil = time + 2000;
+      } else if (this.anims.exists(`npc-idle-${w.npc.id}-${w.facing}`) && w.spr.anims.currentAnim?.key !== `npc-idle-${w.npc.id}-${w.facing}`) {
+        w.spr.play(`npc-idle-${w.npc.id}-${w.facing}`);
+      }
+    }
+    try {
+      (window as unknown as Record<string, unknown>).__keepNpcs = [...this.npcWalkers.values()].map((v) => ({
+        id: v.npc.id, x: Math.round(v.spr.x), y: Math.round(v.spr.y),
+        facing: v.facing, target: v.target, paused: time < v.pauseUntil,
+      }));
+    } catch { /* ignore */ }
+    // Timer speech: one NPC at a time, every 20-40s, cycling preset lines.
+    if (time >= this.nextSpeechAt && !this.npcBubbleActive()) {
+      const walkers = [...this.npcWalkers.values()];
+      if (walkers.length > 0) {
+        const w = walkers[this.speechIdx % walkers.length];
+        this.speechIdx += 1;
+        const lines = NPC_LINES[w.npc.id] ?? [];
+        if (lines.length > 0) {
+          this.showBubble(w.npc.id, lines[w.lineIdx % lines.length]);
+          w.lineIdx += 1;
+        }
+      }
+      this.nextSpeechAt = time + 20000 + Math.random() * 20000;
+    }
+  }
+
   update(time: number, delta: number) {
+    try { (window as unknown as Record<string, unknown>).__keepFrame = ((window as unknown as Record<string, number>).__keepFrame ?? 0) + 1; } catch { /* no window */ }
     if (this.freezeMs > 0) {
       this.freezeMs -= delta;
       this.player?.setVelocity(0, 0);
@@ -756,7 +1136,7 @@ export class HallScene extends Phaser.Scene {
       ];
       for (let i = 0; i < this.oracleChains.length; i++) {
         const a = chainAnchors[i];
-        if (a && this.oracleChains[i]) this.oracleChains[i].setTo(a.x, a.y, eyeX, eyeY);
+        if (a && this.oracleChains[i]?.active) this.oracleChains[i].setTo(a.x, a.y, eyeX, eyeY);
       }
       this.oracleEye.setRotation(Math.sin(this.oracleDriftT * 1.7) * 0.05);
 
@@ -788,8 +1168,10 @@ export class HallScene extends Phaser.Scene {
       this.player?.setVelocity(0, 0);
       return;
     }
+    this.updateNpcWander(time, delta);
 
-    const speed = 175;
+    const wSpeed = (window as unknown as Record<string, unknown>).__keepWalkSpeed;
+    const speed = typeof wSpeed === "number" ? wSpeed : 175;
     let inputX = this.stickX;
     let inputY = this.stickY;
 
@@ -802,6 +1184,7 @@ export class HallScene extends Phaser.Scene {
 
     if (inputX !== 0 || inputY !== 0) {
       this.dest = null;
+      this.pendingApproach = null;
       this.reticle.setVisible(false);
       targetVel = calculateVelocity(inputX, inputY, speed);
     } else if (this.dest) {
@@ -811,6 +1194,12 @@ export class HallScene extends Phaser.Scene {
       if (distSq < 64) {
         this.dest = null;
         this.reticle.setVisible(false);
+        if (this.pendingApproach) {
+          const npc = this.pendingApproach;
+          this.pendingApproach = null;
+          hallAudio.playInteract();
+          this.eventsOut.onTalk(npc);
+        }
       } else {
         targetVel = calculateVelocity(dx, dy, speed);
       }
@@ -836,12 +1225,32 @@ export class HallScene extends Phaser.Scene {
     const finalVy = canMoveY ? targetVel.y : 0;
 
     this.player.setVelocity(finalVx, finalVy);
+    if ((this.debugFrame++ % 30) === 0) {
+      try {
+        (window as unknown as Record<string, unknown>).__keepPlayer = { x: this.player.x, y: this.player.y, vx: finalVx, vy: finalVy, paused: this.paused, dest: this.dest, stickX: this.stickX, stickY: this.stickY, sceneKey: this.scene.key, body: !!this.player.body };
+      } catch { /* no window */ }
+    }
 
     const isMoving = finalVx !== 0 || finalVy !== 0;
 
     if (isMoving !== this.wasMoving) {
       this.squash(isMoving ? 0.94 : 1.07, isMoving ? 1.07 : 0.93);
       this.wasMoving = isMoving;
+    }
+
+    // Wedge clear: a click that sits behind a prop or wall leaves the player
+    // pushing against the boundary forever. If a dest is set but the player
+    // can't move, drop it (and any pending NPC approach) after half a second.
+    if (this.dest && !isMoving) {
+      this.destStallMs += delta;
+    } else {
+      this.destStallMs = 0;
+    }
+    if (this.destStallMs > 550) {
+      this.dest = null;
+      this.pendingApproach = null;
+      this.destStallMs = 0;
+      this.reticle.setVisible(false);
     }
 
     if (isMoving) {
@@ -863,6 +1272,16 @@ export class HallScene extends Phaser.Scene {
       this.applyFacingAnim("walk", true);
     } else {
       this.applyFacingAnim("idle", true);
+    }
+
+    // Portal doors (debounced: fade once, spawn-exit required, grace after create).
+    if (this.portalExitRequired) {
+      if (!portalAt(this.portalOpts.portals, this.player.x, this.player.y)) {
+        this.portalExitRequired = false;
+      }
+    } else if (!this.isTransitioning && time >= this.portalGraceUntil) {
+      const door = portalAt(this.portalOpts.portals, this.player.x, this.player.y);
+      if (door) this.triggerPortal(door);
     }
 
     // Zone Transition Triggers

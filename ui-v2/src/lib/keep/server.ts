@@ -1,15 +1,31 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
-import { askOracle, conveneTable, diagnoseMechanicWorkbench, forgeSpec, generatePortraitImage, generatePortraitLore, inspectConcern, talkHall } from "./ai";
+import {
+  askOracle,
+  conveneTable,
+  diagnoseMechanicWorkbench,
+  forgeSpec,
+  generatePortraitImage,
+  generatePortraitLore,
+  inspectConcern,
+  mechanicModelName,
+  talkHall,
+  talkModelName,
+} from "./ai";
 import { ARCHITECTURE, KNOWLEDGE, ROOMS, SKILL_SURFACE, SPECS, getRoom, getSpecForRoom, roomCounts } from "./catalog";
 import { fetchKeepPulse } from "./pulse";
 import { executeFastMCPTool, type FastMCPToolCall } from "./fastmcp";
+import { readLatestRavenDrop } from "./drops";
 import { noGates, parseGates } from "./gates";
 import { failing, parseStackHealth, unreadTower } from "./health";
 import { fetchDutyBoard } from "./duty";
 import type { CommissionRequest, LoreRerollRequest, PortraitItem } from "@/lib/gallery/types";
 import type { DraftSpec, TableResult } from "./types";
+import { boxToolsAvailable } from "./box-adapter";
+import { mcpHealth } from "./mcp";
+import { routingStatus } from "./router";
+import { executeProbe, listProbes } from "./probes";
 
 export const getKeepSnapshot = createServerFn({ method: "GET" }).handler(async () => {
   const pulse = await fetchKeepPulse();
@@ -232,6 +248,23 @@ export const talkInHall = createServerFn({ method: "POST" })
     const result = await talkHall(data.agent, data.message);
     if (!result.ok) return result;
     return { ok: true as const, reply: result.text };
+  });
+
+/**
+ * Honest routing snapshot for Valerie's bench. Read-only, never returns a key.
+ * This is the screen to open first when "nothing works".
+ */
+export const getRoutingStatus = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async () => {
+    const [models, mcp] = await Promise.all([routingStatus(), mcpHealth()]);
+    const binds = mcp.reachable ? await boxToolsAvailable() : null;
+    return {
+      models,
+      mcp,
+      binds: binds?.ok ? { present: binds.present, missing: binds.missing } : null,
+      bindsError: binds && !binds.ok ? binds.error : null,
+    };
   });
 
 export type SavedDraft = {
@@ -559,3 +592,34 @@ export const callFastMCP = createServerFn({ method: "POST" })
 export const getDutyBoard = createServerFn({ method: "GET" }).handler(
   async (): Promise<import("./duty").DutyBoardRead> => fetchDutyBoard(),
 );
+
+export const getLatestRavenDropInfo = createServerFn({ method: "GET" }).handler(async () => {
+  const drop = readLatestRavenDrop();
+  return {
+    exists: drop.exists,
+    filename: drop.filename,
+    mtime: drop.mtime,
+    header: drop.header,
+  };
+});
+
+/** Static, non-secret config the bench displays -- never a claim about live state. */
+export const getMechanicConfig = createServerFn({ method: "GET" }).handler(async () => {
+  return { mechanicModel: mechanicModelName(), talkModel: talkModelName() };
+});
+
+/** Which probes actually exist on the box right now -- the probe rack's own allowlist. */
+export const listProbeNames = createServerFn({ method: "GET" }).handler(async () => {
+  return { names: listProbes() };
+});
+
+/**
+ * Run one read-only probe. `name` is validated against the probes directory
+ * itself inside executeProbe -- this never forwards the raw request string
+ * past that check, and execFile (never a shell string) is the only way the
+ * probe binary is invoked.
+ */
+export const runProbe = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: { name: string }) => ({ name: input.name.trim() }))
+  .handler(async ({ data }) => executeProbe(data.name));
