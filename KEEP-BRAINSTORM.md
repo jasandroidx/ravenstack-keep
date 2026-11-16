@@ -58,7 +58,7 @@ Scoring: **Fit** = does it hold the locked design · **Effort** = small / medium
 
 | # | Idea | Fit | Effort | Wow |
 |---|---|---|---|---|
-| 1 | Start in the courtyard; make doors real doors | high | small | high |
+| 1 | Start in the courtyard; remove the test boxes, doors only on painted arches | high | small | high |
 | 2 | Walk into the Library wing and ask it something | high | medium | high |
 | 3 | Weather and birds over the courtyard | high | medium | high |
 | 4 | Live roster decides who stands in the Hall | high | medium | high |
@@ -75,13 +75,15 @@ Scoring: **Fit** = does it hold the locked design · **Effort** = small / medium
 
 ---
 
-### 1. Start in the courtyard; make doors real doors
+### 1. Start in the courtyard; remove the test boxes, doors only on painted arches
 
-Spawn the player on the yard flagstones, and replace the six cyan portal rectangles with drawn doorways that swing open as you approach.
+Spawn the player on the yard flagstones, and delete the cyan portal rectangles outright. They were test scaffolding to prove the rooms load — not design. Doors exist only where the painting already has arches: the Library arch bottom-left and the Workshop arch bottom-right. Walk-through triggers stay on those two arches only. Nothing stands in the middle of the courtyard.
 
-**Files:** `ui-v2/src/lib/hall/world.ts` (`PLAYER_SPAWN`, `WALK`, `ZONES`), `ui-v2/src/components/hall/keep-hall.tsx` (Hall constructor `spawn` + `portals`), `ui-v2/src/lib/hall/scene.ts` (`create()` portal drawing, portal trigger check), `ui-v2/src/lib/hall/portal.ts` (add `state`, `kind`).
+**Files:** `ui-v2/src/lib/hall/world.ts` (`PLAYER_SPAWN`, `WALK`, `ZONES`), `ui-v2/src/components/hall/keep-hall.tsx` (Hall constructor `spawn`, remove `portals` except the two arch triggers), `ui-v2/src/lib/hall/scene.ts` (remove portal drawing + trigger checks except the two arch triggers).
 
-**Why:** the locked design says the player starts in the courtyard and doors open and close. Today `PLAYER_SPAWN = {x:760, y:650}` — that is inside `ZONES` great-hall (540,220,720,470) and inside the hall `WALK` rect, i.e. mid-hall. Every door is a `setStrokeStyle(4, 0x2de2e6)` rectangle with a monospace label sitting on a painted dungeon. Moving spawn to **{x:760, y:870}** is verified walkable: yard `WALK` is 640,720,520,240 and the fountain `SOLID` starts at x848, so 760/870 is clear flagstone. The map already has two painted arched doors (library wing bottom-left, workshop bottom-right); the portal rects should sit on those, not float in the corridor.
+**Why:** the locked design says the player starts in the courtyard and doors open and close. Today `PLAYER_SPAWN = {x:760, y:650}` — that is inside `ZONES` great-hall (540,220,720,470) and inside the hall `WALK` rect, i.e. mid-hall. Every door is a `setStrokeStyle(4, 0x2de2e6)` rectangle with a monospace label sitting on a painted dungeon. Moving spawn to **{x:760, y:870}** is verified walkable: yard `WALK` is 640,720,520,240 and the fountain `SOLID` starts at x848, so 760/870 is clear flagstone. The map already has two painted arched doors (library wing bottom-left, workshop bottom-right); the walk-throughs sit on those, and every other portal box is deleted. Page rooms are reached from the `[T]` list, not from doorways in the yard.
+
+*(Correction, Jason 2026-11-16: no doors in the middle of the courtyard; the boxes were test scaffolding — remove them, don't decorate them.)*
 
 **Effort:** small.
 
@@ -93,7 +95,7 @@ A real Library room scene you enter through the Hall's left doorway: shelves, th
 
 **Files:** `ui-v2/src/components/hall/keep-hall.tsx` (new `LibraryRoomScene` + the Hall→Library portal), `ui-v2/src/lib/hall/room-scene.ts` (furniture markers, launcher, `mapSrc`), `ui-v2/src/lib/hall/world.ts` (door rect, `ORACLE_TALK`), `ui-v2/src/lib/keep/server.ts` (`talkInHall`/`askOracle`), `mcp/src/http_api.py` (`/api/spatial-memory` and `/api/compact` already exist and are unused by the Hall), `ui-v2/migrations/0003_quarantine.sql` (read path for evidence).
 
-**Why:** the Library wing is required by the locked design and it is the only room whose answer *is* the product. Today you can physically stand in the painted library (zone rect 140,120,380,540) and nothing happens — the Oracle is an eye floating in the great hall. This is the room that makes the Keep worth opening.
+**Why:** the Library wing is required by the locked design and it is the only room whose answer *is* the product. Today you can physically stand in the painted library (zone rect 140,120,380,540) and nothing happens — the Oracle is an eye floating in the great hall. This is the room that makes the Keep worth opening. The Library is where the big green eye is — the Oracle eye marks it, left side, left doorway. The UNFORGED lock on the Library is approved for removal (Jason, 2026-11-16); the unlock runs against the live Keep database when the path to ravenserve is back.
 
 **Art constraint, checked:** don't invent a new painting. Crop the library region of `keep-map.jpg` — 380×540 at (140,120) — and 2× nearest-neighbour it to **760×1080**, then set `mapW/mapH` to 760/1080. `photocraft` does the crop and resize in one pass and can print the result dimensions for verification. Real painted art, no gray floor.
 
@@ -265,7 +267,7 @@ Generate a walk mask from `keep-map.jpg` once and stop hand-drawing `WALK` recta
 
 **Proposals only — never called by me, each needs your explicit yes:**
 
-- `unlock_room("library")` — `keep.db` says `library` is **UNFORGED** while its spec is approved and Oracle/Scribe are its occupants. That is the one lock-state inconsistency in the model.
+- `unlock_room("library")` — **APPROVED by Jason 2026-11-16** ("get rid of that unforged nonsense"). `keep.db` says `library` is **UNFORGED** while its spec is approved and Oracle/Scribe are its occupants. That is the one lock-state inconsistency in the model. Runs against the live database when the ravenserve path is back — never hand-edit keep.db.
 - `approve_spec("mechanic")` — Valerie's spec is still `draft`, and its id is `mechanic`, not `valerie`. `get_agent_spec("valerie")` returns `unknown_agent` today.
 - `upsert_agent_spec` — only if you want the Hall NPC id to match the spec id (this is the #8 fix, gated).
 - `write_room_note` — after something is actually built, not before.
@@ -276,7 +278,7 @@ Generate a walk mask from `keep-map.jpg` once and stop hand-drawing `WALK` recta
 
 ## Start here — 3 to do first, in order
 
-1. **Start in the courtyard; make doors real doors** (#1, small). One constant, six portals, one draw call. It makes the locked design true on the first frame and it is the cheapest test of whether the doorway geometry reads against the painting.
+1. **Start in the courtyard; remove the test boxes** (#1, small). One constant (spawn), delete the test boxes, walk-throughs only on the two painted arches. It makes the locked design true on the first frame and it is the cheapest test of whether the doorway geometry reads against the painting.
 2. **Weather and birds over the courtyard** (#3, medium). Reuses a live API path the Hall already pays for, needs no new assets or CLIs, and is the single biggest "this place is alive" jump per line of code.
 3. **Walk into the Library wing** (#2, medium). The required room, the product answer, and the first time the Keep's whole thesis (walk to a room, ask it something, get a cited answer) actually happens in the Hall rather than on a page beside it.
 
