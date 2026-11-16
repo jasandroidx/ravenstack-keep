@@ -3,7 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { TalkSheet } from "@/components/hall/talk-sheet";
 import type { HallScene } from "@/lib/hall/scene";
 import { RoomScene } from "@/lib/hall/room-scene";
-import { RAVENLORD_SKINS, type HallNpc, type RavenlordSkin } from "@/lib/hall/world";
+import { HALL_DOORS, PLAYER_SPAWN, RAVENLORD_SKINS, type DoorHref, type HallNpc, type RavenlordSkin } from "@/lib/hall/world";
 import { getKeepSnapshot } from "@/lib/keep/server";
 import type { KeepPulse } from "@/lib/keep/pulse";
 import { hallAudio } from "@/lib/hall/audio";
@@ -293,25 +293,20 @@ export function KeepHall() {
             setTalk(null);
             setTableOpen(true);
           },
+          onDoor: (href: DoorHref) => {
+            // Through a painted arch and out of the Hall. Each door names its
+            // own target page in world.ts (HALL_DOORS) — nothing invented here.
+            hallAudio.playZoneTransition();
+            navigate({ to: href });
+          },
         };
         const scene = new HallScene(hallEvents, {
           key: "HallScene",
-          spawn: { x: 760, y: 650 },
-          portals: [
-            { id: "stairs-to-yard-test", x: 820, y: 670, w: 160, h: 70, targetScene: "HallTestCloneScene", targetSpawn: { x: 760, y: 500 }, label: "TEST DOOR → CLONE" },
-            { id: "library-to-recon", x: 300, y: 200, w: 120, h: 60, targetScene: "ReconRoomScene", targetSpawn: { x: 800, y: 1400 }, label: "RECON →" },
-            { id: "workshop-to-search", x: 1500, y: 300, w: 120, h: 60, targetScene: "SearchRoomScene", targetSpawn: { x: 800, y: 1400 }, label: "SEARCH →" },
-            { id: "yard-to-sploit", x: 1000, y: 800, w: 120, h: 60, targetScene: "SploitRoomScene", targetSpawn: { x: 800, y: 1400 }, label: "SPLOIT →" },
-            { id: "hall-to-citadel", x: 600, y: 600, w: 120, h: 60, targetScene: "CitadelRoomScene", targetSpawn: { x: 800, y: 1400 }, label: "CITADEL →" },
-            { id: "yard-to-tower", x: 700, y: 800, w: 120, h: 60, targetScene: "TowerRoomScene", targetSpawn: { x: 800, y: 1400 }, label: "TOWER →" },
-          ],
-        });
-        const cloneScene = new HallScene(hallEvents, {
-          key: "HallTestCloneScene",
-          spawn: { x: 760, y: 500 },
-          portals: [
-            { id: "clone-return", x: 740, y: 450, w: 160, h: 70, targetScene: "HallScene", targetSpawn: { x: 760, y: 650 }, label: "RETURN → HALL" },
-          ],
+          spawn: PLAYER_SPAWN,
+          // The only doors in the Hall are the two arches already painted into
+          // the map. Everything else was test scaffolding and is gone; the
+          // Raven Page rooms are reached from the [T] list only.
+          portals: HALL_DOORS.map((d) => ({ id: d.id, x: d.x, y: d.y, w: d.w, h: d.h, href: d.href, label: d.name })),
         });
         const reconScene = new RoomScene({
           key: "ReconRoomScene",
@@ -453,7 +448,7 @@ export function KeepHall() {
           loader: {
             imageLoadType: "HTMLImageElement",
           },
-          scene: [scene, cloneScene, reconScene, searchScene, sploitScene, citadelScene, towerScene],
+          scene: [scene, reconScene, searchScene, sploitScene, citadelScene, towerScene],
         });
         gameRef.current = game;
         host.current.querySelector("canvas")?.focus();

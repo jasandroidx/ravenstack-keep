@@ -375,6 +375,9 @@ export class RoomScene extends Phaser.Scene {
 
   private triggerPortal(p: PortalTrigger) {
     if (this.isTransitioning || !this.player) return;
+    // Room doors always name their target scene; a door with only an href
+    // belongs to the Hall, not here.
+    if (!p.targetScene) return;
     this.isTransitioning = true;
     this.player.setVelocity(0, 0);
     this.dest = null;

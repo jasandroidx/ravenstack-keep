@@ -96,6 +96,11 @@ export const WALK: Rect[] = [
   { x: 800, y: 200, w: 160, h: 50 }, // stairs hall ↔ throne
   { x: 820, y: 670, w: 160, h: 70 }, // stairs to yard
   { x: 640, y: 720, w: 520, h: 240 }, // yard
+  // Doorway thresholds: the two painted arches at the bottom of the wings.
+  // Without these the player can't step into the arch, so its walk-through
+  // trigger could never fire.
+  { x: 204, y: 606, w: 52, h: 108 }, // library arch, bottom-left
+  { x: 1484, y: 660, w: 56, h: 66 }, // workshop arch, bottom-right
 ];
 
 export const SOLID: Rect[] = [
@@ -364,7 +369,24 @@ export const HALL_LIGHTS: HallLight[] = [
   { x: 1095, y: 840, radius: 120, color: 0x8891a5, intensity: 0.7, flicker: 0.0, period: 1.0 },
 ];
 
-export const PLAYER_SPAWN = { x: 760, y: 650 };
+/**
+ * The Hall's only doors: the two arches already painted into keep-map.jpg —
+ * Library arch bottom-left, Workshop arch bottom-right. Nothing else in this
+ * map is a doorway; the Raven Page rooms are reached from the [T] list only.
+ *
+ * Each arch opens the room's own page (`href`), which is the same target the
+ * ZONES table gives that room.
+ */
+export const HALL_DOORS = [
+  { id: "library-arch", name: "Library", href: "/oracle", x: 206, y: 652, w: 48, h: 60 },
+  { id: "workshop-arch", name: "Workshop", href: "/mechanic", x: 1486, y: 664, w: 52, h: 58 },
+] as const;
+
+export type DoorHref = (typeof HALL_DOORS)[number]["href"];
+
+/** Courtyard flagstones, left of the fountain — the player starts here. */
+export const PLAYER_SPAWN = { x: 760, y: 870 };
+
 
 export function zoneAt(x: number, y: number): Zone | null {
   return ZONES.find((z) => inside(z.rect, x, y)) ?? null;

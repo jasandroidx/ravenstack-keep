@@ -9,6 +9,7 @@ import {
   PLAYER_SPAWN,
   ZONES,
   RAVENLORD_SKINS,
+  type DoorHref,
   npcAtPoint,
   npcFacing,
   tableFacing,
@@ -72,6 +73,8 @@ export type HallEvents = {
   onPrompt: (npc: HallNpc | null, atTable: boolean) => void;
   onTalk: (npc: HallNpc) => void;
   onTable: () => void;
+  /** Player walked through a door that leaves the Hall for a room's own page. */
+  onDoor?: (href: DoorHref) => void;
   onSkinChange?: (skinId: string) => void;
   /** Player stepped into the Quarantine Cell. */
   onEnterCell?: () => void;
@@ -258,28 +261,8 @@ export class HallScene extends Phaser.Scene {
     this.portalGraceUntil = 0;
     this.cameras.main.setBackgroundColor(PALETTE.bg);
     this.add.image(0, 0, "keep-map").setOrigin(0, 0).setDisplaySize(MAP_W, MAP_H).setDepth(0);
-    for (const p of this.portalOpts.portals) {
-      this.add
-        .rectangle(p.x + p.w / 2, p.y + p.h / 2, p.w, p.h)
-        .setStrokeStyle(4, 0x2de2e6, 0.95)
-        .setDepth(3);
-      this.add
-        .text(p.x + p.w / 2, p.y - 8, p.label ?? "DOOR", {
-          fontFamily: "monospace", fontSize: "14px", color: "#2de2e6",
-          backgroundColor: "#0b0e14cc", padding: { x: 6, y: 3 },
-        })
-        .setOrigin(0.5, 1)
-        .setDepth(3);
-    }
-    if (this.scene.key !== "HallScene") {
-      this.add
-        .text(MAP_W / 2, 56, "HALL TEST CLONE — return door below", {
-          fontFamily: "monospace", fontSize: "20px", color: "#ffc857",
-          backgroundColor: "#0b0e14cc", padding: { x: 10, y: 6 },
-        })
-        .setOrigin(0.5, 0)
-        .setDepth(30);
-    }
+    // Doors are the painting's own arches. Nothing is drawn over the art:
+    // no boxes, no labels — the walk-through triggers sit on the two arches.
     this.physics.world.setBounds(0, 0, MAP_W, MAP_H);
     this.cameras.main.setBounds(0, 0, MAP_W, MAP_H);
     this.cameras.main.centerOn(spawn.x, spawn.y);
@@ -561,7 +544,10 @@ export class HallScene extends Phaser.Scene {
     this.dest = null;
     this.cameras.main.fadeOut(250);
     this.cameras.main.once("camerafadeoutcomplete", () => {
-      this.scene.start(p.targetScene, { spawn: p.targetSpawn });
+      // A door with an href leaves the Hall for that room's page. React owns
+      // routing, so the scene only reports where the door goes.
+      if (p.href) this.eventsOut.onDoor?.(p.href as DoorHref);
+      else if (p.targetScene) this.scene.start(p.targetScene, { spawn: p.targetSpawn });
     });
   }
 
