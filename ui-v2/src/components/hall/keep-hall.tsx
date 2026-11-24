@@ -306,7 +306,12 @@ export function KeepHall() {
           setSceneKey(liveScene.scene.key);
           applyCameraFollow(liveScene);
           const t = TELEPORT_TARGETS.find((x) => x.key === liveScene.scene.key);
-          setZone(t?.label ?? liveScene.scene.key.replace(/RoomScene$/, ""));
+          // Gate-only rooms are not in the [T] menu, but still need a human
+          // label instead of the raw scene key.
+          const roomLabel = liveScene.scene.key === "FortressInteriorRoomScene"
+            ? "Fortress Interior"
+            : liveScene.scene.key.replace(/RoomScene$/, "");
+          setZone(t?.label ?? roomLabel);
           setLock("live");
           setNear(null);
           setAtTable(false);
