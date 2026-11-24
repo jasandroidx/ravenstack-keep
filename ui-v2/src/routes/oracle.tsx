@@ -1,7 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { HardDrive } from "lucide-react";
 import { KeepShell } from "@/components/keep/shell";
 import { SignInGate } from "@/components/keep/sign-in-gate";
 import { Button } from "@/components/ui/button";
@@ -67,13 +66,6 @@ function OraclePage() {
             Citation-first. If it is not in the seeded fortress notes or ingested Google Drive documents, Oracle will say not-in-knowledge rather than invent a path.
           </p>
         </div>
-        <Link
-          to="/drive"
-          className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-4 py-2 text-xs font-medium text-fg hover:border-line-strong hover:bg-elevated transition-colors"
-        >
-          <HardDrive className="h-4 w-4 text-accent" />
-          <span>Ingest from Google Drive</span>
-        </Link>
       </div>
 
       <form onSubmit={onAsk} className="mt-8">

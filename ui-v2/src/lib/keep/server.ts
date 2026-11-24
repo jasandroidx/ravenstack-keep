@@ -1,15 +1,31 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
-import { askOracle, conveneTable, diagnoseMechanicWorkbench, forgeSpec, generatePortraitImage, generatePortraitLore, inspectConcern, talkHall } from "./ai";
+import {
+  askOracle,
+  conveneTable,
+  diagnoseMechanicWorkbench,
+  forgeSpec,
+  generatePortraitImage,
+  generatePortraitLore,
+  inspectConcern,
+  mechanicModelName,
+  talkHall,
+  talkModelName,
+} from "./ai";
 import { ARCHITECTURE, KNOWLEDGE, ROOMS, SKILL_SURFACE, SPECS, getRoom, getSpecForRoom, roomCounts } from "./catalog";
 import { fetchKeepPulse } from "./pulse";
 import { executeFastMCPTool, type FastMCPToolCall } from "./fastmcp";
+import { readLatestRavenDrop } from "./drops";
 import { noGates, parseGates } from "./gates";
 import { failing, parseStackHealth, unreadTower } from "./health";
 import { fetchDutyBoard } from "./duty";
 import type { CommissionRequest, LoreRerollRequest, PortraitItem } from "@/lib/gallery/types";
 import type { DraftSpec, TableResult } from "./types";
+import { boxToolsAvailable } from "./box-adapter";
+import { mcpHealth } from "./mcp";
+import { routingStatus } from "./router";
+import { executeProbe, listProbes } from "./probes";
 
 export const getKeepSnapshot = createServerFn({ method: "GET" }).handler(async () => {
   const pulse = await fetchKeepPulse();
@@ -227,11 +243,28 @@ export const talkInHall = createServerFn({ method: "POST" })
   }))
   .handler(async ({ data }) => {
     if (!data.message) return { ok: false as const, error: "Say something." };
-    const allowed = new Set(["raziel", "oracle", "valerie", "corvid"]);
+    const allowed = new Set(["raziel", "oracle", "valerie", "corvid", "lyra"]);
     if (!allowed.has(data.agent)) return { ok: false as const, error: "Unknown seat." };
     const result = await talkHall(data.agent, data.message);
     if (!result.ok) return result;
-    return { ok: true as const, reply: result.text };
+    return { ok: true as const, reply: result.text, source: "source" in result ? result.source : undefined };
+  });
+
+/**
+ * Honest routing snapshot for Valerie's bench. Read-only, never returns a key.
+ * This is the screen to open first when "nothing works".
+ */
+export const getRoutingStatus = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async () => {
+    const [models, mcp] = await Promise.all([routingStatus(), mcpHealth()]);
+    const binds = mcp.reachable ? await boxToolsAvailable() : null;
+    return {
+      models,
+      mcp,
+      binds: binds?.ok ? { present: binds.present, missing: binds.missing } : null,
+      bindsError: binds && !binds.ok ? binds.error : null,
+    };
   });
 
 export type SavedDraft = {
@@ -280,20 +313,32 @@ export const getPendingGates = createServerFn({ method: "POST" }).handler(async 
     return noGates(res.error ?? "FastMCP bridge unreachable. No gates were retrieved.");
   }
   // The bridge returns MCP content envelopes; unwrap a JSON string payload.
+  // Accept every shape the bridge is known to send: structuredContent, a JSON
+  // string in `result`, JSON in ANY content[].text, or a bare object. If the
+  // bridge answered but nothing parses, say so (it is NOT unreachable) and
+  // show what came back, so nobody goes hunting a network fault.
   let payload: unknown = res.data;
-  const envelope = payload as { result?: unknown; content?: Array<{ text?: string }> };
-  if (typeof envelope?.result === "string") {
-    try {
-      payload = JSON.parse(envelope.result);
-    } catch {
-      return noGates("pending_gates returned a result this build could not parse.");
-    }
-  } else if (Array.isArray(envelope?.content) && typeof envelope.content[0]?.text === "string") {
-    try {
-      payload = JSON.parse(envelope.content[0].text as string);
-    } catch {
-      return noGates("pending_gates returned content this build could not parse.");
-    }
+  const envelope = payload as {
+    result?: unknown;
+    structuredContent?: unknown;
+    content?: Array<{ type?: string; text?: string }>;
+  };
+  const tryJson = (s: string): unknown => {
+    try { return JSON.parse(s); } catch { return undefined; }
+  };
+  const replied = (raw: string) =>
+    noGates(`Bridge replied, but this build couldn't read it: ${raw.slice(0, 200)}`);
+  if (envelope?.structuredContent && typeof envelope.structuredContent === "object") {
+    payload = (envelope.structuredContent as { result?: unknown }).result ?? envelope.structuredContent;
+  } else if (typeof envelope?.result === "string") {
+    const j = tryJson(envelope.result);
+    if (j === undefined) return replied(envelope.result);
+    payload = j;
+  } else if (Array.isArray(envelope?.content)) {
+    const texts = envelope.content.map((c) => c?.text).filter((t): t is string => typeof t === "string");
+    const parsed = texts.map(tryJson).find((j) => j !== undefined);
+    if (parsed === undefined) return replied(texts.join(" ") || JSON.stringify(envelope.content));
+    payload = parsed;
   }
   return parseGates(payload);
 });
@@ -559,3 +604,34 @@ export const callFastMCP = createServerFn({ method: "POST" })
 export const getDutyBoard = createServerFn({ method: "GET" }).handler(
   async (): Promise<import("./duty").DutyBoardRead> => fetchDutyBoard(),
 );
+
+export const getLatestRavenDropInfo = createServerFn({ method: "GET" }).handler(async () => {
+  const drop = readLatestRavenDrop();
+  return {
+    exists: drop.exists,
+    filename: drop.filename,
+    mtime: drop.mtime,
+    header: drop.header,
+  };
+});
+
+/** Static, non-secret config the bench displays -- never a claim about live state. */
+export const getMechanicConfig = createServerFn({ method: "GET" }).handler(async () => {
+  return { mechanicModel: mechanicModelName(), talkModel: talkModelName() };
+});
+
+/** Which probes actually exist on the box right now -- the probe rack's own allowlist. */
+export const listProbeNames = createServerFn({ method: "GET" }).handler(async () => {
+  return { names: listProbes() };
+});
+
+/**
+ * Run one read-only probe. `name` is validated against the probes directory
+ * itself inside executeProbe -- this never forwards the raw request string
+ * past that check, and execFile (never a shell string) is the only way the
+ * probe binary is invoked.
+ */
+export const runProbe = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: { name: string }) => ({ name: input.name.trim() }))
+  .handler(async ({ data }) => executeProbe(data.name));

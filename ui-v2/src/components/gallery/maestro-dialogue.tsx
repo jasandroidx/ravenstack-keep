@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { maestroAudio } from "@/lib/gallery/audio";
 
 interface MaestroDialogueProps {
@@ -31,6 +31,16 @@ export function MaestroDialogue({
     maestroAudio.playSprayCanSound();
     setQuoteIndex((prev) => (prev + 1) % MAESTRO_QUOTES.length);
   };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center sm:p-6">
@@ -67,7 +77,8 @@ export function MaestroDialogue({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-sm border border-[#3a3f4b] text-[#9aa3b2] transition-colors hover:border-[#ff2a6d] hover:text-[#ff2a6d]"
+            aria-label="Close dialogue"
+            className="flex h-8 w-8 items-center justify-center rounded-sm border border-[#3a3f4b] text-[#9aa3b2] transition-colors hover:border-[#ff2a6d] hover:text-[#ff2a6d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2de2e6]"
           >
             ✕
           </button>

@@ -1,5 +1,21 @@
 # AGENTS.md — Ravenstack Keep
 
+## For Jules / cloud agents (read this first — you can't see the box or the vault)
+
+- Base every PR on branch `ravenstack`. Never target `main`.
+- npm ONLY. Never add pnpm-lock.yaml, yarn.lock, or touch bun.lock. Keep package-lock.json in sync.
+- App = `ui-v2/` (TanStack Start + Nitro, Phaser for the Hall). Production runs on Boyd's Hetzner box via `npm run build:box`; Vercel is previews only.
+- Before opening a PR: `npm run typecheck`, `npm test`, `npm run build:box` must pass in `ui-v2`.
+- One issue per PR. Small diffs. Don't touch files the issue didn't ask for. Don't mass-rewrite import paths/extensions.
+- **NO FAKE UI:** every label/badge/status shows real data or is clearly flavor. Never claim search, grounding, monitoring, or a check that didn't run.
+- Keep the CRT/retro sound effects (`mechanicAudio`, `hallAudio`).
+- Box paths (`/root/...`, the vault, Ollama at `172.18.0.1:11434`) don't exist in your VM: read them from env vars with those defaults; mock them in tests.
+- Server functions that read files or run commands: allowlist only, `execFile` (never shell strings), wrap with `authMiddleware`.
+- No secrets, tokens, tailnet hostnames, or Funnel URLs in code, tests, or PR text.
+- Models: talk = `KEEP_TALK_MODEL` (qwen3:1.7b); mechanic = `KEEP_MECHANIC_MODEL`.
+
+---
+
 ## Non-negotiable rules
 
 - Hetzner-owned Keep; survive without Grok VM.

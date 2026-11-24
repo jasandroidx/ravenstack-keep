@@ -1,4 +1,4 @@
-import { useState, useRef, type ChangeEvent, type DragEvent } from "react";
+import { useEffect, useState, useRef, type ChangeEvent, type DragEvent } from "react";
 import { toast } from "sonner";
 import { maestroAudio } from "@/lib/gallery/audio";
 import { saveLocalGalleryPortrait } from "@/lib/gallery/storage";
@@ -44,6 +44,16 @@ export function PortraitStudioModal({
   const [apiError, setApiError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !busy) {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose, busy]);
 
   const handleFile = (file: File) => {
     if (!file.type.startsWith("image/")) {
@@ -225,7 +235,8 @@ export function PortraitStudioModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex h-8 w-8 items-center justify-center rounded-sm border border-[#3a3f4b] text-[#9aa3b2] transition-colors hover:border-[#ff2a6d] hover:text-[#ff2a6d]"
+              aria-label="Close studio"
+              className="flex h-8 w-8 items-center justify-center rounded-sm border border-[#3a3f4b] text-[#9aa3b2] transition-colors hover:border-[#ff2a6d] hover:text-[#ff2a6d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2de2e6]"
             >
               ✕
             </button>

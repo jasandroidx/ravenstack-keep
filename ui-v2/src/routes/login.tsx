@@ -1,8 +1,20 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { toast } from "sonner";
 import { GROK_PROVIDERS, authEnabled, signIn } from "@/lib/auth/client";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/login")({ component: Login });
+
+/**
+ * signIn() throws on failure (broker rejected the redirect origin, popup
+ * blocked, etc.) -- an unhandled rejection here reads as "the button does
+ * nothing", which is worse than a plain error. Surface whatever it says.
+ */
+function handleSignIn(providerId: string) {
+  signIn(providerId, { callbackURL: "/" }).catch((err: unknown) => {
+    toast.error(err instanceof Error ? err.message : "Sign-in failed.");
+  });
+}
 
 function Login() {
   return (
@@ -27,7 +39,7 @@ function Login() {
                 type="button"
                 variant="secondary"
                 className="w-full"
-                onClick={() => signIn(p.providerId, { callbackURL: "/" })}
+                onClick={() => handleSignIn(p.providerId)}
               >
                 Continue with {p.label}
               </Button>
