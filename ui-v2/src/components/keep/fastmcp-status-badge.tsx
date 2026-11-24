@@ -6,6 +6,7 @@ export function FastMCPStatusBadge() {
   const [status, setStatus] = useState<FastMCPToolResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [probing, setProbing] = useState(false);
+  const [signedOut, setSignedOut] = useState(false);
 
   async function checkBridge() {
     setProbing(true);
@@ -16,8 +17,12 @@ export function FastMCPStatusBadge() {
         },
       });
       setStatus(res);
-    } catch {
+      setSignedOut(false);
+    } catch (err) {
       setStatus(null);
+      // A 401 is not an unreachable bridge. The badge must not report the
+      // bridge down when the caller simply has no session.
+      setSignedOut(err instanceof Error && err.message === "Unauthorized");
     } finally {
       setLoading(false);
       setProbing(false);
@@ -32,6 +37,18 @@ export function FastMCPStatusBadge() {
     }, 20000);
     return () => clearInterval(interval);
   }, []);
+
+  if (signedOut) {
+    return (
+      <div
+        role="status"
+        className="flex items-center gap-1.5 rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/80 px-2.5 py-1 font-mono text-[10px] text-[#9aa3b2]"
+      >
+        <span className="h-2 w-2 rounded-full bg-[#3a3f4b]" />
+        <span>FASTMCP: SIGN IN TO PROBE</span>
+      </div>
+    );
+  }
 
   if (loading && !status) {
     return (

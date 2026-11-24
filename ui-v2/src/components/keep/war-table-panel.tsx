@@ -27,8 +27,10 @@ function EffectPreview({ effect }: { effect: GateEffect }) {
           {effect.bounds}
         </p>
       )}
+      {/* `confirm: true` is added by the server after the operator's second
+          press; it is shown here because it is what will actually run. */}
       <pre className="mt-2 overflow-x-auto border-t border-[#1e222b] pt-2 font-mono text-[10px] leading-relaxed text-[#2de2e6]">
-{effect.tool}({JSON.stringify(effect.args, null, 2)})
+{effect.tool}({JSON.stringify({ ...effect.args, confirm: true }, null, 2)})
       </pre>
     </div>
   );
@@ -42,8 +44,10 @@ function GateCard({ gate, onDone }: { gate: Gate; onDone: (sealed: boolean) => v
   async function send(effect: GateEffect) {
     setBusy(true);
     try {
+      // The second press is the confirmation. The server composes confirm: true
+      // and discards anything the client put under that key.
       const out = await decideGate({
-        data: { tool: effect.tool as never, args: { ...effect.args, confirm: true } },
+        data: { tool: effect.tool as never, args: effect.args, confirmed: true },
       });
       if (out.ok) {
         toast.success("Sealed. The box has it.");

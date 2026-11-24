@@ -15,7 +15,8 @@ import {
 } from "./ai";
 import { ARCHITECTURE, KNOWLEDGE, ROOMS, SKILL_SURFACE, SPECS, getRoom, getSpecForRoom, roomCounts } from "./catalog";
 import { fetchKeepPulse } from "./pulse";
-import { executeFastMCPTool, type FastMCPToolCall } from "./fastmcp";
+import { executeFastMCPTool, type FastMCPToolCall, type FastMCPToolResult } from "./fastmcp";
+import { buildGateCall, refuseNonReadOnly } from "./gate-policy";
 import { readLatestRavenDrop } from "./drops";
 import { noGates, parseGates } from "./gates";
 import { failing, parseStackHealth, unreadTower } from "./health";
@@ -332,25 +333,28 @@ export const getPendingGates = createServerFn({ method: "POST" }).handler(async 
 });
 
 /**
- * Seal or refuse a gate. `confirm: true` is supplied by the caller and only
- * ever originates from a deliberate two-step action at the war table — never
- * from a render, an effect, or a retry.
+ * Seal or refuse a gate.
+ *
+ * The caller says only *that* a human pressed the second button (`confirmed`).
+ * The server composes `confirm: true` itself, and drops any `confirm` that
+ * arrived inside `args` — otherwise the flag is just a value a client can
+ * forge, and "requires confirm=true" stops being a guarantee. Every decision
+ * is attributed to a signed-in user, so the war table cannot be worked by an
+ * anonymous POST.
  */
 export const decideGate = createServerFn({ method: "POST" })
-  .validator((input: { tool: FastMCPToolCall["tool"]; args: Record<string, unknown> }) => input)
+  .middleware([authMiddleware])
+  .validator(
+    (input: { tool: FastMCPToolCall["tool"]; args?: Record<string, unknown>; confirmed?: boolean }) => ({
+      tool: input.tool,
+      args: input.args ?? {},
+      confirmed: input.confirmed === true,
+    }),
+  )
   .handler(async ({ data }) => {
-    const allowed: FastMCPToolCall["tool"][] = [
-      "county_queue_approve",
-      "county_queue_reject",
-      "session_approve_capability",
-    ];
-    if (!allowed.includes(data.tool)) {
-      return { ok: false as const, error: `${data.tool} is not a gate decision tool.` };
-    }
-    if (data.args?.confirm !== true) {
-      return { ok: false as const, error: "Refused: gate decisions require confirm: true." };
-    }
-    const res = await executeFastMCPTool(data.tool, data.args);
+    const call = buildGateCall(String(data.tool), data.args, data.confirmed);
+    if (!call.ok) return { ok: false as const, error: call.error };
+    const res = await executeFastMCPTool(data.tool, call.args);
     return res.ok
       ? { ok: true as const, source: res.source, latencyMs: res.latencyMs }
       : { ok: false as const, error: res.error ?? "Gate decision failed." };
@@ -461,8 +465,9 @@ export const getStackHealth = createServerFn({ method: "POST" }).handler(async (
 });
 
 export const commissionPortrait = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((input: CommissionRequest) => input)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     if (!data.subjectName?.trim() || !data.arcaneTitle?.trim()) {
       return { ok: false as const, error: "Subject Name and Arcane Title are required." };
     }
@@ -526,7 +531,7 @@ export const commissionPortrait = createServerFn({ method: "POST" })
       const sql = await getSql();
       await sql`
         insert into gallery_portraits (user_id, slot_number, subject_name, arcane_title, custom_modifier, trivia, image_url, lore)
-        values ('dev-user', ${item.slotNumber}, ${item.subjectName}, ${item.arcaneTitle}, ${item.customModifier ?? null}, ${item.trivia ?? null}, ${item.imageUrl || 'procedural'}, ${item.lore})
+        values (${context.userId}, ${item.slotNumber}, ${item.subjectName}, ${item.arcaneTitle}, ${item.customModifier ?? null}, ${item.trivia ?? null}, ${item.imageUrl || 'procedural'}, ${item.lore})
       `;
     } catch {
       // Non-fatal if offline/local
@@ -578,11 +583,32 @@ export const getHallState = createServerFn({ method: "POST" }).handler(async () 
   };
 });
 
+/**
+ * Read-only passthrough to the bridge. Signed-in only, and restricted to the
+ * allowlist in gate-policy.ts: a tool that writes is refused here regardless
+ * of what the caller asked for, so this can never become a second, unguarded
+ * way to approve a gate.
+ */
 export const callFastMCP = createServerFn({ method: "POST" })
-  .validator((input: { tool: FastMCPToolCall["tool"]; params?: Record<string, unknown> }) => input)
-  .handler(async ({ data }) => {
-    const result = await executeFastMCPTool(data.tool, data.params ?? {});
-    return result;
+  .middleware([authMiddleware])
+  .validator((input: { tool: FastMCPToolCall["tool"]; params?: Record<string, unknown> }) => ({
+    tool: input.tool,
+    params: input.params ?? {},
+  }))
+  .handler(async ({ data }): Promise<FastMCPToolResult> => {
+    const refusal = refuseNonReadOnly(String(data.tool));
+    if (refusal) {
+      return {
+        ok: false,
+        source: "unreachable",
+        endpoint: "",
+        data: null,
+        latencyMs: 0,
+        timestamp: new Date().toISOString(),
+        error: `Refused: ${refusal} No data was retrieved.`,
+      };
+    }
+    return executeFastMCPTool(data.tool, data.params);
   });
 
 /**

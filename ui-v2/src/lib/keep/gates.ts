@@ -20,7 +20,11 @@
 
 export type GateRisk = "low" | "medium" | "high";
 
-/** The exact call an approval will make. Rendered on the card before you seal it. */
+/**
+ * The exact call an approval will make. Rendered on the card before you seal
+ * it. `confirm: true` is deliberately absent: the server adds it after the
+ * operator's second press, so no gate carries a pre-approved flag.
+ */
 export type GateEffect = {
   tool: string;
   args: Record<string, string | number | boolean>;
@@ -87,13 +91,13 @@ export function parseGates(raw: unknown): GatesSnapshot {
       risk: "high",
       approve: {
         tool: "county_queue_approve",
-        args: { session_id: cq.pending_review, confirm: true },
+        args: { session_id: cq.pending_review },
         consequence: `Publishes the reviewed package for ${cq.pending_review} and advances the queue past cursor ${cq.cursor ?? 0}.`,
         bounds: "Does not unfreeze the queue or run the next county. That stays a separate, deliberate act.",
       },
       reject: {
         tool: "county_queue_reject",
-        args: { session_id: cq.pending_review, confirm: true },
+        args: { session_id: cq.pending_review },
         consequence: `Sends ${cq.pending_review} back and leaves the cursor where it is.`,
       },
     });
@@ -110,7 +114,7 @@ export function parseGates(raw: unknown): GatesSnapshot {
       risk: (s.grants ?? 0) >= 3 ? "high" : "medium",
       approve: {
         tool: "session_approve_capability",
-        args: { session_id: id, confirm: true },
+        args: { session_id: id },
         consequence: `Grants the requested capability to ${id}, taking it from ${s.grants ?? 0} to ${(s.grants ?? 0) + 1} standing grants.`,
         bounds: "Scoped to this session only. It does not widen any agent's permanent Spec.",
       },

@@ -52,15 +52,31 @@ async function loadKeepGates(): Promise<GatesResponse> {
   }
 }
 
+/**
+ * Approve a Keep gate.
+ *
+ * The HTTP API refuses this without `confirm: true`, so an auto-supplied flag
+ * would make the gate decorative: anyone who could reach this function could
+ * approve anything. The caller must therefore state that a human confirmed it
+ * (`confirmed`, the result of the two-step ask in the UI) and the server adds
+ * `confirm: true` only after that check passes.
+ */
 export const approveKeepGate = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(
-    (input: { agentId?: string; roomId?: string }) => ({
+    (input: { agentId?: string; roomId?: string; confirmed?: boolean }) => ({
       agentId: input.agentId,
       roomId: input.roomId,
+      confirmed: input.confirmed === true,
     })
   )
   .handler(async ({ data }) => {
+    if (!data.confirmed) {
+      return {
+        ok: false as const,
+        error: "Refused: a Keep gate needs an explicit operator confirmation.",
+      };
+    }
     const gateUrl = data.roomId
       ? `${KEEP_HTTP_URL}/api/unlock-room`
       : `${KEEP_HTTP_URL}/api/approve-spec`;

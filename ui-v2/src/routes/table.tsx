@@ -48,11 +48,13 @@ function TablePage() {
     if (!window.confirm(`Are you sure — ${via} for ${gate.subject_id}?\n\n${gate.summary}`)) return;
     setGatesBusy(true);
     try {
+      // window.confirm above is the two-step ask; this flag is the operator's
+      // answer to it, not an auto-approve.
       const out = await approveKeepGate({
         data:
           gate.gate_type === "unlock_room"
-            ? { roomId: gate.subject_id }
-            : { agentId: gate.subject_id },
+            ? { roomId: gate.subject_id, confirmed: true }
+            : { agentId: gate.subject_id, confirmed: true },
       });
       if (!out.ok) toast.error(out.error);
       else toast.success(gate.gate_type === "unlock_room" ? "Room unlocked." : "Spec approved.");
