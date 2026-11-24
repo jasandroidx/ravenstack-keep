@@ -74,8 +74,6 @@ export type HallEvents = {
   onTalk: (npc: HallNpc) => void;
   onTable: () => void;
   onSkinChange?: (skinId: string) => void;
-  /** Player stepped into the Quarantine Cell. */
-  onEnterCell?: () => void;
   /** A scene finished create() — React must point its ref at the live scene. */
   onSceneReady?: (scene: HallScene) => void;
 };
@@ -1284,7 +1282,6 @@ export class HallScene extends Phaser.Scene {
       this.lastZone = zkey;
       this.eventsOut.onZone(zone?.name ?? "Keep", zone?.lock ?? "live");
       if (zone) this.markVisited(zone.id);
-      if (zone?.id === "quarantine") this.eventsOut.onEnterCell?.();
     }
 
     // Interaction Prompts using Facing Direction

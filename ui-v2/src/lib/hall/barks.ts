@@ -200,22 +200,6 @@ export const BARKS: Bark[] = [
     line: () => "I answer from the vault or I do not answer. There is no third path.",
   },
 
-  // ------------------------------------------------------------------ Cell
-  {
-    id: "cell-count",
-    npc: "quarantine-warden",
-    tier: 2,
-    requires: (s) => (s.quarantineOpen ?? 0) > 0,
-    line: (s) =>
-      `${s.quarantineOpen} open. Nothing in here is deleted. Every one of them was asserted by a model you rely on.`,
-  },
-  {
-    id: "cell-empty",
-    npc: "quarantine-warden",
-    tier: 2,
-    requires: (s) => s.quarantineOpen === 0,
-    line: () => "Empty. That means nothing was committed here — not that nothing was fabricated.",
-  },
 ];
 
 /** Lines already spent this session, per NPC, so nothing repeats early. */

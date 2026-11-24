@@ -262,32 +262,6 @@ export const HALL_NPCS: HallNpc[] = [
     ],
   },
   {
-    id: "quarantine-warden",
-    name: "The Cell",
-    role: "Quarantine",
-    x: 1095,
-    y: 840,
-    radius: 58,
-    state: "idle",
-    greeting:
-      "Every claim in here was asserted by one of your models and was not supported by its own evidence. Nothing is deleted. Read them before you trust the next answer.",
-    actions: [
-      { id: "open-cell", label: "Open the cell" },
-      {
-        id: "why",
-        label: "Why keep them?",
-        reply:
-          "A model that fabricates once will do it again on the same shape of question. The record is how you find the shape. An empty cell means nothing was committed to it — not that nothing was fabricated.",
-      },
-      {
-        id: "rule",
-        label: "What lands here?",
-        reply:
-          "A claim its evidence did not support: you caught it, or it was answered against an empty retrieval set, or a consistency score came back under threshold. The evidence is stored with the claim, or the record would be another unsourced assertion.",
-      },
-    ],
-  },
-  {
     id: "corvid",
     name: "Corvid",
     role: "Scout",
@@ -331,9 +305,6 @@ export type Zone = {
 export const ZONES: Zone[] = [
   // Nested places first — these sit inside great-hall and yard respectively.
   { id: "gallery-arch", name: "The Grand Gallery", lock: "live", rect: { x: 600, y: 230, w: 100, h: 80 }, href: "/gallery" },
-  // The cell sits in the east corner of the yard, deliberately in the open.
-  // Fabrications are not filed away out of sight.
-  { id: "quarantine", name: "The Quarantine Cell", lock: "live", rect: { x: 1030, y: 745, w: 130, h: 190 } },
   { id: "library", name: "Library", lock: "unforged", rect: { x: 140, y: 120, w: 380, h: 540 }, href: "/oracle" },
   { id: "great-hall", name: "Great Hall", lock: "live", rect: { x: 540, y: 220, w: 720, h: 470 } },
   { id: "watchtower", name: "Watchtower", lock: "unforged", rect: { x: 700, y: 40, w: 400, h: 190 } },
@@ -374,9 +345,8 @@ export const HALL_LIGHTS: HallLight[] = [
   // Workshop — magenta forge plasma
   { x: 1500, y: 300, radius: 220, color: 0xff2a6d, intensity: 1.3, flicker: 0.45, period: 0.7 },
   { x: 1610, y: 560, radius: 180, color: 0xff2a6d, intensity: 1.0, flicker: 0.5, period: 0.6 },
-  // Yard fountain, and the cell — cold, steady, unwelcoming
+  // Yard fountain
   { x: 900, y: 850, radius: 200, color: 0x2de2e6, intensity: 0.8, flicker: 0.1, period: 4.0 },
-  { x: 1095, y: 840, radius: 120, color: 0x8891a5, intensity: 0.7, flicker: 0.0, period: 1.0 },
 ];
 
 export const PLAYER_SPAWN = { x: 760, y: 650 };

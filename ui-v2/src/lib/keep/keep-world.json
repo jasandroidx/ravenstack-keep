@@ -3,7 +3,6 @@
   "map": { "src": "/hall/painted/keep-map.jpg", "w": 1792, "h": 1008 },
   "zoneOrder": [
     "gallery-arch",
-    "quarantine",
     "library",
     "great-hall",
     "watchtower",
@@ -123,13 +122,6 @@
       "href": "/gallery",
       "zone": { "x": 600, "y": 230, "w": 100, "h": 80 },
       "note": "A doorway painted into the hall, not a room with an occupant. It must win over great-hall in zoneOrder: nested places come before the room that contains them, or standing in the arch reports the hall."
-    },
-    {
-      "id": "quarantine",
-      "name": "The Quarantine Cell",
-      "lock": "live",
-      "zone": { "x": 1030, "y": 745, "w": 130, "h": 190 },
-      "note": "Sits in the east corner of the yard, deliberately in the open. Fabrications are not filed away out of sight. It must win over yard in zoneOrder — the Hall fires its cell-entry event on this zone id, and inside the yard that never happened."
     }
   ],
   "unplaced": [
@@ -227,16 +219,6 @@
       "talkScene": "/hall/painted/talk-valerie.jpg",
       "href": "/mechanic",
       "greeting": "Workshop is cold until you forge it. I can still diagnose — numbered, reversible, no secret leaks."
-    },
-    {
-      "id": "quarantine-warden",
-      "name": "The Cell",
-      "role": "Quarantine",
-      "place": "quarantine",
-      "x": 1095,
-      "y": 840,
-      "radius": 58,
-      "greeting": "Every claim in here was asserted by one of your models and was not supported by its own evidence. Nothing is deleted. Read them before you trust the next answer."
     },
     {
       "id": "corvid",

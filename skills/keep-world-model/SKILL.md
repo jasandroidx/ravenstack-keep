@@ -24,15 +24,17 @@ Verified 2026-11-24, before the model existed:
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | `schemas/keep-rooms.schema.json` (shift board) | `gate, dock, auction-pit, archive, watchtower`                                                          |
 | `ui-v2/src/lib/keep/catalog.ts` (Ledger)       | `watchtower, library, great-hall, roost, armory, workshop, yard`                                        |
-| `ui-v2/src/lib/hall/world.ts` (ZONES)          | `library, great-hall, gallery-arch, watchtower, workshop, yard, quarantine`                             |
+| `ui-v2/src/lib/hall/world.ts` (ZONES)          | `gallery-arch, library, great-hall, watchtower, workshop, yard`                                        |
 | `ui-v2/src/lib/keep/pulse.fixture.json`        | none — the paper fixture carries no rooms (the invented ones were removed)                             |
 | `AGENTS.md` prose                              | "six rooms (great-hall, alchemy-lab, library, armory, observatory, vault)"                              |
 
 `alchemy-lab` (Clawforge's home in `SPECS`) existed in none of the code lists; it
 is retired as of 2026-11-24 and the id is gone from `keep-world.json`,
-`ROOM_TO_SPEC` and `SPECS`. `quarantine` and `gallery-arch` exist only on the map —
-they are `mapOnly` now. `observatory` and `vault` existed only in prose and are
-gone from `AGENTS.md`. That is the bug this skill prevents.
+`ROOM_TO_SPEC` and `SPECS`. `gallery-arch` is the only `mapOnly` place now (the
+Quarantine Cell was retired 2026-11-24 — the claim records it fronted still exist
+in `quarantine_claims`, they just are not a room you walk into). `observatory` and
+`vault` existed only in prose and are gone from `AGENTS.md`. That is the bug this
+skill prevents.
 
 **Stage status:** `keep-world.json` exists and `src/lib/keep/world.test.ts` pins
 `catalog.ROOMS`, `world.ZONES` and `world.HALL_NPCS` to it. Those three still hold
@@ -67,8 +69,8 @@ the data themselves; deriving them from the model is stage 2.
   // other way round and the doorway reports the hall and the cell's entry
   // event never fires. `world.test.ts` fails if a zone's centre resolves
   // elsewhere.
-  "zoneOrder": ["gallery-arch", "quarantine", "library", "great-hall"],
-  "mapOnly": [], // zones drawn on the painting with no Ledger row (quarantine, gallery arch)
+  "zoneOrder": ["gallery-arch", "library", "great-hall"],
+  "mapOnly": [], // zones drawn on the painting with no Ledger row (the gallery arch)
   "unplaced": [], // Ledger rows with no painting yet (armory, roost)
   "npcs": [
     // Top-level, not nested: `place` may differ from the room's occupant
@@ -112,7 +114,7 @@ committed SVG is out of date, so the blueprint cannot drift. Do not hand-edit it
 4. **A room is in `rooms` or `unplaced`, never both, never neither.** Anything
    walkable needs a `zone`; anything with a `zone` must be in `rooms` or `mapOnly`.
 5. **`mapOnly` exists so a painting detail does not need a fake agent.** The
-   Quarantine Cell and the Grand Gallery arch are places, not agents.
+   Grand Gallery arch is a place, not an agent.
 6. **`unplaced` is honest, not shameful.** `armory`, `roost`, `alchemy-lab` are
    real capabilities with real Specs and no painted floor. Listing them there is
    correct; inventing a zone for them is not.

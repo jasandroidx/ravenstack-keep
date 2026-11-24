@@ -74,8 +74,8 @@ a separate git worktree (`/root/worktrees/ravenstack-keep-painted`, branch
 
 The fortress's visual command layer: a spatial map of the rooms in
 `ui-v2/src/lib/keep/keep-world.json` — painted and live (`great-hall`, `library`,
-`workshop`, `watchtower`, `yard`), painted places with no agent (`gallery-arch`,
-`quarantine`), and Ledger rooms with no painted floor (`roost`, `armory`). Each
+`workshop`, `watchtower`, `yard`), one painted place with no agent
+(`gallery-arch`), and Ledger rooms with no painted floor (`roost`, `armory`). Each
 has an occupant agent or an explicit note saying why it has none. `alchemy-lab`
 was retired 2026-11-24 along with Clawforge's Forge pages; `observatory` and
 `vault` never existed outside this sentence. Treat `keep-world.json`, not prose,

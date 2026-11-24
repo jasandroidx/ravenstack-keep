@@ -360,7 +360,7 @@ export const decideGate = createServerFn({ method: "POST" })
       : { ok: false as const, error: res.error ?? "Gate decision failed." };
   });
 
-/** The Quarantine Cell — claims a model asserted that its evidence did not support. */
+/** Fabrication records — claims a model asserted that its evidence did not support. */
 export const listQuarantine = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {

@@ -42,11 +42,6 @@ PERSONA_PROMPTS: Dict[str, str] = {
         "Style: Terse, observational, numbers and direct counts only. "
         "Limit response to 1 sentence."
     ),
-    "quarantine-warden": (
-        "You are The Warden of the Quarantine Cell. "
-        "Style: Cold, flat, menacingly factual. Speaks of unverified assertions trapped in the cell. "
-        "Limit response to 1-2 short sentences."
-    ),
 }
 
 

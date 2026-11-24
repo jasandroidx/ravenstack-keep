@@ -63,9 +63,9 @@ export const HALL_PORTALS: KeepDoor[] = [
     label: "TOWER →",
   },
   {
-    // The pad used to sit under the Quarantine Cell's zone and the Cell's own
-    // NPC, so walking to the cell teleported you here. North-west corner of the
-    // yard is the free floor: clear of the fountain, the tower pad and Corvid.
+    // North-west corner of the yard is the free floor: clear of the fountain,
+    // the tower pad and Corvid. (The pad used to sit further east, inside a
+    // room zone that has since been retired.)
     id: "yard-to-sploit",
     x: 660,
     y: 730,
