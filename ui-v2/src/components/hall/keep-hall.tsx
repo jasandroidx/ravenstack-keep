@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type ButtonHTMLAttributes, type PointerEve
 import { Link, useNavigate } from "@tanstack/react-router";
 import { TalkSheet } from "@/components/hall/talk-sheet";
 import type { HallScene } from "@/lib/hall/scene";
-import { RoomScene } from "@/lib/hall/room-scene";
 import { RAVENLORD_SKINS, type HallNpc, type RavenlordSkin } from "@/lib/hall/world";
 import { getKeepSnapshot } from "@/lib/keep/server";
 import type { KeepPulse } from "@/lib/keep/pulse";
@@ -250,6 +249,10 @@ export function KeepHall() {
         const phaserMod = await import("phaser");
         const Phaser = (phaserMod as unknown as { default?: typeof phaserMod }).default || phaserMod;
         const { HallScene } = await import("@/lib/hall/scene");
+        // RoomScene is imported here, never at module scope: room-scene.ts imports
+        // Phaser at the top, and Phaser reads `window` while loading, so a static
+        // import turned this route into a client-rendered page.
+        const { RoomScene } = await import("@/lib/hall/room-scene");
         if (dead || !host.current || created || gameRef.current) return;
 
         const hallEvents = {
@@ -726,10 +729,10 @@ export function KeepHall() {
       </div>
 
       {talk || tableOpen || wardrobeOpen || teleportOpen ? null : (
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between p-3 md:p-4">
-          <div className="rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/85 px-3.5 py-2.5 shadow-[0_0_20px_rgba(0,0,0,0.6)] backdrop-blur-md">
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-wrap items-start justify-between gap-2 p-3 md:p-4">
+          <div className="min-w-0 max-w-[70vw] rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/85 px-3.5 py-2.5 shadow-[0_0_20px_rgba(0,0,0,0.6)] backdrop-blur-md md:max-w-xs">
             <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[#9aa3b2]">Ravenstack Keep</p>
-            <p className="font-mono text-base font-bold text-[#e8ecf1]">
+            <p className="truncate font-mono text-base font-bold text-[#e8ecf1]">
               {zone}{" "}
               <span className={lock === "live" ? "text-[#39ff14]" : "text-[#ffc857]"}>· {lock}</span>
             </p>
@@ -743,7 +746,7 @@ export function KeepHall() {
               </p>
             ) : null}
           </div>
-          <div className="pointer-events-auto flex items-center gap-2">
+          <div className="pointer-events-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5 md:gap-2">
             <FastMCPStatusBadge />
             <button
               type="button"

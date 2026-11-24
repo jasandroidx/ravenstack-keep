@@ -1225,7 +1225,7 @@ export class HallScene extends Phaser.Scene {
     const finalVy = canMoveY ? targetVel.y : 0;
 
     this.player.setVelocity(finalVx, finalVy);
-    if ((this.debugFrame++ % 30) === 0) {
+    if (import.meta.env.DEV && (this.debugFrame++ % 30) === 0) {
       try {
         (window as unknown as Record<string, unknown>).__keepPlayer = { x: this.player.x, y: this.player.y, vx: finalVx, vy: finalVy, paused: this.paused, dest: this.dest, stickX: this.stickX, stickY: this.stickY, sceneKey: this.scene.key, body: !!this.player.body };
       } catch { /* no window */ }

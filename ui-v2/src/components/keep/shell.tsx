@@ -55,7 +55,7 @@ export function KeepShell({ children, bleed = false }: { children: React.ReactNo
               );
             })}
           </nav>
-          <div className="ml-auto flex items-center gap-3 text-sm">
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2 text-sm sm:gap-3">
             <FastMCPStatusBadge />
             <PulseBadge />
             <AuthSlot />
