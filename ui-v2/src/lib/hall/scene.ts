@@ -7,6 +7,7 @@ import {
   MAP_W,
   PALETTE,
   PLAYER_SPAWN,
+  VALERIE_LEASH,
   ZONES,
   RAVENLORD_SKINS,
   npcAtPoint,
@@ -270,15 +271,6 @@ export class HallScene extends Phaser.Scene {
         })
         .setOrigin(0.5, 1)
         .setDepth(3);
-    }
-    if (this.scene.key !== "HallScene") {
-      this.add
-        .text(MAP_W / 2, 56, "HALL TEST CLONE — return door below", {
-          fontFamily: "monospace", fontSize: "20px", color: "#ffc857",
-          backgroundColor: "#0b0e14cc", padding: { x: 10, y: 6 },
-        })
-        .setOrigin(0.5, 0)
-        .setDepth(30);
     }
     this.physics.world.setBounds(0, 0, MAP_W, MAP_H);
     this.cameras.main.setBounds(0, 0, MAP_W, MAP_H);
@@ -946,10 +938,8 @@ export class HallScene extends Phaser.Scene {
   }
 
   // Valerie stays in the Workshop. Workshop floor in world.ts WALK is
-  // 1340,190,370,500; inset 30px so she never clips walls, benches, or doors.
-  // The zone rect (1310,60,420,680) is NOT the walkable floor — it includes
-  // the benches strip and the hall↔workshop corridor, so it is not used here.
-  private static readonly VALERIE_WORKSHOP = { x: 1370, y: 220, w: 310, h: 440 };
+  // The rect and why it is not the zone rect: see VALERIE_LEASH in world.ts.
+  private static readonly VALERIE_WORKSHOP = VALERIE_LEASH;
 
   private inWorkshop(x: number, y: number): boolean {
     const r = (this.constructor as typeof HallScene).VALERIE_WORKSHOP;

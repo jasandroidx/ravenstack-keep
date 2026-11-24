@@ -17,7 +17,9 @@
     "test": "node --experimental-strip-types --test 'scripts/**/*.test.mjs' 'src/**/*.test.ts'",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "probe:bridge": "node --experimental-strip-types --no-warnings scripts/probe-bridge.mjs"
+    "probe:bridge": "node --experimental-strip-types --no-warnings scripts/probe-bridge.mjs",
+    "world:map": "node --experimental-strip-types --no-warnings scripts/world-map.mjs",
+    "world:map:check": "node --experimental-strip-types --no-warnings scripts/world-map.mjs --check"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.4",

@@ -84,27 +84,34 @@ export const PALETTE = {
 
 export type Rect = { x: number; y: number; w: number; h: number };
 
+/** A walk floor carries its name so the layout map and its test can say which
+ *  floor is unreachable instead of which index is. */
+export type WalkFloor = Rect & { name: string };
+
 /** Walkable floors. Player feet must sit in one of these and outside SOLID. */
-export const WALK: Rect[] = [
-  { x: 210, y: 175, w: 280, h: 340 }, // library floor
-  { x: 230, y: 500, w: 180, h: 130 }, // library south
-  { x: 470, y: 255, w: 100, h: 140 }, // library ↔ hall
-  { x: 560, y: 235, w: 680, h: 450 }, // great hall
-  { x: 740, y: 55, w: 320, h: 190 }, // throne dais
-  { x: 1230, y: 270, w: 120, h: 160 }, // hall ↔ workshop
-  { x: 1340, y: 190, w: 370, h: 500 }, // workshop floor
-  { x: 800, y: 200, w: 160, h: 50 }, // stairs hall ↔ throne
-  { x: 820, y: 670, w: 160, h: 70 }, // stairs to yard
-  { x: 640, y: 720, w: 520, h: 240 }, // yard
+export const WALK: WalkFloor[] = [
+  { x: 210, y: 175, w: 280, h: 340, name: "library floor" },
+  { x: 230, y: 500, w: 180, h: 130, name: "library south" },
+  { x: 470, y: 255, w: 100, h: 140, name: "library ↔ hall" },
+  { x: 560, y: 235, w: 680, h: 450, name: "great hall" },
+  { x: 740, y: 55, w: 320, h: 190, name: "throne dais" },
+  { x: 1230, y: 270, w: 120, h: 160, name: "hall ↔ workshop" },
+  { x: 1340, y: 190, w: 370, h: 500, name: "workshop floor" },
+  { x: 800, y: 200, w: 160, h: 50, name: "stairs hall ↔ throne" },
+  { x: 820, y: 670, w: 160, h: 70, name: "stairs to yard" },
+  { x: 640, y: 720, w: 520, h: 240, name: "yard" },
 ];
 
-export const SOLID: Rect[] = [
-  { x: 800, y: 348, w: 210, h: 175 }, // war table
-  { x: 848, y: 805, w: 140, h: 130 }, // fountain
-  { x: 1340, y: 80, w: 370, h: 130 }, // workshop benches
-  { x: 1560, y: 500, w: 150, h: 120 }, // cauldron
-  { x: 155, y: 140, w: 130, h: 200 }, // library shelves
-  { x: 170, y: 500, w: 160, h: 110 }, // library desk
+/** Furnishings the player (and every walker) collides with. */
+export type SolidProp = Rect & { name: string };
+
+export const SOLID: SolidProp[] = [
+  { x: 800, y: 348, w: 210, h: 175, name: "war table" },
+  { x: 848, y: 805, w: 140, h: 130, name: "fountain" },
+  { x: 1340, y: 80, w: 370, h: 130, name: "workshop benches" },
+  { x: 1560, y: 500, w: 150, h: 120, name: "cauldron" },
+  { x: 155, y: 140, w: 130, h: 200, name: "library shelves" },
+  { x: 170, y: 500, w: 160, h: 110, name: "library desk" },
 ];
 
 function inside(r: Rect, x: number, y: number) {
@@ -314,16 +321,24 @@ export type Zone = {
   href?: string;
 };
 
+/**
+ * Rectangles the HUD names as rooms. ORDER IS LOOK-UP PRECEDENCE, not
+ * geography: `zoneAt` returns the first hit, so a place painted inside another
+ * room (the gallery doorway, the cell in the yard) has to come before the room
+ * that contains it or it can never win. `world.test.ts` fails if any zone's
+ * own centre resolves to a different zone.
+ */
 export const ZONES: Zone[] = [
-  { id: "library", name: "Library", lock: "unforged", rect: { x: 140, y: 120, w: 380, h: 540 }, href: "/oracle" },
-  { id: "great-hall", name: "Great Hall", lock: "live", rect: { x: 540, y: 220, w: 720, h: 470 } },
+  // Nested places first — these sit inside great-hall and yard respectively.
   { id: "gallery-arch", name: "The Grand Gallery", lock: "live", rect: { x: 600, y: 230, w: 100, h: 80 }, href: "/gallery" },
-  { id: "watchtower", name: "Watchtower", lock: "unforged", rect: { x: 700, y: 40, w: 400, h: 190 } },
-  { id: "workshop", name: "Workshop", lock: "unforged", rect: { x: 1310, y: 60, w: 420, h: 680 }, href: "/mechanic" },
-  { id: "yard", name: "Yard", lock: "unforged", rect: { x: 620, y: 700, w: 540, h: 260 } },
   // The cell sits in the east corner of the yard, deliberately in the open.
   // Fabrications are not filed away out of sight.
   { id: "quarantine", name: "The Quarantine Cell", lock: "live", rect: { x: 1030, y: 745, w: 130, h: 190 } },
+  { id: "library", name: "Library", lock: "unforged", rect: { x: 140, y: 120, w: 380, h: 540 }, href: "/oracle" },
+  { id: "great-hall", name: "Great Hall", lock: "live", rect: { x: 540, y: 220, w: 720, h: 470 } },
+  { id: "watchtower", name: "Watchtower", lock: "unforged", rect: { x: 700, y: 40, w: 400, h: 190 } },
+  { id: "workshop", name: "Workshop", lock: "unforged", rect: { x: 1310, y: 60, w: 420, h: 680 }, href: "/mechanic" },
+  { id: "yard", name: "Yard", lock: "unforged", rect: { x: 620, y: 700, w: 540, h: 260 } },
 ];
 
 /**
@@ -365,6 +380,12 @@ export const HALL_LIGHTS: HallLight[] = [
 ];
 
 export const PLAYER_SPAWN = { x: 760, y: 650 };
+
+/** Where Valerie may wander. The workshop zone rect (1310,60,420,680) is NOT
+ *  her floor — it includes the benches strip and the hall↔workshop corridor,
+ *  so the walkable floor is inset 30px and she is confined to this instead.
+ *  `scene.ts` enforces it on every step; the layout map draws it. */
+export const VALERIE_LEASH = { x: 1370, y: 220, w: 310, h: 440 };
 
 export function zoneAt(x: number, y: number): Zone | null {
   return ZONES.find((z) => inside(z.rect, x, y)) ?? null;

@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { ROOMS, ROOM_TO_SPEC, SPECS } from "./catalog.ts";
-import { HALL_NPCS, WALK, ZONES } from "../hall/world.ts";
+import { HALL_NPCS, WALK, ZONES, zoneAt } from "../hall/world.ts";
 
 /**
  * The Keep's room vocabulary used to live in five places that disagreed:
@@ -156,7 +156,7 @@ test("ZONES matches the model, in zoneOrder", () => {
   assert.deepEqual(
     ZONES.map((z) => z.id),
     world.zoneOrder,
-    "ZONES order is zone look-up precedence: gallery-arch must follow great-hall",
+    "ZONES order is look-up precedence and must match the model's zoneOrder",
   );
   for (const id of world.zoneOrder) {
     const zone = ZONES.find((z) => z.id === id);
@@ -172,6 +172,23 @@ test("ZONES matches the model, in zoneOrder", () => {
     assert.deepEqual(zone.rect, model.zone, `${id} zone rect`);
     assert.equal(zone.lock, lock, `${id} zone lock`);
     assert.equal(zone.href ?? null, model.href ?? null, `${id} zone href`);
+  }
+});
+
+test("every zone wins at its own centre", () => {
+  // zoneAt returns the FIRST rect that contains the point, so a place painted
+  // inside a bigger room only ever resolves if it is listed first. This is how
+  // the gallery doorway reported "Great Hall" and the cell in the yard never
+  // fired scene.ts's cell-entry event.
+  for (const zone of ZONES) {
+    const cx = zone.rect.x + zone.rect.w / 2;
+    const cy = zone.rect.y + zone.rect.h / 2;
+    const winner = zoneAt(cx, cy);
+    assert.equal(
+      winner?.id,
+      zone.id,
+      `${zone.id}'s own centre resolves to ${winner?.id ?? "nothing"} — list it before ${winner?.id ?? "every other zone"}`,
+    );
   }
 });
 

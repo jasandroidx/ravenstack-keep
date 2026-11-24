@@ -2,13 +2,13 @@
   "schema": "keep-world.v1",
   "map": { "src": "/hall/painted/keep-map.jpg", "w": 1792, "h": 1008 },
   "zoneOrder": [
+    "gallery-arch",
+    "quarantine",
     "library",
     "great-hall",
-    "gallery-arch",
     "watchtower",
     "workshop",
-    "yard",
-    "quarantine"
+    "yard"
   ],
   "rooms": [
     {
@@ -122,14 +122,14 @@
       "lock": "live",
       "href": "/gallery",
       "zone": { "x": 600, "y": 230, "w": 100, "h": 80 },
-      "note": "A doorway painted into the hall, not a room with an occupant. Its zone must stay after great-hall in zoneOrder or the hall swallows it."
+      "note": "A doorway painted into the hall, not a room with an occupant. It must win over great-hall in zoneOrder: nested places come before the room that contains them, or standing in the arch reports the hall."
     },
     {
       "id": "quarantine",
       "name": "The Quarantine Cell",
       "lock": "live",
       "zone": { "x": 1030, "y": 745, "w": 130, "h": 190 },
-      "note": "Sits in the east corner of the yard, deliberately in the open. Fabrications are not filed away out of sight."
+      "note": "Sits in the east corner of the yard, deliberately in the open. Fabrications are not filed away out of sight. It must win over yard in zoneOrder — the Hall fires its cell-entry event on this zone id, and inside the yard that never happened."
     }
   ],
   "unplaced": [

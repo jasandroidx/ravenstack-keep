@@ -62,7 +62,12 @@ the data themselves; deriving them from the model is stage 2.
       "pulse": { "boxIds": ["orchestrator-throne"], "slugs": ["great-hall"] },
     },
   ],
-  "zoneOrder": ["library", "great-hall", "gallery-arch"], // first match wins
+  // first match wins, so a place painted INSIDE a room must come before it:
+  // the gallery doorway before great-hall, the cell before yard. Put them the
+  // other way round and the doorway reports the hall and the cell's entry
+  // event never fires. `world.test.ts` fails if a zone's centre resolves
+  // elsewhere.
+  "zoneOrder": ["gallery-arch", "quarantine", "library", "great-hall"],
   "mapOnly": [], // zones drawn on the painting with no Ledger row (quarantine, gallery arch)
   "unplaced": [], // Ledger rows with no painting yet (armory, roost)
   "npcs": [
@@ -83,6 +88,16 @@ the data themselves; deriving them from the model is stage 2.
   ]
 }
 ```
+
+## The map is generated, never drawn
+
+`cd ui-v2 && npm run world:map` writes `docs/keep/map.svg` from the code the game
+runs — `world.WALK`/`SOLID`/`ZONES`/`HALL_NPCS`, `portals.HALL_PORTALS`, and
+reachability from `walkable()` itself. It draws walk floors, solid props, zones,
+doors, occupants with their wander leash, the spawn, and a findings list (dead
+doors, door/room clashes, floors you cannot reach, unreachable doors).
+`npm run world:map:check` and `scripts/world-map.test.mjs` fail when the
+committed SVG is out of date, so the blueprint cannot drift. Do not hand-edit it.
 
 ## Rules
 

@@ -1,0 +1,172 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1840" height="1482" viewBox="0 0 1840 1482" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">
+<rect width="1840" height="1482" fill="#0b0e14"/>
+<rect width="1840" height="100%" fill="#0b0e14"/>
+<text x="24" y="40" fill="#e8ecf1" font-size="24" letter-spacing="4">RAVENSTACK KEEP — LAYOUT</text>
+<text x="24" y="64" fill="#8891a5" font-size="12">1792×1008 painted map (/hall/painted/keep-map.jpg) · 10 walk floors · 6 solid props · 7 zones · 6 occupants · 5 doors</text>
+<text x="24" y="82" fill="#8891a5" font-size="12">generated from lib/hall/world.ts + lib/hall/portals.ts — regenerate: cd ui-v2 &amp;&amp; npm run world:map — do not edit by hand</text>
+<g transform="translate(24,104)">
+<rect width="1792" height="1008" fill="#080a0f" stroke="#1a2028"/>
+<line x1="100" y1="0" x2="100" y2="1008" stroke="#1a2028" stroke-width="0.5" stroke-opacity="0.5"/>
+<line x1="200" y1="0" x2="200" y2="1008" stroke="#1a2028" stroke-width="1" stroke-opacity="0.9"/>
+<text x="203" y="12" fill="#8891a5" font-size="9">200</text>
+<line x1="300" y1="0" x2="300" y2="1008" stroke="#1a2028" stroke-width="0.5" stroke-opacity="0.5"/>
+<line x1="400" y1="0" x2="400" y2="1008" stroke="#1a2028" stroke-width="1" stroke-opacity="0.9"/>
+<text x="403" y="12" fill="#8891a5" font-size="9">400</text>
+<line x1="500" y1="0" x2="500" y2="1008" stroke="#1a2028" stroke-width="0.5" stroke-opacity="0.5"/>
+<line x1="600" y1="0" x2="600" y2="1008" stroke="#1a2028" stroke-width="1" stroke-opacity="0.9"/>
+<text x="603" y="12" fill="#8891a5" font-size="9">600</text>
+<line x1="700" y1="0" x2="700" y2="1008" stroke="#1a2028" stroke-width="0.5" stroke-opacity="0.5"/>
+<line x1="800" y1="0" x2="800" y2="1008" stroke="#1a2028" stroke-width="1" stroke-opacity="0.9"/>
+<text x="803" y="12" fill="#8891a5" font-size="9">800</text>
+<line x1="900" y1="0" x2="900" y2="1008" stroke="#1a2028" stroke-width="0.5" stroke-opacity="0.5"/>
+<line x1="1000" y1="0" x2="1000" y2="1008" stroke="#1a2028" stroke-width="1" stroke-opacity="0.9"/>
+<text x="1003" y="12" fill="#8891a5" font-size="9">1000</text>
+<line x1="1100" y1="0" x2="1100" y2="1008" stroke="#1a2028" stroke-width="0.5" stroke-opacity="0.5"/>
+<line x1="1200" y1="0" x2="1200" y2="1008" stroke="#1a2028" stroke-width="1" stroke-opacity="0.9"/>
+<text x="1203" y="12" fill="#8891a5" font-size="9">1200</text>
+<line x1="1300" y1="0" x2="1300" y2="1008" stroke="#1a2028" stroke-width="0.5" stroke-opacity="0.5"/>
+<line x1="1400" y1="0" x2="1400" y2="1008" stroke="#1a2028" stroke-width="1" stroke-opacity="0.9"/>
+<text x="1403" y="12" fill="#8891a5" font-size="9">1400</text>
+<line x1="1500" y1="0" x2="1500" y2="1008" stroke="#1a2028" stroke-width="0.5" stroke-opacity="0.5"/>
+<line x1="1600" y1="0" x2="1600" y2="1008" stroke="#1a2028" stroke-width="1" stroke-opacity="0.9"/>
+<text x="1603" y="12" fill="#8891a5" font-size="9">1600</text>
+<line x1="1700" y1="0" x2="1700" y2="1008" stroke="#1a2028" stroke-width="0.5" stroke-opacity="0.5"/>
+<line x1="0" y1="100" x2="1792" y2="100" stroke="#1a2028" stroke-width="0.5" stroke-opacity="0.5"/>
+<line x1="0" y1="200" x2="1792" y2="200" stroke="#1a2028" stroke-width="1" stroke-opacity="0.9"/>
+<text x="4" y="196" fill="#8891a5" font-size="9">200</text>
+<line x1="0" y1="300" x2="1792" y2="300" stroke="#1a2028" stroke-width="0.5" stroke-opacity="0.5"/>
+<line x1="0" y1="400" x2="1792" y2="400" stroke="#1a2028" stroke-width="1" stroke-opacity="0.9"/>
+<text x="4" y="396" fill="#8891a5" font-size="9">400</text>
+<line x1="0" y1="500" x2="1792" y2="500" stroke="#1a2028" stroke-width="0.5" stroke-opacity="0.5"/>
+<line x1="0" y1="600" x2="1792" y2="600" stroke="#1a2028" stroke-width="1" stroke-opacity="0.9"/>
+<text x="4" y="596" fill="#8891a5" font-size="9">600</text>
+<line x1="0" y1="700" x2="1792" y2="700" stroke="#1a2028" stroke-width="0.5" stroke-opacity="0.5"/>
+<line x1="0" y1="800" x2="1792" y2="800" stroke="#1a2028" stroke-width="1" stroke-opacity="0.9"/>
+<text x="4" y="796" fill="#8891a5" font-size="9">800</text>
+<line x1="0" y1="900" x2="1792" y2="900" stroke="#1a2028" stroke-width="0.5" stroke-opacity="0.5"/>
+<line x1="0" y1="1000" x2="1792" y2="1000" stroke="#1a2028" stroke-width="1" stroke-opacity="0.9"/>
+<text x="4" y="996" fill="#8891a5" font-size="9">1000</text>
+<rect x="210" y="175" width="280" height="340" fill="#39ff14" fill-opacity="0.07" stroke="#39ff14" stroke-opacity="0.45" stroke-width="1"/>
+<text x="216" y="189" fill="#39ff14" fill-opacity="0.7" font-size="10">library floor</text>
+<rect x="230" y="500" width="180" height="130" fill="#39ff14" fill-opacity="0.07" stroke="#39ff14" stroke-opacity="0.45" stroke-width="1"/>
+<text x="236" y="514" fill="#39ff14" fill-opacity="0.7" font-size="10">library south</text>
+<rect x="470" y="255" width="100" height="140" fill="#39ff14" fill-opacity="0.07" stroke="#39ff14" stroke-opacity="0.45" stroke-width="1"/>
+<text x="476" y="269" fill="#39ff14" fill-opacity="0.7" font-size="10">library ↔ hall</text>
+<rect x="560" y="235" width="680" height="450" fill="#39ff14" fill-opacity="0.07" stroke="#39ff14" stroke-opacity="0.45" stroke-width="1"/>
+<text x="566" y="249" fill="#39ff14" fill-opacity="0.7" font-size="10">great hall</text>
+<rect x="740" y="55" width="320" height="190" fill="#39ff14" fill-opacity="0.07" stroke="#39ff14" stroke-opacity="0.45" stroke-width="1"/>
+<text x="746" y="69" fill="#39ff14" fill-opacity="0.7" font-size="10">throne dais</text>
+<rect x="1230" y="270" width="120" height="160" fill="#39ff14" fill-opacity="0.07" stroke="#39ff14" stroke-opacity="0.45" stroke-width="1"/>
+<text x="1236" y="284" fill="#39ff14" fill-opacity="0.7" font-size="10">hall ↔ workshop</text>
+<rect x="1340" y="190" width="370" height="500" fill="#39ff14" fill-opacity="0.07" stroke="#39ff14" stroke-opacity="0.45" stroke-width="1"/>
+<text x="1346" y="204" fill="#39ff14" fill-opacity="0.7" font-size="10">workshop floor</text>
+<rect x="800" y="200" width="160" height="50" fill="#39ff14" fill-opacity="0.07" stroke="#39ff14" stroke-opacity="0.45" stroke-width="1"/>
+<text x="806" y="214" fill="#39ff14" fill-opacity="0.7" font-size="10">stairs hall ↔ throne</text>
+<rect x="820" y="670" width="160" height="70" fill="#39ff14" fill-opacity="0.07" stroke="#39ff14" stroke-opacity="0.45" stroke-width="1"/>
+<text x="826" y="684" fill="#39ff14" fill-opacity="0.7" font-size="10">stairs to yard</text>
+<rect x="640" y="720" width="520" height="240" fill="#39ff14" fill-opacity="0.07" stroke="#39ff14" stroke-opacity="0.45" stroke-width="1"/>
+<text x="646" y="734" fill="#39ff14" fill-opacity="0.7" font-size="10">yard</text>
+<rect x="800" y="348" width="210" height="175" fill="#ff2a6d" fill-opacity="0.16" stroke="#ff2a6d" stroke-opacity="0.6"/>
+<text x="905" y="438.5" fill="#ff2a6d" font-size="10" text-anchor="middle" fill-opacity="0.9">war table</text>
+<rect x="848" y="805" width="140" height="130" fill="#ff2a6d" fill-opacity="0.16" stroke="#ff2a6d" stroke-opacity="0.6"/>
+<text x="918" y="873" fill="#ff2a6d" font-size="10" text-anchor="middle" fill-opacity="0.9">fountain</text>
+<rect x="1340" y="80" width="370" height="130" fill="#ff2a6d" fill-opacity="0.16" stroke="#ff2a6d" stroke-opacity="0.6"/>
+<text x="1525" y="148" fill="#ff2a6d" font-size="10" text-anchor="middle" fill-opacity="0.9">workshop benches</text>
+<rect x="1560" y="500" width="150" height="120" fill="#ff2a6d" fill-opacity="0.16" stroke="#ff2a6d" stroke-opacity="0.6"/>
+<text x="1635" y="563" fill="#ff2a6d" font-size="10" text-anchor="middle" fill-opacity="0.9">cauldron</text>
+<rect x="155" y="140" width="130" height="200" fill="#ff2a6d" fill-opacity="0.16" stroke="#ff2a6d" stroke-opacity="0.6"/>
+<text x="220" y="243" fill="#ff2a6d" font-size="10" text-anchor="middle" fill-opacity="0.9">library shelves</text>
+<rect x="170" y="500" width="160" height="110" fill="#ff2a6d" fill-opacity="0.16" stroke="#ff2a6d" stroke-opacity="0.6"/>
+<text x="250" y="558" fill="#ff2a6d" font-size="10" text-anchor="middle" fill-opacity="0.9">library desk</text>
+<rect x="600" y="230" width="100" height="80" fill="none" stroke="#2de2e6" stroke-opacity="0.85" stroke-width="2" stroke-dasharray="none"/>
+<text x="608" y="250" fill="#2de2e6" fill-opacity="1" font-size="13" letter-spacing="1">The Grand Gallery</text>
+<rect x="1030" y="745" width="130" height="190" fill="none" stroke="#2de2e6" stroke-opacity="0.85" stroke-width="2" stroke-dasharray="none"/>
+<text x="1038" y="765" fill="#2de2e6" fill-opacity="1" font-size="13" letter-spacing="1">The Quarantine Cell</text>
+<rect x="140" y="120" width="380" height="540" fill="none" stroke="#2de2e6" stroke-opacity="0.4" stroke-width="2" stroke-dasharray="10 6"/>
+<text x="148" y="140" fill="#2de2e6" fill-opacity="0.65" font-size="13" letter-spacing="1">Library · unforged</text>
+<rect x="540" y="220" width="720" height="470" fill="none" stroke="#2de2e6" stroke-opacity="0.85" stroke-width="2" stroke-dasharray="none"/>
+<text x="548" y="240" fill="#2de2e6" fill-opacity="1" font-size="13" letter-spacing="1">Great Hall</text>
+<rect x="700" y="40" width="400" height="190" fill="none" stroke="#2de2e6" stroke-opacity="0.4" stroke-width="2" stroke-dasharray="10 6"/>
+<text x="708" y="60" fill="#2de2e6" fill-opacity="0.65" font-size="13" letter-spacing="1">Watchtower · unforged</text>
+<rect x="1310" y="60" width="420" height="680" fill="none" stroke="#2de2e6" stroke-opacity="0.4" stroke-width="2" stroke-dasharray="10 6"/>
+<text x="1318" y="80" fill="#2de2e6" fill-opacity="0.65" font-size="13" letter-spacing="1">Workshop · unforged</text>
+<rect x="620" y="700" width="540" height="260" fill="none" stroke="#2de2e6" stroke-opacity="0.4" stroke-width="2" stroke-dasharray="10 6"/>
+<text x="628" y="720" fill="#2de2e6" fill-opacity="0.65" font-size="13" letter-spacing="1">Yard · unforged</text>
+<rect x="1370" y="220" width="310" height="440" fill="none" stroke="#ff2a6d" stroke-opacity="0.5" stroke-dasharray="2 4"/>
+<text x="1376" y="234" fill="#ff2a6d" fill-opacity="0.75" font-size="9">VALERIE LEASH</text>
+<rect x="300" y="200" width="120" height="60" fill="#c792ea" fill-opacity="0.18" stroke="#c792ea" stroke-opacity="0.95" stroke-width="2"/>
+<text x="360" y="234" fill="#c792ea" font-size="10" text-anchor="middle">RECON →</text>
+<text x="360" y="272" fill="#c792ea" fill-opacity="0.6" font-size="8" text-anchor="middle">ReconRoomScene</text>
+<rect x="1500" y="300" width="120" height="60" fill="#c792ea" fill-opacity="0.18" stroke="#c792ea" stroke-opacity="0.95" stroke-width="2"/>
+<text x="1560" y="334" fill="#c792ea" font-size="10" text-anchor="middle">SEARCH →</text>
+<text x="1560" y="372" fill="#c792ea" fill-opacity="0.6" font-size="8" text-anchor="middle">SearchRoomScene</text>
+<rect x="600" y="600" width="120" height="60" fill="#c792ea" fill-opacity="0.18" stroke="#c792ea" stroke-opacity="0.95" stroke-width="2"/>
+<text x="660" y="634" fill="#c792ea" font-size="10" text-anchor="middle">CITADEL →</text>
+<text x="660" y="672" fill="#c792ea" fill-opacity="0.6" font-size="8" text-anchor="middle">CitadelRoomScene</text>
+<rect x="700" y="800" width="120" height="60" fill="#c792ea" fill-opacity="0.18" stroke="#c792ea" stroke-opacity="0.95" stroke-width="2"/>
+<text x="760" y="834" fill="#c792ea" font-size="10" text-anchor="middle">TOWER →</text>
+<text x="760" y="872" fill="#c792ea" fill-opacity="0.6" font-size="8" text-anchor="middle">TowerRoomScene</text>
+<rect x="660" y="730" width="120" height="60" fill="#c792ea" fill-opacity="0.18" stroke="#c792ea" stroke-opacity="0.95" stroke-width="2"/>
+<text x="720" y="764" fill="#c792ea" font-size="10" text-anchor="middle">SPLOIT →</text>
+<text x="720" y="802" fill="#c792ea" fill-opacity="0.6" font-size="8" text-anchor="middle">SploitRoomScene</text>
+<circle cx="640" cy="270" r="64" fill="none" stroke="#ffc857" stroke-opacity="0.35" stroke-dasharray="4 4"/>
+<circle cx="640" cy="270" r="5" fill="#ffc857"/>
+<text x="640" y="260" fill="#ffc857" font-size="12" text-anchor="middle">The Grand Gallery</text>
+<text x="640" y="346" fill="#ffc857" fill-opacity="0.65" font-size="9" text-anchor="middle">does not walk</text>
+<text x="640" y="357" fill="#2de2e6" fill-opacity="0.8" font-size="9" text-anchor="middle">portal /gallery</text>
+<circle cx="904" cy="575" r="64" fill="none" stroke="#ffc857" stroke-opacity="0.35" stroke-dasharray="4 4"/>
+<circle cx="904" cy="575" r="5" fill="#ffc857"/>
+<text x="904" y="565" fill="#ffc857" font-size="12" text-anchor="middle">Raziel</text>
+<text x="904" y="651" fill="#ffc857" fill-opacity="0.65" font-size="9" text-anchor="middle">roams the whole map</text>
+<circle cx="380" cy="310" r="64" fill="none" stroke="#ffc857" stroke-opacity="0.35" stroke-dasharray="4 4"/>
+<circle cx="380" cy="310" r="5" fill="#ffc857"/>
+<text x="380" y="300" fill="#ffc857" font-size="12" text-anchor="middle">The Oracle</text>
+<text x="380" y="386" fill="#ffc857" fill-opacity="0.65" font-size="9" text-anchor="middle">does not walk</text>
+<text x="380" y="397" fill="#2de2e6" fill-opacity="0.8" font-size="9" text-anchor="middle">portal /oracle</text>
+<circle cx="1490" cy="515" r="64" fill="none" stroke="#ffc857" stroke-opacity="0.35" stroke-dasharray="4 4"/>
+<circle cx="1490" cy="515" r="5" fill="#ffc857"/>
+<text x="1490" y="505" fill="#ffc857" font-size="12" text-anchor="middle">Valerie</text>
+<text x="1490" y="591" fill="#ffc857" fill-opacity="0.65" font-size="9" text-anchor="middle">leashed to the workshop</text>
+<text x="1490" y="602" fill="#2de2e6" fill-opacity="0.8" font-size="9" text-anchor="middle">portal /mechanic</text>
+<circle cx="1095" cy="840" r="58" fill="none" stroke="#ffc857" stroke-opacity="0.35" stroke-dasharray="4 4"/>
+<circle cx="1095" cy="840" r="5" fill="#ffc857"/>
+<text x="1095" y="830" fill="#ffc857" font-size="12" text-anchor="middle">The Cell</text>
+<text x="1095" y="910" fill="#ffc857" fill-opacity="0.65" font-size="9" text-anchor="middle">does not walk</text>
+<circle cx="800" cy="905" r="60" fill="none" stroke="#ffc857" stroke-opacity="0.35" stroke-dasharray="4 4"/>
+<circle cx="800" cy="905" r="5" fill="#ffc857"/>
+<text x="800" y="895" fill="#ffc857" font-size="12" text-anchor="middle">Corvid</text>
+<text x="800" y="977" fill="#ffc857" fill-opacity="0.65" font-size="9" text-anchor="middle">roams the whole map</text>
+<line x1="746" y1="650" x2="774" y2="650" stroke="#2de2e6" stroke-width="1.5"/>
+<line x1="760" y1="636" x2="760" y2="664" stroke="#2de2e6" stroke-width="1.5"/>
+<text x="778" y="654" fill="#2de2e6" font-size="10">SPAWN</text>
+</g>
+<text x="24" y="1152" fill="#e8ecf1" font-size="13" letter-spacing="2">ROOMS</text>
+<text x="24" y="1172" fill="#8891a5" font-size="11">id</text><text x="152" y="1172" fill="#8891a5" font-size="11">name</text><text x="342" y="1172" fill="#8891a5" font-size="11">lock</text><text x="426" y="1172" fill="#8891a5" font-size="11">rect</text><text x="626" y="1172" fill="#8891a5" font-size="11">href</text>
+<text x="24" y="1186" fill="#8891a5" font-size="11">gallery-arch</text><text x="152" y="1186" fill="#8891a5" font-size="11">The Grand Gallery</text><text x="342" y="1186" fill="#8891a5" font-size="11">live</text><text x="426" y="1186" fill="#8891a5" font-size="11">600,230 100×80</text><text x="626" y="1186" fill="#8891a5" font-size="11">/gallery</text>
+<text x="24" y="1202" fill="#8891a5" font-size="11">quarantine</text><text x="152" y="1202" fill="#8891a5" font-size="11">The Quarantine Cell</text><text x="342" y="1202" fill="#8891a5" font-size="11">live</text><text x="426" y="1202" fill="#8891a5" font-size="11">1030,745 130×190</text><text x="626" y="1202" fill="#8891a5" font-size="11">—</text>
+<text x="24" y="1218" fill="#8891a5" font-size="11">library</text><text x="152" y="1218" fill="#8891a5" font-size="11">Library</text><text x="342" y="1218" fill="#8891a5" font-size="11">unforged</text><text x="426" y="1218" fill="#8891a5" font-size="11">140,120 380×540</text><text x="626" y="1218" fill="#8891a5" font-size="11">/oracle</text>
+<text x="24" y="1234" fill="#8891a5" font-size="11">great-hall</text><text x="152" y="1234" fill="#8891a5" font-size="11">Great Hall</text><text x="342" y="1234" fill="#8891a5" font-size="11">live</text><text x="426" y="1234" fill="#8891a5" font-size="11">540,220 720×470</text><text x="626" y="1234" fill="#8891a5" font-size="11">—</text>
+<text x="24" y="1250" fill="#8891a5" font-size="11">watchtower</text><text x="152" y="1250" fill="#8891a5" font-size="11">Watchtower</text><text x="342" y="1250" fill="#8891a5" font-size="11">unforged</text><text x="426" y="1250" fill="#8891a5" font-size="11">700,40 400×190</text><text x="626" y="1250" fill="#8891a5" font-size="11">—</text>
+<text x="24" y="1266" fill="#8891a5" font-size="11">workshop</text><text x="152" y="1266" fill="#8891a5" font-size="11">Workshop</text><text x="342" y="1266" fill="#8891a5" font-size="11">unforged</text><text x="426" y="1266" fill="#8891a5" font-size="11">1310,60 420×680</text><text x="626" y="1266" fill="#8891a5" font-size="11">/mechanic</text>
+<text x="24" y="1282" fill="#8891a5" font-size="11">yard</text><text x="152" y="1282" fill="#8891a5" font-size="11">Yard</text><text x="342" y="1282" fill="#8891a5" font-size="11">unforged</text><text x="426" y="1282" fill="#8891a5" font-size="11">620,700 540×260</text><text x="626" y="1282" fill="#8891a5" font-size="11">—</text>
+<text x="24" y="1316" fill="#e8ecf1" font-size="13" letter-spacing="2">OCCUPANTS</text>
+<text x="24" y="1336" fill="#8891a5" font-size="11">id</text><text x="152" y="1336" fill="#8891a5" font-size="11">name</text><text x="302" y="1336" fill="#8891a5" font-size="11">role</text><text x="512" y="1336" fill="#8891a5" font-size="11">place</text><text x="642" y="1336" fill="#8891a5" font-size="11">at</text>
+<text x="24" y="1350" fill="#8891a5" font-size="11">gallery-arch</text><text x="152" y="1350" fill="#8891a5" font-size="11">The Grand Gallery</text><text x="302" y="1350" fill="#8891a5" font-size="11">Portal</text><text x="512" y="1350" fill="#8891a5" font-size="11">undefined</text><text x="642" y="1350" fill="#8891a5" font-size="11">640,270</text>
+<text x="24" y="1366" fill="#8891a5" font-size="11">raziel</text><text x="152" y="1366" fill="#8891a5" font-size="11">Raziel</text><text x="302" y="1366" fill="#8891a5" font-size="11">Sovereign Arch-Orchestrator</text><text x="512" y="1366" fill="#8891a5" font-size="11">undefined</text><text x="642" y="1366" fill="#8891a5" font-size="11">904,575</text>
+<text x="24" y="1382" fill="#8891a5" font-size="11">oracle</text><text x="152" y="1382" fill="#8891a5" font-size="11">The Oracle</text><text x="302" y="1382" fill="#8891a5" font-size="11">Truth Inquisitor</text><text x="512" y="1382" fill="#8891a5" font-size="11">undefined</text><text x="642" y="1382" fill="#8891a5" font-size="11">380,310</text>
+<text x="24" y="1398" fill="#8891a5" font-size="11">valerie</text><text x="152" y="1398" fill="#8891a5" font-size="11">Valerie</text><text x="302" y="1398" fill="#8891a5" font-size="11">Mechanic</text><text x="512" y="1398" fill="#8891a5" font-size="11">undefined</text><text x="642" y="1398" fill="#8891a5" font-size="11">1490,515</text>
+<text x="24" y="1414" fill="#8891a5" font-size="11">quarantine-warden</text><text x="152" y="1414" fill="#8891a5" font-size="11">The Cell</text><text x="302" y="1414" fill="#8891a5" font-size="11">Quarantine</text><text x="512" y="1414" fill="#8891a5" font-size="11">undefined</text><text x="642" y="1414" fill="#8891a5" font-size="11">1095,840</text>
+<text x="24" y="1430" fill="#8891a5" font-size="11">corvid</text><text x="152" y="1430" fill="#8891a5" font-size="11">Corvid</text><text x="302" y="1430" fill="#8891a5" font-size="11">Scout</text><text x="512" y="1430" fill="#8891a5" font-size="11">undefined</text><text x="642" y="1430" fill="#8891a5" font-size="11">800,905</text>
+<text x="904" y="1152" fill="#e8ecf1" font-size="13" letter-spacing="2">DOORS</text>
+<text x="904" y="1172" fill="#8891a5" font-size="11">id</text><text x="1074" y="1172" fill="#8891a5" font-size="11">label</text><text x="1204" y="1172" fill="#8891a5" font-size="11">rect</text><text x="1364" y="1172" fill="#8891a5" font-size="11">target scene</text>
+<text x="904" y="1186" fill="#8891a5" font-size="11">library-to-recon</text><text x="1074" y="1186" fill="#8891a5" font-size="11">RECON →</text><text x="1204" y="1186" fill="#8891a5" font-size="11">300,200 120×60</text><text x="1364" y="1186" fill="#8891a5" font-size="11">ReconRoomScene</text>
+<text x="904" y="1202" fill="#8891a5" font-size="11">workshop-to-search</text><text x="1074" y="1202" fill="#8891a5" font-size="11">SEARCH →</text><text x="1204" y="1202" fill="#8891a5" font-size="11">1500,300 120×60</text><text x="1364" y="1202" fill="#8891a5" font-size="11">SearchRoomScene</text>
+<text x="904" y="1218" fill="#8891a5" font-size="11">hall-to-citadel</text><text x="1074" y="1218" fill="#8891a5" font-size="11">CITADEL →</text><text x="1204" y="1218" fill="#8891a5" font-size="11">600,600 120×60</text><text x="1364" y="1218" fill="#8891a5" font-size="11">CitadelRoomScene</text>
+<text x="904" y="1234" fill="#8891a5" font-size="11">yard-to-tower</text><text x="1074" y="1234" fill="#8891a5" font-size="11">TOWER →</text><text x="1204" y="1234" fill="#8891a5" font-size="11">700,800 120×60</text><text x="1364" y="1234" fill="#8891a5" font-size="11">TowerRoomScene</text>
+<text x="904" y="1250" fill="#8891a5" font-size="11">yard-to-sploit</text><text x="1074" y="1250" fill="#8891a5" font-size="11">SPLOIT →</text><text x="1204" y="1250" fill="#8891a5" font-size="11">660,730 120×60</text><text x="1364" y="1250" fill="#8891a5" font-size="11">SploitRoomScene</text>
+<text x="904" y="1284" fill="#e8ecf1" font-size="13" letter-spacing="2">WHAT THIS MAP IS TELLING YOU</text>
+<text x="904" y="1304" fill="#8891a5" font-size="10">LIGHTS: 11 configured in HALL_LIGHTS, 0 mounted — the flicker loop iterates an empty array.</text>
+<text x="904" y="1318" fill="#8891a5" font-size="10">WANDER: Raziel, Corvid pick any walkable point on the map — their rooms are not their homes. Only Valerie is le…</text>
+<text x="904" y="1332" fill="#8891a5" font-size="10">STEPS: every walker move is validated per axis by walkable(), so nobody clips a prop. There is no pathfinding, …</text>
+<text x="904" y="1364" fill="#8891a5" font-size="10">reachable: 11246 of 11246 open points (100%), flood fill from spawn on a 8px lattice</text>
+</svg>
