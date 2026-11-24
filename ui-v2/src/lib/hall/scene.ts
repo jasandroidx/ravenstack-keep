@@ -37,6 +37,10 @@ type NpcWalker = {
 
 const NPC_SPEED = 60;
 
+/** Peak alpha of a light with intensity 1. Additive, so this is colour added on
+ *  top of the painting — high values blow the sprite to white. */
+const LIGHT_ALPHA = 0.12;
+
 /** Preset lines only — these work with no model at all. No live numbers,
  *  no invented status: Raziel's lines are generic Keep truths, and his
  *  "What's live?" action already reports real status when asked. There is
@@ -159,10 +163,12 @@ export class HallScene extends Phaser.Scene {
   /** Room decay states computed from visit history. */
   private visits: Record<string, number> = {};
 
-  /** Dynamic hall lights placed over the painting. */
-  private hallLights: Phaser.GameObjects.PointLight[] = [];
+  /** Soft glow sprites standing in for the hall's light sources. */
+  private hallLights: Phaser.GameObjects.Image[] = [];
   private lightBase: number[] = [];
   private lightPhase: number[] = [];
+  /** Decaying brightness boost from pulseTorch(): 1 = freshly lit. */
+  private lightPulse = 0;
 
   /** Time-of-day wash multiplier over the painting. */
   private daylight!: Phaser.GameObjects.Rectangle;
@@ -429,11 +435,7 @@ export class HallScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(11);
 
-    // Dynamic Point Lights — removed. The pointlight sprites rendered as flat,
-    // harshly-edged color blobs overlapping the painted background rather than
-    // a soft torch glow (looked broken, not atmospheric). this.hallLights stays
-    // permanently empty; the flicker-update loop and pulseTorch() below already
-    // no-op safely on an empty array, so nothing else needed changing.
+    this.mountHallLights();
 
     // Player Shadow & Sprite
     this.shadow = this.add.ellipse(spawn.x, spawn.y + 2, 28, 10, 0x000000, 0.42).setDepth(13);
@@ -555,9 +557,82 @@ export class HallScene extends Phaser.Scene {
     });
   }
 
+  /** Brighten every light for a beat; updateHallLights() fades it back. */
   public pulseTorch() {
+    this.lightPulse = 1;
+  }
+
+  /**
+   * Mount HALL_LIGHTS as soft additive glows.
+   *
+   * These were Phaser PointLights and got pulled, because a point light over a
+   * painted backdrop with no normal map renders as a flat, hard-edged colour
+   * disc rather than a torch. A radial-gradient texture on BlendModes.ADD only
+   * adds colour and has a long smooth tail, so it reads as light falling on the
+   * painting. Depth 21 sits above the time-of-day multiply wash at 20, so the
+   * braziers stay orange when midnight turns the hall navy.
+   */
+  private mountHallLights() {
+    this.hallLights = [];
+    this.lightBase = [];
+    this.lightPhase = [];
+    this.lightPulse = 0;
+    for (const cfg of HALL_LIGHTS) {
+      const key = `hall-light-${cfg.color.toString(16).padStart(6, "0")}`;
+      if (!this.textures.exists(key) && !this.makeGlowTexture(key, cfg.color)) continue;
+      const base = cfg.intensity * LIGHT_ALPHA;
+      this.hallLights.push(
+        this.add
+          .image(cfg.x, cfg.y, key)
+          .setDisplaySize(cfg.radius * 2, cfg.radius * 2)
+          .setAlpha(base)
+          .setBlendMode(Phaser.BlendModes.ADD)
+          .setDepth(21),
+      );
+      this.lightBase.push(base);
+      // Random phase, or every fire in the hall breathes in lockstep.
+      this.lightPhase.push(Math.random() * Math.PI * 2);
+    }
+  }
+
+  /** One soft radial gradient per light colour. The colour is baked into the
+   *  texture rather than applied with setTint, which is WebGL-only and would
+   *  leave white discs on a canvas renderer. */
+  private makeGlowTexture(key: string, color: number): boolean {
+    const size = 128;
+    const canvas = this.textures.createCanvas(key, size, size);
+    if (!canvas) return false;
+    const ctx = canvas.getContext();
+    const half = size / 2;
+    const r = (color >> 16) & 0xff;
+    const g = (color >> 8) & 0xff;
+    const b = color & 0xff;
+    const grad = ctx.createRadialGradient(half, half, 0, half, half, half);
+    grad.addColorStop(0, `rgba(${r},${g},${b},1)`);
+    grad.addColorStop(0.35, `rgba(${r},${g},${b},0.55)`);
+    grad.addColorStop(0.7, `rgba(${r},${g},${b},0.16)`);
+    grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, size, size);
+    canvas.refresh();
+    return true;
+  }
+
+  /** Flicker and pulse, every frame — independent of what the Oracle is doing. */
+  private updateHallLights(delta: number) {
+    if (this.hallLights.length === 0) return;
+    this.lightPulse = Math.max(0, this.lightPulse - delta / 900);
+    const boost = 1 + this.lightPulse * 1.4;
     for (let i = 0; i < this.hallLights.length; i++) {
-      this.hallLights[i].intensity = this.lightBase[i] * 1.8;
+      const cfg = HALL_LIGHTS[i];
+      if (!cfg) continue;
+      let wobble = 0;
+      if (cfg.flicker !== 0) {
+        this.lightPhase[i] += (delta / 1000) * ((Math.PI * 2) / cfg.period);
+        wobble = Math.sin(this.lightPhase[i]) * 0.6 + Math.sin(this.lightPhase[i] * 2.7) * 0.4;
+      }
+      const alpha = this.lightBase[i] * boost * (1 + wobble * cfg.flicker);
+      this.hallLights[i].setAlpha(Math.min(1, alpha));
     }
   }
 
@@ -1066,6 +1141,8 @@ export class HallScene extends Phaser.Scene {
       return;
     }
 
+    this.updateHallLights(delta);
+
     // Oracle Eye updates
     if (this.oracleEye && this.player) {
       this.oracleDriftT += delta * 0.00035;
@@ -1127,14 +1204,6 @@ export class HallScene extends Phaser.Scene {
         if (a && this.oracleChains[i]?.active) this.oracleChains[i].setTo(a.x, a.y, eyeX, eyeY);
       }
       this.oracleEye.setRotation(Math.sin(this.oracleDriftT * 1.7) * 0.05);
-
-      for (let i = 0; i < this.hallLights.length; i++) {
-        const cfg = HALL_LIGHTS[i];
-        if (!cfg || cfg.flicker === 0) continue;
-        this.lightPhase[i] += (delta / 1000) * ((Math.PI * 2) / cfg.period);
-        const wobble = Math.sin(this.lightPhase[i]) * 0.6 + Math.sin(this.lightPhase[i] * 2.7) * 0.4;
-        this.hallLights[i].intensity = this.lightBase[i] * (1 + wobble * cfg.flicker);
-      }
 
       this.oracleSpawnTimer += delta;
       if (this.oracleSpawnTimer > 48000) {

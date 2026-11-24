@@ -2,7 +2,7 @@
 <rect width="1840" height="1450" fill="#0b0e14"/>
 <rect width="1840" height="100%" fill="#0b0e14"/>
 <text x="24" y="40" fill="#e8ecf1" font-size="24" letter-spacing="4">RAVENSTACK KEEP — LAYOUT</text>
-<text x="24" y="64" fill="#8891a5" font-size="12">1792×1008 painted map (/hall/painted/keep-map.jpg) · 10 walk floors · 6 solid props · 6 zones · 5 occupants · 5 doors</text>
+<text x="24" y="64" fill="#8891a5" font-size="12">1792×1008 painted map (/hall/painted/keep-map.jpg) · 10 walk floors · 6 solid props · 6 zones · 5 occupants · 5 doors · 10 lights</text>
 <text x="24" y="82" fill="#8891a5" font-size="12">generated from lib/hall/world.ts + lib/hall/portals.ts — regenerate: cd ui-v2 &amp;&amp; npm run world:map — do not edit by hand</text>
 <g transform="translate(24,104)">
 <rect width="1792" height="1008" fill="#080a0f" stroke="#1a2028"/>
@@ -130,6 +130,26 @@
 <circle cx="800" cy="905" r="5" fill="#ffc857"/>
 <text x="800" y="895" fill="#ffc857" font-size="12" text-anchor="middle">Corvid</text>
 <text x="800" y="977" fill="#ffc857" fill-opacity="0.65" font-size="9" text-anchor="middle">roams the whole map</text>
+<circle cx="700" cy="400" r="190" fill="#ffa53c" fill-opacity="0.06" stroke="#ffa53c" stroke-opacity="0.4" stroke-dasharray="2 4"/>
+<circle cx="700" cy="400" r="3" fill="#ffa53c" fill-opacity="0.9"/>
+<circle cx="1120" cy="400" r="190" fill="#ffa53c" fill-opacity="0.06" stroke="#ffa53c" stroke-opacity="0.4" stroke-dasharray="2 4"/>
+<circle cx="1120" cy="400" r="3" fill="#ffa53c" fill-opacity="0.9"/>
+<circle cx="760" cy="690" r="150" fill="#ffa53c" fill-opacity="0.06" stroke="#ffa53c" stroke-opacity="0.4" stroke-dasharray="2 4"/>
+<circle cx="760" cy="690" r="3" fill="#ffa53c" fill-opacity="0.9"/>
+<circle cx="1080" cy="690" r="150" fill="#ffa53c" fill-opacity="0.06" stroke="#ffa53c" stroke-opacity="0.4" stroke-dasharray="2 4"/>
+<circle cx="1080" cy="690" r="3" fill="#ffa53c" fill-opacity="0.9"/>
+<circle cx="900" cy="120" r="240" fill="#2de2e6" fill-opacity="0.06" stroke="#2de2e6" stroke-opacity="0.4" stroke-dasharray="2 4"/>
+<circle cx="900" cy="120" r="3" fill="#2de2e6" fill-opacity="0.9"/>
+<circle cx="380" cy="300" r="260" fill="#39ff14" fill-opacity="0.06" stroke="#39ff14" stroke-opacity="0.4" stroke-dasharray="2 4"/>
+<circle cx="380" cy="300" r="3" fill="#39ff14" fill-opacity="0.9"/>
+<circle cx="260" cy="560" r="130" fill="#ffc857" fill-opacity="0.06" stroke="#ffc857" stroke-opacity="0.4" stroke-dasharray="2 4"/>
+<circle cx="260" cy="560" r="3" fill="#ffc857" fill-opacity="0.9"/>
+<circle cx="1500" cy="300" r="220" fill="#ff2a6d" fill-opacity="0.06" stroke="#ff2a6d" stroke-opacity="0.4" stroke-dasharray="2 4"/>
+<circle cx="1500" cy="300" r="3" fill="#ff2a6d" fill-opacity="0.9"/>
+<circle cx="1610" cy="560" r="180" fill="#ff2a6d" fill-opacity="0.06" stroke="#ff2a6d" stroke-opacity="0.4" stroke-dasharray="2 4"/>
+<circle cx="1610" cy="560" r="3" fill="#ff2a6d" fill-opacity="0.9"/>
+<circle cx="900" cy="850" r="200" fill="#2de2e6" fill-opacity="0.06" stroke="#2de2e6" stroke-opacity="0.4" stroke-dasharray="2 4"/>
+<circle cx="900" cy="850" r="3" fill="#2de2e6" fill-opacity="0.9"/>
 <line x1="746" y1="650" x2="774" y2="650" stroke="#2de2e6" stroke-width="1.5"/>
 <line x1="760" y1="636" x2="760" y2="664" stroke="#2de2e6" stroke-width="1.5"/>
 <text x="778" y="654" fill="#2de2e6" font-size="10">SPAWN</text>
@@ -157,8 +177,7 @@
 <text x="904" y="1234" fill="#8891a5" font-size="11">yard-to-tower</text><text x="1074" y="1234" fill="#8891a5" font-size="11">TOWER →</text><text x="1204" y="1234" fill="#8891a5" font-size="11">700,800 120×60</text><text x="1364" y="1234" fill="#8891a5" font-size="11">TowerRoomScene</text>
 <text x="904" y="1250" fill="#8891a5" font-size="11">yard-to-sploit</text><text x="1074" y="1250" fill="#8891a5" font-size="11">SPLOIT →</text><text x="1204" y="1250" fill="#8891a5" font-size="11">660,730 120×60</text><text x="1364" y="1250" fill="#8891a5" font-size="11">SploitRoomScene</text>
 <text x="904" y="1284" fill="#e8ecf1" font-size="13" letter-spacing="2">WHAT THIS MAP IS TELLING YOU</text>
-<text x="904" y="1304" fill="#8891a5" font-size="10">LIGHTS: 10 configured in HALL_LIGHTS, 0 mounted — the flicker loop iterates an empty array.</text>
-<text x="904" y="1318" fill="#8891a5" font-size="10">WANDER: Raziel, Corvid pick any walkable point on the map — their rooms are not their homes. Only Valerie is le…</text>
-<text x="904" y="1332" fill="#8891a5" font-size="10">STEPS: every walker move is validated per axis by walkable(), so nobody clips a prop. There is no pathfinding, …</text>
-<text x="904" y="1364" fill="#8891a5" font-size="10">reachable: 11246 of 11246 open points (100%), flood fill from spawn on a 8px lattice</text>
+<text x="904" y="1304" fill="#8891a5" font-size="10">WANDER: Raziel, Corvid pick any walkable point on the map — their rooms are not their homes. Only Valerie is le…</text>
+<text x="904" y="1318" fill="#8891a5" font-size="10">STEPS: every walker move is validated per axis by walkable(), so nobody clips a prop. There is no pathfinding, …</text>
+<text x="904" y="1350" fill="#8891a5" font-size="10">reachable: 11246 of 11246 open points (100%), flood fill from spawn on a 8px lattice</text>
 </svg>

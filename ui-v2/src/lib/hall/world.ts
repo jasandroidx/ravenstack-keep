@@ -313,12 +313,12 @@ export const ZONES: Zone[] = [
 ];
 
 /**
- * Light sources placed over the painting. These are Phaser point lights, not
- * Light2D: point lights need no normal map and skip the shader pass, which is
- * the difference between lighting every room and lighting one.
+ * Light sources mounted over the painting by scene.ts as soft additive glows
+ * (mountHallLights). Not Light2D — that needs a normal map per surface and the
+ * hall is one painting — and not PointLight, which drew a hard-edged disc.
  *
- * `flicker` is the amplitude of the intensity wobble — fire moves, conduits
- * pulse slowly, and the cell does neither.
+ * `flicker` is the amplitude of the brightness wobble — fire moves, conduits
+ * pulse slowly, and the fountain does neither.
  */
 export type HallLight = {
   x: number;

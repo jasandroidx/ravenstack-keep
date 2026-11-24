@@ -189,13 +189,6 @@ function findings(reach) {
     }
   }
 
-  const mounted = 0; // scene.ts removed the point lights; HALL_LIGHTS is config only.
-  if (HALL_LIGHTS.length && !mounted) {
-    out.push(
-      `LIGHTS: ${HALL_LIGHTS.length} configured in HALL_LIGHTS, ${mounted} mounted — the flicker loop iterates an empty array.`,
-    );
-  }
-
   const isolated = reach.open - reach.cells;
   if (isolated > 0) {
     out.push(
@@ -226,7 +219,7 @@ export function renderWorldMap() {
   g.push(
     `<rect width="${PAGE_W}" height="100%" fill="${C.bg}"/>`,
     `<text x="${M}" y="40" fill="${C.ink}" font-size="24" letter-spacing="4">RAVENSTACK KEEP — LAYOUT</text>`,
-    `<text x="${M}" y="64" fill="${C.dim}" font-size="12">${MAP_W}×${MAP_H} painted map (${MAP_SRC}) · ${WALK.length} walk floors · ${SOLID.length} solid props · ${ZONES.length} zones · ${HALL_NPCS.length} occupants · ${HALL_PORTALS.length} doors</text>`,
+    `<text x="${M}" y="64" fill="${C.dim}" font-size="12">${MAP_W}×${MAP_H} painted map (${MAP_SRC}) · ${WALK.length} walk floors · ${SOLID.length} solid props · ${ZONES.length} zones · ${HALL_NPCS.length} occupants · ${HALL_PORTALS.length} doors · ${HALL_LIGHTS.length} lights</text>`,
     `<text x="${M}" y="82" fill="${C.dim}" font-size="12">generated from lib/hall/world.ts + lib/hall/portals.ts — regenerate: cd ui-v2 &amp;&amp; npm run world:map — do not edit by hand</text>`,
     `<g transform="translate(${M},${MAP_Y})">`,
   );
@@ -321,6 +314,17 @@ export function renderWorldMap() {
         `<text x="${npc.x}" y="${npc.y + npc.radius + 23}" fill="${C.zone}" fill-opacity="0.8" font-size="9" text-anchor="middle">portal ${esc(npc.href)}</text>`,
       );
     }
+  }
+
+  // ---- lights -----------------------------------------------------------
+  // scene.ts mounts these as additive glows over the painting, so the circle is
+  // the radius that actually brightens — useful when placing a prop or a room.
+  for (const light of HALL_LIGHTS) {
+    const hex = `#${light.color.toString(16).padStart(6, "0")}`;
+    g.push(
+      `<circle cx="${light.x}" cy="${light.y}" r="${light.radius}" fill="${hex}" fill-opacity="0.06" stroke="${hex}" stroke-opacity="0.4" stroke-dasharray="2 4"/>`,
+      `<circle cx="${light.x}" cy="${light.y}" r="3" fill="${hex}" fill-opacity="0.9"/>`,
+    );
   }
 
   // ---- spawn ------------------------------------------------------------
