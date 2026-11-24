@@ -25,12 +25,12 @@ export const BOX_TOOL_PLAN: Record<
 > = {
   dashboard_status: {
     where: "Hall occupancy chips + PulseBadge",
-    fallback: "src/lib/keep/pulse.fixture.json (labeled paper)",
+    fallback: "src/lib/keep/pulse.fixture.json — a timestamp and a note, no occupancy and no service state",
     humanGate: false,
   },
   pending_gates: {
     where: "War table",
-    fallback: "queue.idle in the fixture",
+    fallback: "no gates at all — noGates() in server.ts, never an example gate",
     humanGate: true,
   },
   stack_health: {

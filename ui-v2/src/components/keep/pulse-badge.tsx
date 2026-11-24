@@ -12,7 +12,11 @@ export function PulseBadge() {
   const pulse = data?.pulse ?? null;
 
   if (isLoading && !pulse) {
-    return <span className="hidden text-subtle sm:inline animate-pulse">checking…</span>;
+    return (
+      <span className="hidden text-subtle sm:inline animate-pulse">
+        checking…
+      </span>
+    );
   }
   if (!pulse) {
     return <span className="hidden text-subtle sm:inline">unavailable</span>;
@@ -24,9 +28,13 @@ export function PulseBadge() {
       className="hidden items-center gap-2 text-xs uppercase tracking-[0.14em] sm:inline-flex"
       title={pulse.note ?? pulse.networkDetail}
     >
-      <span className={live ? "text-[#39ff14]" : "text-[#ffc857]"}>{pulse.source}</span>
+      <span className={live ? "text-[#39ff14]" : "text-[#ffc857]"}>
+        {pulse.source}
+      </span>
       <span className="text-subtle">
-        {pulse.agentsActive} active · queue {pulse.queue.status}
+        {live
+          ? `${pulse.agentsActive === null ? "agents unknown" : `${pulse.agentsActive} active`} · queue ${pulse.queue.status}`
+          : "not read from the box"}
       </span>
     </span>
   );

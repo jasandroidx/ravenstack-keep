@@ -738,7 +738,11 @@ export function KeepHall() {
             </p>
             <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.16em] text-[#9aa3b2]">
               occupancy {pulse?.source ?? "…"}
-              {pulse ? ` · ${pulse.agentsActive} active` : ""}
+              {/* A paper snapshot observed nobody. Printing a count under it
+                  would be asserting an occupancy that was never read. */}
+              {pulse?.source === "live" && pulse.agentsActive !== null
+                ? ` · ${pulse.agentsActive} active`
+                : ""}
             </p>
             {heraldLine ? (
               <p className="mt-1.5 max-w-xs font-mono text-[10px] italic leading-snug text-[#6b7280]">
