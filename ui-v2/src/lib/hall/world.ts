@@ -106,7 +106,9 @@ export const WALK: WalkFloor[] = [
 export type SolidProp = Rect & { name: string };
 
 export const SOLID: SolidProp[] = [
-  { x: 800, y: 348, w: 210, h: 175, name: "war table" },
+  // The painted tabletop itself, not an inset box: walkers are stopped at the
+  // stone rim so nobody stands with their sprite on the table.
+  { x: 780, y: 306, w: 258, h: 200, name: "war table" },
   { x: 848, y: 805, w: 140, h: 130, name: "fountain" },
   { x: 1340, y: 80, w: 370, h: 130, name: "workshop benches" },
   { x: 1560, y: 500, w: 150, h: 120, name: "cauldron" },

@@ -11,6 +11,7 @@ import {
   type RavenlordSkin,
 } from "@/lib/hall/world";
 import { hallAudio } from "@/lib/hall/audio";
+import { SkinPreview } from "@/components/hall/skin-preview";
 
 type Message = {
   id: string;
@@ -605,12 +606,7 @@ export function TalkSheet({
 
                         {/* Visual Sprite Preview */}
                         <div className="my-2.5 flex h-24 items-center justify-center rounded-sm bg-[#0b0e14] border border-[#3a3f4b]/60">
-                          <img
-                            src={skin.src}
-                            alt={skin.name}
-                            className="h-16 w-auto object-none object-top pixelated"
-                            style={{ imageRendering: "pixelated" }}
-                          />
+                          <SkinPreview src={skin.src} name={skin.name} height={64} />
                         </div>
 
                         <h4 className="font-mono text-xs font-bold text-[#e8ecf1]">{skin.name}</h4>

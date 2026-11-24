@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { callFastMCP } from "@/lib/keep/server";
 import type { FastMCPToolResult } from "@/lib/keep/fastmcp";
 
@@ -8,7 +8,14 @@ export function FastMCPStatusBadge() {
   const [probing, setProbing] = useState(false);
   const [signedOut, setSignedOut] = useState(false);
 
+  const inFlight = useRef(false);
+
   async function checkBridge() {
+    // The poll interval and the bridge timeout are both 20s, and this badge
+    // mounts more than once, so without a guard a slow bridge stacks probes
+    // until the 401/timeout queue itself is the outage.
+    if (inFlight.current) return;
+    inFlight.current = true;
     setProbing(true);
     try {
       const res = await callFastMCP({
@@ -24,6 +31,7 @@ export function FastMCPStatusBadge() {
       // bridge down when the caller simply has no session.
       setSignedOut(err instanceof Error && err.message === "Unauthorized");
     } finally {
+      inFlight.current = false;
       setLoading(false);
       setProbing(false);
     }

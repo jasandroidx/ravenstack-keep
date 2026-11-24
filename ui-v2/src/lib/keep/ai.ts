@@ -60,16 +60,49 @@ function ollamaCtxOption(): { num_ctx?: number } {
   return Number.isFinite(n) && n > 0 ? { num_ctx: n } : {};
 }
 
+/**
+ * Where Ollama actually is, for every chat caller in this file.
+ *
+ * `ollama.ts` resolves OLLAMA_BASE_URL / OLLAMA_HOST, so those names have to
+ * work here too: pointing the Keep at a remote Ollama (a tailnet VM, the box)
+ * otherwise left every `complete()` caller on loopback, failing against a
+ * daemon that is not on this machine. OLLAMA_URL stays first for compatibility.
+ */
+function ollamaHttpBase(): string {
+  const raw =
+    process.env.OLLAMA_URL?.trim() ||
+    process.env.OLLAMA_BASE_URL?.trim() ||
+    process.env.OLLAMA_HOST?.trim() ||
+    "http://127.0.0.1:11434";
+  // OLLAMA_HOST is conventionally a bare host:port; fetch needs a scheme.
+  return (/^https?:\/\//i.test(raw) ? raw : `http://${raw}`).replace(/\/+$/, "");
+}
+
+/**
+ * How long to wait on Ollama before giving up.
+ *
+ * A local daemon is slow, not broken: a cold 9B model load alone measured ~24s
+ * before a single token came back. The 90s that used to be hardcoded here cut
+ * off a perfectly healthy request the first time Valerie's workbench touched a
+ * bigger tag. KEEP_LOCAL_TIMEOUT_MS is the same knob ollama.ts already honours,
+ * so one setting covers both planes; `fallbackMs` is the floor for callers with
+ * a longer legitimate budget (Corvid's tool loop).
+ */
+function ollamaTimeoutMs(fallbackMs = 120000): number {
+  const n = Number(process.env.KEEP_LOCAL_TIMEOUT_MS?.trim() || "");
+  return Number.isFinite(n) && n > 0 ? Math.max(n, fallbackMs) : fallbackMs;
+}
+
 /** Local-first per the Keep's own cost model: Ollama on the box before any paid call. */
 async function completeOllama(system: string, user: string, maxTokens: number, model: string) {
-  const base = (process.env.OLLAMA_URL?.trim() || "http://127.0.0.1:11434").replace(/\/$/, "");
+  const base = ollamaHttpBase();
   try {
     const res = await fetch(`${base}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       // CPU-bound local inference: normal case is 10-30s, generous headroom
       // for a cold model load or a second request queued behind one already running.
-      signal: AbortSignal.timeout(90000),
+      signal: AbortSignal.timeout(ollamaTimeoutMs()),
       body: JSON.stringify({
         model,
         think: false,
@@ -391,7 +424,7 @@ You are Corvid, raven scout of Ravenstack Keep. Precise, source-obsessed, allerg
     { role: "user", content: message },
   ];
   const allSources: Array<{ title: string; url: string }> = [];
-  const base = (process.env.OLLAMA_URL?.trim() || "http://127.0.0.1:11434").replace(/\/$/, "");
+  const base = ollamaHttpBase();
 
   for (let turn = 0; turn < 4; turn++) {
     let res: Response;

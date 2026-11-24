@@ -11,7 +11,8 @@ BL="$ROOT/box-local"; mkdir -p "$BL"/{vault,outbox,drops,probes,uploads,logs}
 export OBSIDIAN_VAULT="$BL/vault" KEEP_OUTBOX_DIR="$BL/outbox" KEEP_DROPS_DIR="$BL/drops" \
        KEEP_PROBES_DIR="$BL/probes" KEEP_UPLOAD_DIR="$BL/uploads" \
        OLLAMA_URL="$KEEP_OLLAMA_URL" OLLAMA_BASE_URL="$KEEP_OLLAMA_URL" KEEP_OLLAMA_URL \
-       KEEP_TALK_MODEL="${KEEP_TALK_MODEL:-qwen3:1.7b}" OLLAMA_MODEL="${KEEP_TALK_MODEL:-qwen3:1.7b}" \
+       KEEP_TALK_MODEL="${KEEP_TALK_MODEL:-best-fast}" OLLAMA_MODEL="${KEEP_TALK_MODEL:-best-fast}" \
+       KEEP_MECHANIC_MODEL="${KEEP_MECHANIC_MODEL:-best-code}" \
        OLLAMA_TIMEOUT_SEC="${OLLAMA_TIMEOUT_SEC:-60}" KEEP_OLLAMA_NUM_CTX="${KEEP_OLLAMA_NUM_CTX:-8192}" \
        KEEP_HTTP_URL="http://127.0.0.1:${KEEP_HTTP_PORT:-8112}" KEEP_PULSE_URL="http://127.0.0.1:${KEEP_HTTP_PORT:-8112}/api/castle-map"
 case "${1:-}" in

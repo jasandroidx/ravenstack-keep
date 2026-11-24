@@ -103,12 +103,18 @@ const DEFAULT_TIMEOUT_MS = 120_000;
  * still resolves on a box with a different inventory.
  */
 const PREFERRED = [
+  // Curated aliases on a box that ships them (best-fast is a general chat
+  // tag, best-truth a fact-first one). Matching is by bare name, so
+  // `best-fast` here finds an installed `best-fast:latest`.
+  "best-fast",
+  "best-truth",
   "qwen3:4b",
   "qwen3-4b-64k",
   "gemma4",
   "phi4-mini",
   "qwen3:8b",
   "qwen3-coder:30b",
+  "best-code",
   "qwen3:1.7b",
   "qwen2.5",
   "llama3.1",

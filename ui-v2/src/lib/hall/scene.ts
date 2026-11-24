@@ -90,6 +90,9 @@ const FRAME_H = 40;
 const OP_W = 54;
 const OP_H = 68;
 
+/** Sprite centre to feet: NPC walk checks probe this point, not the centre. */
+const WALKER_FEET = OP_H / 2 - 4;
+
 const VISITS_KEY = "ravenstack.keep.visits";
 
 const TRUTH_PROVERBS = [
@@ -214,7 +217,7 @@ export class HallScene extends Phaser.Scene {
     }
   }
 
-  setDir(x: number, y: number) {
+      setDir(x: number, y: number) {
     this.stickX = x;
     this.stickY = y;
     if (x || y) this.dest = null;
@@ -263,19 +266,8 @@ export class HallScene extends Phaser.Scene {
     this.portalGraceUntil = 0;
     this.cameras.main.setBackgroundColor(PALETTE.bg);
     this.add.image(0, 0, "keep-map").setOrigin(0, 0).setDisplaySize(MAP_W, MAP_H).setDepth(0);
-    for (const p of this.portalOpts.portals) {
-      this.add
-        .rectangle(p.x + p.w / 2, p.y + p.h / 2, p.w, p.h)
-        .setStrokeStyle(4, 0x2de2e6, 0.95)
-        .setDepth(3);
-      this.add
-        .text(p.x + p.w / 2, p.y - 8, p.label ?? "DOOR", {
-          fontFamily: "monospace", fontSize: "14px", color: "#2de2e6",
-          backgroundColor: "#0b0e14cc", padding: { x: 6, y: 3 },
-        })
-        .setOrigin(0.5, 1)
-        .setDepth(3);
-    }
+    // Doors are painted into the map: no box and no name is drawn over a
+    // threshold, so the art carries the door on its own.
     this.physics.world.setBounds(0, 0, MAP_W, MAP_H);
     this.cameras.main.setBounds(0, 0, MAP_W, MAP_H);
     this.cameras.main.centerOn(spawn.x, spawn.y);
@@ -451,7 +443,7 @@ export class HallScene extends Phaser.Scene {
 
     this.reticle = this.add
       .circle(0, 0, 6, 0x2de2e6, 0.4)
-      .setStrokeStyle(1.5, 0x2de2e6, 0.9)
+      .setStrokeStyle(1.5, 0x2de2e6, 0.55)
       .setVisible(false)
       .setDepth(15);
 
@@ -1020,19 +1012,19 @@ export class HallScene extends Phaser.Scene {
   }
 
   private pickWaypoint(npcId?: string): { x: number; y: number } | null {
-    if (npcId === "valerie") {
+          if (npcId === "valerie") {
       const r = (this.constructor as typeof HallScene).VALERIE_WORKSHOP;
       for (let i = 0; i < 24; i++) {
         const x = r.x + Math.random() * r.w;
         const y = r.y + Math.random() * r.h;
-        if (walkable(x, y)) return { x, y };
+        if (walkable(x, y + WALKER_FEET)) return { x, y };
       }
       return null;
     }
     for (let i = 0; i < 12; i++) {
       const x = 120 + Math.random() * (MAP_W - 240);
       const y = 120 + Math.random() * (MAP_H - 240);
-      if (walkable(x, y)) return { x, y };
+      if (walkable(x, y + WALKER_FEET)) return { x, y };
     }
     return null;
   }
@@ -1088,8 +1080,11 @@ export class HallScene extends Phaser.Scene {
         let ny = w.spr.y;
         const mx = Math.max(-step, Math.min(step, tx));
         const my = Math.max(-step, Math.min(step, ty));
-        if (walkable(w.spr.x + mx, w.spr.y)) nx = w.spr.x + mx;
-        if (walkable(nx, w.spr.y + my)) ny = w.spr.y + my;
+        // Sprites are centred on their middle, so probe the FEET. Otherwise a
+        // walker's centre can sit on bare floor while the body stands on the
+        // painted war table.
+        if (walkable(w.spr.x + mx, w.spr.y + WALKER_FEET)) nx = w.spr.x + mx;
+        if (walkable(nx, w.spr.y + my + WALKER_FEET)) ny = w.spr.y + my;
         if (w.npc.id === "valerie") {
           // Hard confinement: never accept a step that leaves the workshop.
           if (!this.inWorkshop(nx, w.spr.y)) nx = w.spr.x;

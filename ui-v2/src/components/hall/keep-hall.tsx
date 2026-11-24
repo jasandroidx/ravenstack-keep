@@ -3,6 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { TalkSheet } from "@/components/hall/talk-sheet";
 import type { HallScene } from "@/lib/hall/scene";
 import { RAVENLORD_SKINS, type HallNpc, type RavenlordSkin } from "@/lib/hall/world";
+import { SkinPreview } from "@/components/hall/skin-preview";
 import { HALL_PORTALS } from "@/lib/hall/portals";
 import { getKeepSnapshot } from "@/lib/keep/server";
 import type { KeepPulse } from "@/lib/keep/pulse";
@@ -11,7 +12,6 @@ import { pickHeraldLineAsync } from "@/lib/hall/herald";
 import { WarTablePanel } from "@/components/keep/war-table-panel";
 import { getHallState, getPendingGates, listQuarantine, talkInHall } from "@/lib/keep/server";
 import { pickBarkAsync, type HallState } from "@/lib/hall/barks";
-import { FastMCPStatusBadge } from "@/components/keep/fastmcp-status-badge";
 import { toast } from "sonner";
 
 type Stick = { x: number; y: number };
@@ -26,7 +26,9 @@ export function KeepHall() {
   const sceneRef = useRef<any>(null);
   const hallStateRef = useRef<HallState | null>(null);
   const [zone, setZone] = useState("Great Hall");
-  const [lock, setLock] = useState("live");
+  // Null until the scene reports one. Starting at "live" printed a green
+  // "· live" before anything had booted — or forever, if the canvas never did.
+  const [lock, setLock] = useState<string | null>(null);
   const [near, setNear] = useState<HallNpc | null>(null);
   const [atTable, setAtTable] = useState(false);
   const [talk, setTalk] = useState<HallNpc | null>(null);
@@ -293,7 +295,6 @@ export function KeepHall() {
           mapW: 1600,
           mapH: 1600,
           spawn: { x: 800, y: 1400 },
-          launcher: { label: "RAVEN RECON", url: "https://ravenserve.tail20a090.ts.net:8446", kind: "radar", x: 800, y: 340 },
           torches: [{ x: 320, y: 260 }, { x: 1280, y: 260 }],
           portals: [
             { id: "recon-return", x: 700, y: 1450, w: 200, h: 150, targetScene: "HallScene", targetSpawn: { x: 360, y: 280 }, label: "RETURN → HALL" },
@@ -320,7 +321,6 @@ export function KeepHall() {
           mapW: 1600,
           mapH: 1600,
           spawn: { x: 800, y: 1400 },
-          launcher: { label: "RAVENSEARCH", url: "https://ravenserve.tail20a090.ts.net:8490", kind: "desk", x: 800, y: 800 },
           torches: [{ x: 320, y: 260 }, { x: 1280, y: 260 }],
           portals: [
             { id: "search-return", x: 700, y: 1450, w: 200, h: 150, targetScene: "HallScene", targetSpawn: { x: 1500, y: 380 }, label: "RETURN → HALL" },
@@ -345,7 +345,6 @@ export function KeepHall() {
           mapW: 1600,
           mapH: 1600,
           spawn: { x: 800, y: 1400 },
-          launcher: { label: "RAVENSPLOIT", url: "https://ravenserve.tail20a090.ts.net:8487", kind: "terminal", x: 800, y: 800 },
           torches: [{ x: 320, y: 260 }, { x: 1280, y: 260 }],
           braziers: [{ x: 400, y: 1100 }, { x: 1200, y: 1100 }],
           portals: [
@@ -369,7 +368,6 @@ export function KeepHall() {
           mapW: 1600,
           mapH: 1600,
           spawn: { x: 800, y: 1400 },
-          launcher: { label: "RAVEN CITADEL", url: "https://ravenserve.tail20a090.ts.net:8443", kind: "circle", x: 800, y: 800, sprite: { src: "/assets/fx/portal.png", w: 128, h: 128, sheet: { fw: 64, fh: 64, frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], rate: 6 } } },
           torches: [{ x: 320, y: 260 }, { x: 1280, y: 260 }],
           portals: [
             { id: "citadel-return", x: 700, y: 1450, w: 200, h: 150, targetScene: "HallScene", targetSpawn: { x: 600, y: 680 }, label: "RETURN → HALL" },
@@ -392,7 +390,6 @@ export function KeepHall() {
           mapW: 1600,
           mapH: 1600,
           spawn: { x: 800, y: 1400 },
-          launcher: { label: "RAVEN TOWER", url: "https://ravenserve.tail20a090.ts.net:8445", kind: "beacon", x: 800, y: 500 },
           torches: [{ x: 320, y: 260 }, { x: 1280, y: 260 }],
           braziers: [{ x: 400, y: 1100 }, { x: 1200, y: 1100 }],
           portals: [
@@ -430,6 +427,11 @@ export function KeepHall() {
           scene: [scene, reconScene, searchScene, sploitScene, citadelScene, towerScene],
         });
         gameRef.current = game;
+        if (import.meta.env.DEV) {
+          // Debug handle for the running Game (dev only, like __keepPlayer):
+          // lets a headless check ask whether the scene is actually stepping.
+          try { (window as unknown as Record<string, unknown>).__keepGame = game; } catch { /* no window */ }
+        }
         host.current.querySelector("canvas")?.focus();
       } catch (err) {
         if (!dead && err) {
@@ -705,7 +707,16 @@ export function KeepHall() {
             <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[#9aa3b2]">Ravenstack Keep</p>
             <p className="truncate font-mono text-base font-bold text-[#e8ecf1]">
               {zone}{" "}
-              <span className={lock === "live" ? "text-[#39ff14]" : "text-[#ffc857]"}>· {lock}</span>
+              {lock ? (
+                <span className={lock === "live" ? "text-[#39ff14]" : "text-[#ffc857]"}>· {lock}</span>
+              ) : (
+                <span
+                  className="text-[#6b7280]"
+                  title="No scene has reported a lock state yet"
+                >
+                  · …
+                </span>
+              )}
             </p>
             <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.16em] text-[#9aa3b2]">
               occupancy {pulse?.source ?? "…"}
@@ -722,7 +733,6 @@ export function KeepHall() {
             ) : null}
           </div>
           <div className="pointer-events-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5 md:gap-2">
-            <FastMCPStatusBadge />
             <button
               type="button"
               onClick={() => {
@@ -730,7 +740,7 @@ export function KeepHall() {
                 setTeleportOpen(true);
               }}
               title="Teleport + Settings [T]"
-              className="rounded-sm border border-[#2de2e6]/60 bg-[#2de2e6]/10 px-2.5 py-2 font-mono text-xs uppercase tracking-wider text-[#2de2e6] backdrop-blur-md transition hover:bg-[#2de2e6]/25 hover:text-[#e8ecf1]"
+              className="rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/85 px-2.5 py-2 font-mono text-xs uppercase tracking-wider text-[#9aa3b2] backdrop-blur-md transition hover:border-[#9aa3b2] hover:text-[#e8ecf1]"
             >
               📍 Teleport [T]
             </button>
@@ -756,26 +766,6 @@ export function KeepHall() {
             >
               {audioMuted ? "🔇 Muted" : "🔊 Audio"}
             </button>
-            <Link
-              to="/oracle"
-              onClick={() => hallAudio.playOracleGaze()}
-              className="rounded-sm border border-[#39ff14]/40 bg-[#0b0e14]/85 px-3 py-2 font-mono text-xs uppercase tracking-[0.14em] text-[#39ff14] backdrop-blur-md transition hover:border-[#39ff14] hover:text-[#e8ecf1]"
-            >
-              Registry
-            </Link>
-            <Link
-              to="/gallery"
-              onClick={() => hallAudio.playZoneTransition()}
-              className="rounded-sm border border-[#2de2e6]/60 bg-[#2de2e6]/10 px-3 py-2 font-mono text-xs uppercase tracking-[0.14em] text-[#2de2e6] backdrop-blur-md transition hover:bg-[#2de2e6]/25"
-            >
-              Gallery
-            </Link>
-            <Link
-              to="/table"
-              className="rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/85 px-3 py-2 font-mono text-xs uppercase tracking-[0.14em] text-[#9aa3b2] backdrop-blur-md transition hover:text-[#e8ecf1]"
-            >
-              Table
-            </Link>
           </div>
         </div>
       )}
@@ -907,12 +897,7 @@ export function KeepHall() {
                       </div>
 
                       <div className="my-3 flex h-28 items-center justify-center rounded-sm bg-[#0b0e14] border border-[#3a3f4b]/60">
-                        <img
-                          src={skin.src}
-                          alt={skin.name}
-                          className="h-20 w-auto object-none object-top pixelated"
-                          style={{ imageRendering: "pixelated" }}
-                        />
+                        <SkinPreview src={skin.src} name={skin.name} height={80} />
                       </div>
 
                       <h4 className="font-mono text-xs font-bold text-[#e8ecf1]">{skin.name}</h4>
@@ -1059,7 +1044,7 @@ export function KeepHall() {
                   <div key={skin.id} className={`flex flex-col justify-between rounded-sm border p-4 ${isEquipped ? "border-[#2de2e6] bg-[#2de2e6]/10" : "border-[#3a3f4b] bg-[#1e222b]/50"}`}>
                     <div>
                       <div className="my-2 flex h-24 items-center justify-center rounded-sm border border-[#3a3f4b]/60 bg-[#0b0e14]">
-                        <img src={skin.src} alt={skin.name} className="h-20 w-auto object-none object-top" style={{ imageRendering: "pixelated" }} />
+                        <SkinPreview src={skin.src} name={skin.name} height={80} />
                       </div>
                       <h4 className="font-mono text-xs font-bold text-[#e8ecf1]">{skin.name}</h4>
                       <p className="mt-1 font-mono text-[10px] text-[#9aa3b2]">{skin.title}</p>
