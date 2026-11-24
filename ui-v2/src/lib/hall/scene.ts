@@ -10,12 +10,39 @@ import {
   ZONES,
   RAVENLORD_SKINS,
   npcAtPoint,
-  npcFacing,
+  npcNear,
+  npcPos,
   tableFacing,
   walkable,
   zoneAt,
   type HallNpc,
+  BASEMENT_ARRIVAL,
+  COURTYARD_INTERACTABLES,
+  FIREFLY_AREA,
+  NPC_LIVE,
+  NPC_NIGHT_LINES,
+  NPC_ROUTINES,
+  TORCHES,
+  TRAPDOOR_SPAWN,
+  BASEMENT_ENABLED,
+  TRAPDOOR_SPOT,
+  routineStopAt,
+  type RoutineStop,
 } from "./world";
+import {
+  bindRegistry,
+  discover,
+  exposeDebugHooks,
+  interactableAt,
+  loadFlags,
+  pickPrompt,
+  setFlag,
+  type Interactable,
+  type PlayerState,
+  type PromptCandidate,
+} from "./interact";
+import { discoveryJuice, ensureFxTextures, fadeThrough, floatLine, FX, PromptLabel } from "./juice";
+import { firefliesOut, gameHour, isNight, phaseOf, torchesLit, washRGB } from "./clock";
 import { hallAudio } from "./audio";
 import { portalAt, type PortalTrigger } from "./portal";
 import { calculateVelocity, determineFacing, type Facing } from "./locomotion";
@@ -32,6 +59,10 @@ type NpcWalker = {
   bubbleUntil: number;
   lineIdx: number;
   proxUntil: number;
+  /** Routine: the stop it is heading to / at, and the waypoints left. */
+  stopId: string;
+  path: { x: number; y: number }[];
+  stallMs: number;
 };
 
 const NPC_SPEED = 60;
@@ -69,7 +100,8 @@ const NPC_PROX_LINES: Record<string, string> = {
 
 export type HallEvents = {
   onZone: (name: string, lock: string) => void;
-  onPrompt: (npc: HallNpc | null, atTable: boolean) => void;
+  /** verb is set for an object interactable ("Pull book"); null otherwise. */
+  onPrompt: (npc: HallNpc | null, atTable: boolean, verb?: string | null) => void;
   onTalk: (npc: HallNpc) => void;
   onTable: () => void;
   onSkinChange?: (skinId: string) => void;
@@ -181,6 +213,12 @@ export class HallScene extends Phaser.Scene {
 
   public paused = false;
   private portalOpts: { key: string; spawn: { x: number; y: number }; portals: PortalTrigger[] };
+  // Select E-gates (combined Keep, 2026-10-30): stepping into one does
+  // NOTHING on its own — only pressing E while inside moves you. They are
+  // deliberately NOT in portalOpts.portals, so the auto-fire check in
+  // update() can never trigger them.
+  private selectGates: PortalTrigger[] = [];
+  private gatePrompt: Phaser.GameObjects.Text | null = null;
   private isTransitioning = false;
   private portalExitRequired = false;
   private portalGraceUntil = 0;
@@ -188,9 +226,28 @@ export class HallScene extends Phaser.Scene {
   /** True once create() finished wiring up the scene objects. */
   public ready = false;
 
+  // --- Interaction system (interact.ts) ---
+  public pstate: PlayerState = "walk";
+  private preSit: { x: number; y: number } | null = null;
+  private interactables: Interactable[] = [];
+  private curInteract: Interactable | null = null;
+  private promptLabel: PromptLabel | null = null;
+  private lastInteractAt = 0;
+  private cooldowns: Record<string, number> = {};
+  // --- Day/night (clock.ts) ---
+  private torchFx: { glow: Phaser.GameObjects.Image; core: Phaser.GameObjects.Image; r: number; phase: number }[] = [];
+  private torchLevel = 0;
+  private torchesOn: boolean | null = null;
+  private flies: { dot: Phaser.GameObjects.Image; bx: number; by: number; ph: number; sp: number }[] = [];
+  private flyLevel = 0;
+  private nextClockApply = 0;
+  private lastPhase = "";
+  private hourNow = 12;
+  private hatch: Phaser.GameObjects.Container | null = null;
+
   constructor(
     eventsOut: HallEvents,
-    opts?: { key?: string; spawn?: { x: number; y: number }; portals?: PortalTrigger[] },
+    opts?: { key?: string; spawn?: { x: number; y: number }; portals?: PortalTrigger[]; selectGates?: PortalTrigger[] },
   ) {
     super({ key: opts?.key ?? "HallScene" });
     this.portalOpts = {
@@ -198,6 +255,7 @@ export class HallScene extends Phaser.Scene {
       spawn: opts?.spawn ?? PLAYER_SPAWN,
       portals: opts?.portals ?? [],
     };
+    this.selectGates = opts?.selectGates ?? [];
     this.eventsOut = eventsOut;
     try {
       const saved = localStorage.getItem("ravenlord_skin");
@@ -239,8 +297,26 @@ export class HallScene extends Phaser.Scene {
     }
   }
 
-  create(data?: { spawn?: { x: number; y: number } }) {
+  create(data?: { spawn?: { x: number; y: number }; from?: string }) {
     const spawn = data?.spawn ?? this.portalOpts.spawn;
+    // Interaction + day/night state is per-visit (instance is reused).
+    this.pstate = "walk";
+    this.preSit = null;
+    this.curInteract = null;
+    this.cooldowns = {};
+    this.torchFx = [];
+    this.torchesOn = null;
+    this.flies = [];
+    this.nextClockApply = 0;
+    this.lastPhase = "";
+    this.hatch = null;
+    NPC_LIVE.clear();
+    this.interactables = this.scene.key === "HallScene"
+      ? COURTYARD_INTERACTABLES.filter((it) => BASEMENT_ENABLED || it.kind !== "secret")
+      : [];
+    bindRegistry(this.registry);
+    exposeDebugHooks();
+    ensureFxTextures(this);
     // Scene restart cleanup (black-canvas-after-return fix): this scene
     // instance is REUSED on portal return, so create() runs again on the
     // same instance. Any array filled in create() must be reset here, or
@@ -249,6 +325,12 @@ export class HallScene extends Phaser.Scene {
     // destroyed line, freezing the returned Hall at a black canvas).
     this.oracleChains = [];
     this.npcWalkers.clear();
+    // Reused instance: drop stick/click input left over from the last visit.
+    this.stickX = 0;
+    this.stickY = 0;
+    this.dest = null;
+    this.lastZone = "";
+    this.lastPrompt = "";
     this.nextSpeechAt = 0;
     this.speechIdx = 0;
     this.isTransitioning = false;
@@ -266,6 +348,20 @@ export class HallScene extends Phaser.Scene {
       this.add
         .text(p.x + p.w / 2, p.y - 8, p.label ?? "DOOR", {
           fontFamily: "monospace", fontSize: "14px", color: "#2de2e6",
+          backgroundColor: "#0b0e14cc", padding: { x: 6, y: 3 },
+        })
+        .setOrigin(0.5, 1)
+        .setDepth(3);
+    }
+    // Select E-gates: amber outline + label, never auto-fire (see field note).
+    for (const g of this.selectGates) {
+      this.add
+        .rectangle(g.x + g.w / 2, g.y + g.h / 2, g.w, g.h)
+        .setStrokeStyle(4, 0xffc857, 0.95)
+        .setDepth(3);
+      this.add
+        .text(g.x + g.w / 2, g.y - 8, g.label ?? "E — GATE", {
+          fontFamily: "monospace", fontSize: "14px", color: "#ffc857",
           backgroundColor: "#0b0e14cc", padding: { x: 6, y: 3 },
         })
         .setOrigin(0.5, 1)
@@ -383,10 +479,19 @@ export class HallScene extends Phaser.Scene {
           .setAlpha(0.92);
       }
       if (npc.actor && npc.id !== "oracle" && spr && shadow) {
-        this.npcWalkers.set(npc.id, {
+        const w: NpcWalker = {
           npc, spr, tag, shadow, target: null, pauseUntil: 0, facing: "down",
-          bubble: null, bubbleUntil: 0, lineIdx: 0, proxUntil: 0,
-        });
+          bubble: null, bubbleUntil: 0, lineIdx: 0, proxUntil: 0, stopId: "", path: [], stallMs: 0,
+        };
+        const stops = NPC_ROUTINES[npc.id];
+        if (stops) {
+          // Arrive already at the stop for this hour (no walk on load).
+          const st = routineStopAt(stops, gameHour());
+          w.stopId = st.id;
+          this.placeWalker(w, st.at.x, st.at.y);
+          if (st.face) this.faceToward(w, st.face === "left" ? -1 : st.face === "right" ? 1 : 0, st.face === "up" ? -1 : st.face === "down" ? 1 : 0);
+        }
+        this.npcWalkers.set(npc.id, w);
       }
     }
 
@@ -463,6 +568,17 @@ export class HallScene extends Phaser.Scene {
       .setVisible(false)
       .setDepth(15);
 
+    // Select-gate prompt, screen-anchored, shown only while standing in a gate.
+    this.gatePrompt = this.add
+      .text(this.cameras.main.width / 2, this.cameras.main.height - 60, "", {
+        fontFamily: "monospace", fontSize: "16px", color: "#ffc857",
+        backgroundColor: "#0b0e14e6", padding: { x: 10, y: 6 },
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(40)
+      .setVisible(false);
+
     this.loadVisits();
 
     // Time of day wash
@@ -471,7 +587,10 @@ export class HallScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setDepth(20)
       .setBlendMode(Phaser.BlendModes.MULTIPLY);
+    this.buildNightFx();
     this.applyTimeOfDay();
+    this.buildTrapdoor(data?.from === "basement");
+    this.promptLabel = new PromptLabel(this);
 
     this.cameras.main.postFX.addVignette(0.5, 0.5, 0.75, 0.4);
     this.applyDecay(this.neglectByZone());
@@ -490,7 +609,12 @@ export class HallScene extends Phaser.Scene {
       this.wasd = this.input.keyboard.addKeys("W,A,S,D") as typeof this.wasd;
       this.input.keyboard.on("keydown-E", () => {
         if (this.tableauOpen) this.closeTableau();
-        else this.interact();
+        else if (!this.isTransitioning && this.player) {
+          // Select gate wins: only E, only while standing inside it.
+          const gate = portalAt(this.selectGates, this.player.x, this.player.y);
+          if (gate) this.triggerPortal(gate);
+          else this.interact();
+        }
       });
       this.input.keyboard.on("keydown-SPACE", () => {
         if (this.tableauOpen) this.closeTableau();
@@ -559,6 +683,8 @@ export class HallScene extends Phaser.Scene {
     this.isTransitioning = true;
     this.player.setVelocity(0, 0);
     this.dest = null;
+    this.stickX = 0;
+    this.stickY = 0;
     this.cameras.main.fadeOut(250);
     this.cameras.main.once("camerafadeoutcomplete", () => {
       this.scene.start(p.targetScene, { spawn: p.targetSpawn });
@@ -645,21 +771,225 @@ export class HallScene extends Phaser.Scene {
   }
 
   /** Time-of-day wash calculation over the keep map. */
+  /** Time-of-day wash from the ONE game clock (clock.ts). Was run once in
+   *  create(); now re-applied every 500 ms from update(), so the light moves
+   *  with the clock, torches catch at dusk and fireflies come out at night. */
   private applyTimeOfDay() {
-    const hour = new Date().getHours();
-    let r = 255, g = 255, b = 255;
-    if (hour >= 22 || hour < 5) {
-      // Deep midnight navy tint
-      r = 110; g = 130; b = 180;
-    } else if (hour >= 5 && hour < 8) {
-      // Arcane dawn violet-amber tint
-      r = 220; g = 180; b = 190;
-    } else if (hour >= 18 && hour < 22) {
-      // Sunset twilight ember-cyan tint
-      r = 200; g = 160; b = 180;
+    const hour = gameHour();
+    this.hourNow = hour;
+    const [r, g, b] = washRGB(hour);
+    this.daylight.setFillStyle((r << 16) | (g << 8) | b, 1);
+    const lit = torchesLit(hour);
+    if (this.torchesOn !== null && lit && !this.torchesOn) {
+      hallAudio.playTorchLight();
+      for (const t of this.torchFx) {
+        t.core.setScale(0.1);
+        this.tweens.add({ targets: t.core, scale: 0.42, duration: 450, ease: "Back.easeOut" });
+      }
     }
-    const color = (r << 16) | (g << 8) | b;
-    this.daylight.setFillStyle(color, 1);
+    this.torchesOn = lit;
+    const phase = phaseOf(hour);
+    if (this.lastPhase && phase !== this.lastPhase && this.player) {
+      if (phase === "night") floatLine(this, this.player.x, this.player.y - 50, "Night falls on the Keep.", 2600);
+      if (phase === "dawn") floatLine(this, this.player.x, this.player.y - 50, "Dawn. The torches gutter out.", 2600);
+    }
+    this.lastPhase = phase;
+    try {
+      (window as unknown as Record<string, unknown>).__keepTime = {
+        hour: Math.round(hour * 100) / 100, phase, torches: lit, fireflies: firefliesOut(hour), night: isNight(hour),
+      };
+    } catch { /* ignore */ }
+  }
+
+  /** Torch glows (soft radial, ADD) above the wash so they read in the dark,
+   *  plus a firefly swarm over the yard. Alpha follows the clock. */
+  private buildNightFx() {
+    for (const t of TORCHES) {
+      const glow = this.add.image(t.x, t.y, FX.GLOW).setDepth(21).setBlendMode(Phaser.BlendModes.ADD)
+        .setTint(0xff9a3c).setDisplaySize(t.r * 2, t.r * 2).setAlpha(0);
+      const core = this.add.image(t.x, t.y, FX.GLOW).setDepth(21).setBlendMode(Phaser.BlendModes.ADD)
+        .setTint(0xffe2a0).setScale(0.42).setAlpha(0);
+      this.torchFx.push({ glow, core, r: t.r, phase: Math.random() * Math.PI * 2 });
+    }
+    const a = FIREFLY_AREA;
+    for (let i = 0; i < 22; i++) {
+      const bx = a.x + Math.random() * a.w;
+      const by = a.y + Math.random() * a.h;
+      const dot = this.add.image(bx, by, FX.GLOW).setDepth(21).setBlendMode(Phaser.BlendModes.ADD)
+        .setTint(0xd8ff7a).setScale(0.09).setAlpha(0);
+      this.flies.push({ dot, bx, by, ph: Math.random() * 10, sp: 0.4 + Math.random() * 0.6 });
+    }
+    this.torchLevel = torchesLit(gameHour()) ? 1 : 0;
+    this.flyLevel = firefliesOut(gameHour()) ? 1 : 0;
+  }
+
+  private updateNightFx(time: number, delta: number) {
+    if (time >= this.nextClockApply) { this.nextClockApply = time + 500; this.applyTimeOfDay(); }
+    const k = Math.min(1, delta / 900);
+    this.torchLevel += ((this.torchesOn ? 1 : 0) - this.torchLevel) * k;
+    this.flyLevel += ((firefliesOut(this.hourNow) ? 1 : 0) - this.flyLevel) * k;
+    for (const t of this.torchFx) {
+      t.phase += delta * 0.012;
+      const fl = 0.82 + Math.sin(t.phase) * 0.08 + Math.sin(t.phase * 2.7 + 1.3) * 0.06 + (Math.random() - 0.5) * 0.06;
+      t.glow.setAlpha(0.55 * fl * this.torchLevel);
+      t.core.setAlpha(0.8 * fl * this.torchLevel);
+      t.glow.setDisplaySize(t.r * 2 * (0.97 + fl * 0.05), t.r * 2 * (0.97 + fl * 0.05));
+    }
+    if (this.flyLevel > 0.01) {
+      const ts = time / 1000;
+      for (const f of this.flies) {
+        const x = f.bx + Math.sin(ts * f.sp + f.ph) * 26 + Math.sin(ts * f.sp * 2.3 + f.ph) * 9;
+        const y = f.by + Math.cos(ts * f.sp * 0.8 + f.ph) * 16;
+        const blink = 0.5 + 0.5 * Math.sin(ts * 3 * f.sp + f.ph * 3);
+        f.dot.setPosition(x, y).setAlpha(this.flyLevel * (0.25 + 0.75 * blink));
+      }
+    } else {
+      for (const f of this.flies) f.dot.setAlpha(0);
+    }
+  }
+
+  /** The courtyard end of the basement loop: a hatch in the west yard.
+   *  Stand-in for the Hall v4 pantry trapdoor (v4 stays unwired). It only
+   *  shows once found, and only opens from below (one-way shortcut). */
+  private buildTrapdoor(arriving: boolean) {
+    if (this.scene.key !== "HallScene") return;
+    if (!BASEMENT_ENABLED) return;
+    if (!arriving && !loadFlags()["found:trapdoor"]) return;
+    const { x, y } = TRAPDOOR_SPOT;
+    const frame = this.add.rectangle(0, 0, 46, 30, 0x2a1c12).setStrokeStyle(2, 0x120c08);
+    const lid = this.add.rectangle(0, 0, 40, 24, 0x6b4a2c).setStrokeStyle(1, 0x3a2716);
+    const plank1 = this.add.rectangle(0, -6, 40, 1, 0x3a2716);
+    const plank2 = this.add.rectangle(0, 6, 40, 1, 0x3a2716);
+    const ring = this.add.circle(12, 0, 3, 0x000000, 0).setStrokeStyle(1.5, 0xb0a080);
+    this.hatch = this.add.container(x, y, [frame, lid, plank1, plank2, ring]).setDepth(4);
+    if (arriving) {
+      this.pstate = "cutscene";
+      lid.setScale(1, 0.15);
+      hallAudio.playCreak();
+      this.time.delayedCall(450, () => {
+        this.tweens.add({ targets: lid, scaleY: 1, duration: 260, ease: "Bounce.easeOut" });
+        if (discover("trapdoor")) discoveryJuice(this, x, y, this.hatch ?? undefined);
+        if (this.player) floatLine(this, this.player.x, this.player.y - 46, "You climb out through a hidden trapdoor.", 3000);
+        this.time.delayedCall(350, () => { if (this.pstate === "cutscene") this.pstate = "walk"; });
+      });
+    }
+  }
+
+  /** Object interactable under the player's feet (flag / night / cooldown filtered). */
+  private objectHere(): Interactable | null {
+    if (!this.player || this.interactables.length === 0) return null;
+    return interactableAt(this.interactables, this.player.x, this.player.y, {
+      flags: loadFlags(), now: this.time.now, isNight: isNight(this.hourNow), cooldowns: this.cooldowns,
+    });
+  }
+
+  private pickLine(it: Interactable): string {
+    const ls = it.lines ?? [];
+    return ls.length ? ls[Math.floor(Math.random() * ls.length)] : "";
+  }
+
+  private runInteractable(it: Interactable) {
+    if (!this.player) return;
+    if (it.cooldownMs) this.cooldowns[it.id] = this.time.now + it.cooldownMs;
+    const ax = it.anchor?.x ?? this.player.x;
+    const ay = it.anchor?.y ?? this.player.y;
+    if (it.kind === "sit") {
+      this.preSit = { x: this.player.x, y: this.player.y };
+      this.player.body.reset(ax, ay);
+      this.player.setVelocity(0, 0);
+      this.dest = null;
+      this.lastFacing = it.anchor?.face ?? "down";
+      this.applyFacingAnim("idle");
+      this.pstate = "sit";
+      setFlag(`sat:${it.id}`, true);
+      this.cameras.main.zoomTo(1.7, 500, "Sine.easeInOut");
+      if (discover(it.id)) discoveryJuice(this, ax, ay - 20, this.player);
+      else hallAudio.playInteract();
+      floatLine(this, ax, ay - 44, this.pickLine(it) || "Seated.", 3000);
+      return;
+    }
+    if (it.kind === "gaze") {
+      hallAudio.playInteract();
+      if (discover(it.id)) discoveryJuice(this, ax, ay + 40);
+      floatLine(this, ax, ay - 40, this.pickLine(it), 4200);
+      return;
+    }
+    if (it.kind === "secret") { this.pullSecretBook(it); return; }
+  }
+
+  private standUp() {
+    if (!this.player) return;
+    if (this.preSit) this.player.body.reset(this.preSit.x, this.preSit.y);
+    this.preSit = null;
+    this.pstate = "walk";
+    this.cameras.main.zoomTo(1.45, 400, "Sine.easeInOut");
+    hallAudio.playInteract();
+  }
+
+  /** Library secret: pull book → shelf slides with a grind → fade → basement. */
+  private pullSecretBook(it: Interactable) {
+    if (!BASEMENT_ENABLED) return;
+    if (!this.player || this.isTransitioning) return;
+    this.pstate = "cutscene";
+    this.isTransitioning = true;
+    this.player.setVelocity(0, 0);
+    this.dest = null;
+    this.stickX = 0;
+    this.stickY = 0;
+    if (it.anchor) this.player.body.reset(it.anchor.x, it.anchor.y);
+    this.lastFacing = "up";
+    this.applyFacingAnim("idle");
+    hallAudio.playCreak();
+    floatLine(this, this.player.x, this.player.y - 46, this.pickLine(it) || "Click.", 1500);
+    // Slab = a frame cut from the painted map itself, drawn over a dark gap,
+    // so the painted shelf slides aside. The map is never edited.
+    // Middle library bookcase, measured on keep-map.jpg (world 188-288 x 70-198).
+    const SX = 188, SY = 70, SW = 100, SH = 128;
+    // NOTE: never add a named frame to "keep-map": Phaser makes the first
+    // added frame the texture's default, and the map then draws as that frame.
+    const gap = this.add.rectangle(SX + SW / 2, SY + SH / 2, SW - 8, SH - 6, 0x050304, 1).setDepth(1);
+    for (let i = 0; i < 3; i++) this.add.rectangle(SX + SW / 2, SY + SH - 14 - i * 16, SW - 30 - i * 12, 3, 0x2a211a, 1).setDepth(1);
+    const slab = this.add.image(0, 0, "keep-map").setOrigin(0, 0).setDisplaySize(MAP_W, MAP_H).setCrop(SX, SY, SW, SH).setDepth(2);
+    this.time.delayedCall(350, () => {
+      hallAudio.playStoneGrind();
+      this.cameras.main.shake(700, 0.0016);
+      this.tweens.add({ targets: slab, x: -64, duration: 750, ease: "Sine.easeInOut" });
+      const first = discover("secret-shelf");
+      this.time.delayedCall(780, () => {
+        if (first) discoveryJuice(this, SX + SW / 2, SY + SH / 2, gap);
+        try { (window as unknown as Record<string, unknown>).__keepShelfOpen = true; } catch { /* ignore */ }
+        this.time.delayedCall(first ? 900 : 300, () => {
+          fadeThrough(this, () => {
+            this.scene.start("BasementRoomScene", { spawn: BASEMENT_ARRIVAL, from: "shelf" });
+          }, { outMs: 450 });
+        });
+      });
+    });
+  }
+
+  /** Move a walker and its shadow / tag together. */
+  private placeWalker(w: NpcWalker, x: number, y: number) {
+    w.spr.setPosition(x, y);
+    w.shadow.setPosition(x, y + OP_H / 2 - 2);
+    w.tag?.setPosition(x, y - OP_H / 2 - 6);
+    NPC_LIVE.set(w.npc.id, { x, y });
+  }
+
+  /** Routine tick: if the clock moved this NPC to a new stop, queue the walk. */
+  private updateRoutine(w: NpcWalker, time: number): RoutineStop | null {
+    const stops = NPC_ROUTINES[w.npc.id];
+    if (!stops) return null;
+    const st = routineStopAt(stops, this.hourNow);
+    if (st.id !== w.stopId) {
+      w.stopId = st.id;
+      w.path = [...(st.via ?? []), st.at];
+      w.target = w.path.shift() ?? null;
+      w.pauseUntil = 0;
+      w.stallMs = 0;
+      if (st.say && !w.bubble) this.showBubble(w.npc.id, st.say, 4000);
+      try { (window as unknown as Record<string, unknown>).__keepLastRoutine = { id: w.npc.id, stop: st.id, t: time }; } catch { /* ignore */ }
+    }
+    return st;
   }
 
   private applyDecay(hoursByZone: Record<string, number>) {
@@ -854,7 +1184,21 @@ export class HallScene extends Phaser.Scene {
 
   interact() {
     if (this.paused || !this.player) return;
-    const npc = npcFacing(this.player.x, this.player.y, this.lastFacing);
+    // One E press reaches here twice (Phaser keydown-E and React's window
+    // listener). Toggles like sit/stand must only see it once.
+    const nowMs = Date.now();
+    if (nowMs - this.lastInteractAt < 200) return;
+    this.lastInteractAt = nowMs;
+    if (this.pstate === "sit") { this.standUp(); return; }
+    if (this.pstate !== "walk") return;
+    // Gate-fix 2026-10-30: React's window E handler preventDefaults E and
+    // calls interact() only, so Phaser's keydown-E gate handler never sees
+    // the key (Phaser drops defaultPrevented events). Gate must win here
+    // too, or the courtyard->interior select gate can never fire via E.
+    const gate = portalAt(this.selectGates, this.player.x, this.player.y);
+    if (gate) { this.triggerPortal(gate); return; }
+    // Nearest NPC in range wins, whichever way you face (one E prompt rule).
+    const npc = npcNear(this.player.x, this.player.y, 12);
     if (npc) {
       if (npc.id === "oracle") {
         hallAudio.playOracleGaze();
@@ -864,6 +1208,8 @@ export class HallScene extends Phaser.Scene {
       this.eventsOut.onTalk(npc);
       return;
     }
+    const it = this.objectHere();
+    if (it) { this.runInteractable(it); return; }
     if (tableFacing(this.player.x, this.player.y, this.lastFacing)) {
       hallAudio.playInteract();
       this.eventsOut.onTable();
@@ -875,7 +1221,8 @@ export class HallScene extends Phaser.Scene {
    * radius and remember to open their dialogue on arrival. Picks the point
    * on the player's side of the NPC first, then any nearest walkable tile.
    */
-  private approach(npc: HallNpc) {
+  private approach(npcIn: HallNpc) {
+    const npc = { ...npcIn, ...npcPos(npcIn) };
     if (!this.player || !walkable(npc.x, npc.y)) return;
     const dx = this.player.x - npc.x;
     const dy = this.player.y - npc.y;
@@ -900,7 +1247,7 @@ export class HallScene extends Phaser.Scene {
       ty = best.y;
     }
     this.dest = { x: tx, y: ty };
-    this.pendingApproach = npc;
+    this.pendingApproach = npcIn;
     this.reticle.setPosition(tx, ty).setVisible(true);
   }
 
@@ -974,6 +1321,17 @@ export class HallScene extends Phaser.Scene {
     return null;
   }
 
+  /** Idle spot near a routine stop (walkable, Valerie kept in the Workshop). */
+  private pickNear(stop: RoutineStop): { x: number; y: number } | null {
+    const r = stop.roam ?? 30;
+    for (let i = 0; i < 12; i++) {
+      const x = stop.at.x + (Math.random() * 2 - 1) * r;
+      const y = stop.at.y + (Math.random() * 2 - 1) * r;
+      if (walkable(x, y)) return { x, y };
+    }
+    return { ...stop.at };
+  }
+
   private faceToward(w: NpcWalker, dx: number, dy: number) {
     const facing: Facing = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? "right" : "left") : (dy >= 0 ? "down" : "up");
     if (facing !== w.facing || w.spr.anims.currentAnim?.key !== `npc-idle-${w.npc.id}-${facing}`) {
@@ -991,9 +1349,11 @@ export class HallScene extends Phaser.Scene {
         w.bubble.setPosition(w.spr.x, w.spr.y - OP_H / 2 - 30);
         if (time > w.bubbleUntil) { try { w.bubble.destroy(); } catch { /* ignore */ } w.bubble = null; }
       }
+      const stop = this.updateRoutine(w, time);
+      const travelling = w.path.length > 0 || (!!stop && !!w.target && (w.target.x - stop.at.x) ** 2 + (w.target.y - stop.at.y) ** 2 < 4 && (w.spr.x - stop.at.x) ** 2 + (w.spr.y - stop.at.y) ** 2 > 90 * 90);
       const dx = this.player.x - w.spr.x;
       const dy = this.player.y - w.spr.y;
-      if (dx * dx + dy * dy < 140 * 140) {
+      if (!travelling && dx * dx + dy * dy < 140 * 140) {
         // Close: stop wandering, face the player, proximity line (30s cooldown).
         w.target = null;
         this.faceToward(w, dx, dy);
@@ -1009,6 +1369,13 @@ export class HallScene extends Phaser.Scene {
         const ty = w.target.y - w.spr.y;
         if (tx * tx + ty * ty < 64) {
           w.target = null;
+          w.stallMs = 0;
+          if (w.path.length > 0) { w.target = w.path.shift() ?? null; continue; }
+          if (stop?.face && (w.spr.x - stop.at.x) ** 2 + (w.spr.y - stop.at.y) ** 2 < 100) {
+            this.faceToward(w, stop.face === "left" ? -1 : stop.face === "right" ? 1 : 0, stop.face === "up" ? -1 : stop.face === "down" ? 1 : 0);
+            w.pauseUntil = time + 4000 + Math.random() * 5000;
+            continue;
+          }
           if (w.npc.id === "valerie" && Math.random() < 0.4) {
             // Work pause: longer, facing up toward the workshop benches.
             // No new art — pause + facing change only.
@@ -1032,9 +1399,12 @@ export class HallScene extends Phaser.Scene {
           if (!this.inWorkshop(nx, w.spr.y)) nx = w.spr.x;
           if (!this.inWorkshop(nx, ny)) ny = w.spr.y;
         }
-        w.spr.setPosition(nx, ny);
-        w.shadow.setPosition(nx, ny + OP_H / 2 - 2);
-        w.tag?.setPosition(nx, ny - OP_H / 2 - 6);
+        // Stuck on an edge for 1.5 s: hop to the waypoint rather than grind.
+        if (nx === w.spr.x && ny === w.spr.y) {
+          w.stallMs += delta;
+          if (w.stallMs > 1500) { nx = w.target.x; ny = w.target.y; w.stallMs = 0; }
+        } else w.stallMs = 0;
+        this.placeWalker(w, nx, ny);
         if (facing !== w.facing || w.spr.anims.currentAnim?.key !== `npc-walk-${w.npc.id}-${facing}`) {
           w.facing = facing;
           if (this.anims.exists(`npc-walk-${w.npc.id}-${facing}`)) w.spr.play(`npc-walk-${w.npc.id}-${facing}`);
@@ -1042,7 +1412,7 @@ export class HallScene extends Phaser.Scene {
         continue;
       }
       if (time > w.pauseUntil) {
-        w.target = this.pickWaypoint(w.npc.id);
+        w.target = stop ? this.pickNear(stop) : this.pickWaypoint(w.npc.id);
         if (!w.target) w.pauseUntil = time + 2000;
       } else if (this.anims.exists(`npc-idle-${w.npc.id}-${w.facing}`) && w.spr.anims.currentAnim?.key !== `npc-idle-${w.npc.id}-${w.facing}`) {
         w.spr.play(`npc-idle-${w.npc.id}-${w.facing}`);
@@ -1051,7 +1421,7 @@ export class HallScene extends Phaser.Scene {
     try {
       (window as unknown as Record<string, unknown>).__keepNpcs = [...this.npcWalkers.values()].map((v) => ({
         id: v.npc.id, x: Math.round(v.spr.x), y: Math.round(v.spr.y),
-        facing: v.facing, target: v.target, paused: time < v.pauseUntil,
+        facing: v.facing, target: v.target, paused: time < v.pauseUntil, stop: v.stopId, pathLeft: v.path.length,
       }));
     } catch { /* ignore */ }
     // Timer speech: one NPC at a time, every 20-40s, cycling preset lines.
@@ -1060,7 +1430,7 @@ export class HallScene extends Phaser.Scene {
       if (walkers.length > 0) {
         const w = walkers[this.speechIdx % walkers.length];
         this.speechIdx += 1;
-        const lines = NPC_LINES[w.npc.id] ?? [];
+        const lines = (isNight(this.hourNow) ? NPC_NIGHT_LINES[w.npc.id] : null) ?? NPC_LINES[w.npc.id] ?? [];
         if (lines.length > 0) {
           this.showBubble(w.npc.id, lines[w.lineIdx % lines.length]);
           w.lineIdx += 1;
@@ -1168,7 +1538,21 @@ export class HallScene extends Phaser.Scene {
       this.player?.setVelocity(0, 0);
       return;
     }
+    this.updateNightFx(time, delta);
     this.updateNpcWander(time, delta);
+
+    // Player-state lock: anything but "walk" freezes movement. While seated,
+    // any move key (or E) stands you back up.
+    if (this.pstate !== "walk") {
+      this.player.setVelocity(0, 0);
+      if (this.pstate === "sit") {
+        const mv = this.stickX || this.stickY || this.cursors?.left?.isDown || this.cursors?.right?.isDown || this.cursors?.up?.isDown || this.cursors?.down?.isDown
+          || this.wasd?.A?.isDown || this.wasd?.D?.isDown || this.wasd?.W?.isDown || this.wasd?.S?.isDown;
+        if (mv) this.standUp();
+        this.showPrompt({ kind: "object", verb: "Stand up", dSq: 0 }, null, null, this.player.x, this.player.y - 46);
+      } else this.showPrompt(null, null, null, 0, 0);
+      return;
+    }
 
     const wSpeed = (window as unknown as Record<string, unknown>).__keepWalkSpeed;
     const speed = typeof wSpeed === "number" ? wSpeed : 175;
@@ -1233,10 +1617,8 @@ export class HallScene extends Phaser.Scene {
 
     const isMoving = finalVx !== 0 || finalVy !== 0;
 
-    if (isMoving !== this.wasMoving) {
-      this.squash(isMoving ? 0.94 : 1.07, isMoving ? 1.07 : 0.93);
-      this.wasMoving = isMoving;
-    }
+    // Walk-fix 2026-10-30 #2: squash removed — it fired on every start/stop, stacked tweens on direction changes, and stretched the sprite while walking. wasMoving kept for step timing only.
+    this.wasMoving = isMoving;
 
     // Wedge clear: a click that sits behind a prop or wall leaves the player
     // pushing against the boundary forever. If a dest is set but the player
@@ -1264,7 +1646,7 @@ export class HallScene extends Phaser.Scene {
     }
 
     this.player.setRotation(0);
-    this.player.setDisplaySize(OP_W, OP_H);
+    // Walk-fix 2026-10-30: per-frame setDisplaySize removed — it fought the squash tween and flickered scale. Size is set once at player creation.
 
     // Directional Facing & Animations
     if (isMoving) {
@@ -1284,6 +1666,17 @@ export class HallScene extends Phaser.Scene {
       if (door) this.triggerPortal(door);
     }
 
+    // Select E-gate prompt: standing inside shows it, stepping out hides it.
+    // Stepping in alone never transitions — only the E handler above does.
+    if (this.gatePrompt && this.player) {
+      const gate = portalAt(this.selectGates, this.player.x, this.player.y);
+      if (gate) {
+        this.gatePrompt.setText(gate.label ?? "E — GATE").setVisible(true);
+      } else {
+        this.gatePrompt.setVisible(false);
+      }
+    }
+
     // Zone Transition Triggers
     const zone = zoneAt(this.player.x, this.player.y);
     const zkey = zone ? `${zone.name}:${zone.lock}` : "";
@@ -1297,13 +1690,33 @@ export class HallScene extends Phaser.Scene {
       if (zone?.id === "quarantine") this.eventsOut.onEnterCell?.();
     }
 
-    // Interaction Prompts using Facing Direction
-    const npc = npcFacing(this.player.x, this.player.y, this.lastFacing);
-    const atTable = tableFacing(this.player.x, this.player.y, this.lastFacing);
-    const pkey = `${npc?.id ?? ""}:${atTable}`;
+    // ONE prompt: door (auto-step, no prompt) > NPC > object > table.
+    const px = this.player.x;
+    const py = this.player.y;
+    const npc = npcNear(px, py, 12);
+    const it = this.objectHere();
+    const table = tableFacing(px, py, this.lastFacing);
+    const cands: (PromptCandidate | null)[] = [
+      npc ? { kind: "npc", verb: `Talk to ${npc.name}`, dSq: (npcPos(npc).x - px) ** 2 + (npcPos(npc).y - py) ** 2, ref: npc } : null,
+      it ? { kind: "object", verb: it.verb, dSq: 0, ref: it } : null,
+      table ? { kind: "table", verb: "Sit the war table", dSq: 1e9 } : null,
+    ];
+    const pick = pickPrompt(cands);
+    this.curInteract = pick?.kind === "object" ? it : null;
+    const lab = this.curInteract?.labelAt ?? this.curInteract?.anchor ?? { x: px, y: py - 46 };
+    this.showPrompt(pick, pick?.kind === "npc" ? npc : null, this.curInteract, lab.x, lab.y);
+  }
+
+  /** Drive the single prompt: React (onPrompt) + the in-canvas label for objects. */
+  private showPrompt(pick: PromptCandidate | null, npc: HallNpc | null, it: Interactable | null, lx: number, ly: number) {
+    const verb = pick && pick.kind === "object" ? pick.verb : null;
+    this.promptLabel?.show(verb, lx, ly);
+    const atTable = pick?.kind === "table";
+    const pkey = `${npc?.id ?? ""}:${atTable}:${verb ?? ""}`;
     if (pkey !== this.lastPrompt) {
       this.lastPrompt = pkey;
-      this.eventsOut.onPrompt(npc, atTable);
+      this.eventsOut.onPrompt(npc, atTable, verb);
+      try { (window as unknown as Record<string, unknown>).__keepPrompt = pick ? { kind: pick.kind, verb: pick.verb, id: it?.id ?? npc?.id ?? null } : null; } catch { /* ignore */ }
     }
   }
 }

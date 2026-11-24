@@ -1,5 +1,6 @@
 /** Painted Keep — the fortress image is the world. Edit hotspots here. */
 import { liveStatusSummary } from "@/lib/keep/catalog";
+import { LYRA, LYRA_CHOICES, LYRA_GREETING_FIRST, pick } from "./lyra.ts";
 
 export const MAP_W = 1792;
 export const MAP_H = 1008;
@@ -125,6 +126,8 @@ export type HallAction = {
   reply?: string;
   /** Computed at click time from the live room catalog. Wins over `reply`. */
   liveReply?: () => string;
+  /** Lyra portrait stage to show when this action is clicked. */
+  stage?: number;
   href?: string;
 };
 
@@ -144,8 +147,14 @@ export type HallNpc = {
    *  the scene to fill the background plate. Defaults to `contain`. */
   talkFit?: "contain" | "cover";
   portrait?: string;
+  /** Data-driven portrait stages (Lyra). The talk panel shows
+   *  stages[flag `${id}:stage`], clamped; falls back to `portrait`. */
+  stages?: string[];
   actor?: string;
   actorH?: number;
+  /** Display scale for actor sheets whose figure doesn't fill the 32x40
+   *  cell (Lyra's 24x32 Cabbit frames). Default 1. */
+  actorScale?: number;
   actions: HallAction[];
 };
 
@@ -234,7 +243,7 @@ export const HALL_NPCS: HallNpc[] = [
     state: "working",
     actor: "/hall/sprites/valerie-hd2d.png",
     actorH: 68,
-    greeting: "Workshop is cold until you forge it. I can still diagnose — numbered, reversible, no secret leaks.",
+    greeting: "Workshop's mine. Don't touch anything until I've looked at it. Tell me what's wrong, exactly, and I'll tell you what it takes.",
     href: "/mechanic",
     talkScene: VALERIE_TALK,
     portrait: VALERIE_PORTRAIT,
@@ -364,10 +373,72 @@ export const HALL_LIGHTS: HallLight[] = [
   { x: 1095, y: 840, radius: 120, color: 0x8891a5, intensity: 0.7, flicker: 0.0, period: 1.0 },
 ];
 
-export const PLAYER_SPAWN = { x: 760, y: 650 };
+export const PLAYER_SPAWN = { x: 750, y: 880 }; // courtyard start, inside yard walk, west of fountain
+
+// --- Fortress Interior (hall v4) — combined Keep, 2026-10-30 ---
+// The hall is a SECOND area, not a replacement for the courtyard. Sizes match
+// the images exactly: courtyard 1792x1008, hall v4 1920x1280.
+// Walk rects are the v4 set verbatim, plus ONE bottom gate corridor so the
+// player can actually walk from the central hall down to the return gate
+// (v4 walk stops at y=1050; the gate sits at y=1190-1280).
+export const INTERIOR_MAP_W = 1920;
+export const INTERIOR_MAP_H = 1280;
+export const INTERIOR_MAP_SRC = "/hall/painted/keep-map-v4.jpg";
+export const INTERIOR_WALK: Rect[] = [
+  { x: 330, y: 200, w: 420, h: 300 }, // NW bedroom (v4)
+  { x: 330, y: 520, w: 420, h: 300 }, // west armory (v4)
+  { x: 330, y: 840, w: 420, h: 300 }, // west kitchen (v4)
+  { x: 750, y: 300, w: 90, h: 750 }, // west link to hall
+  { x: 830, y: 130, w: 360, h: 920 }, // throne dais + central hall (v4)
+  { x: 1190, y: 300, w: 90, h: 750 }, // east link to hall
+  { x: 1280, y: 200, w: 420, h: 300 }, // east library (v4)
+  { x: 1280, y: 520, w: 420, h: 300 }, // east storeroom (v4)
+  { x: 1280, y: 840, w: 420, h: 300 }, // east chapel (v4)
+  { x: 800, y: 1040, w: 320, h: 240 }, // bottom gate corridor (added 2026-10-30)
+];
+// Throne, v4 solid { x: 960, y: 140, w: 80, h: 100 }, as a circle because
+// RoomScene only supports solid circles. Centre (1000,190), r 65 covers it.
+export const INTERIOR_SOLID_CIRCLES = [{ x: 1000, y: 190, r: 65 }];
+// Select E-gates, copied from the proven test build — stepping in alone does
+// NOTHING; only E moves you. Courtyard gate: top of courtyard, on the throne
+// dais (walkable from y=55 up). Hall gate: bottom of the hall corridor.
+export const COURTYARD_GATE = { x: 800, y: 0, w: 192, h: 90 };
+export const INTERIOR_GATE = { x: 800, y: 1190, w: 320, h: 90 };
+export const INTERIOR_SPAWN = { x: 960, y: 1150 }; // inside bottom gate corridor
+export const COURTYARD_RETURN_SPAWN = { x: 896, y: 130 }; // on the throne dais, below the top gate
+
+/** Lyra: lives in the Fortress Interior (muse's FortressInteriorRoomScene),
+ *  kitchen, so she is NOT in HALL_NPCS (the courtyard scene). x/y are
+ *  keep-map-v4.jpg image pixels: kitchen floor, east of the food table. */
+export const LYRA_NPC: HallNpc = {
+  id: LYRA.id,
+  name: LYRA.name,
+  role: LYRA.role,
+  x: 560,
+  y: 950,
+  radius: 60,
+  state: "idle",
+  actor: LYRA.actor,
+  actorH: 68,
+  actorScale: 1.15,
+  greeting: LYRA_GREETING_FIRST,
+  portrait: LYRA.stages[0],
+  talkScene: LYRA.stages[0],
+  talkFit: "contain",
+  stages: [...LYRA.stages],
+  actions: LYRA_CHOICES.map((c) => ({ id: `lyra-${c.id}`, label: c.label, liveReply: () => pick(c.replies), stage: c.stage })),
+};
 
 export function zoneAt(x: number, y: number): Zone | null {
   return ZONES.find((z) => inside(z.rect, x, y)) ?? null;
+}
+
+/** Live positions of walking NPCs (HallScene writes these each frame).
+ *  Talk / click checks use them, so an NPC on its routine can be talked to
+ *  where it stands, not only at its home spot. */
+export const NPC_LIVE = new Map<string, { x: number; y: number }>();
+export function npcPos(n: HallNpc): { x: number; y: number } {
+  return NPC_LIVE.get(n.id) ?? n;
 }
 
 export function npcNear(x: number, y: number, extra = 8): HallNpc | null {
@@ -375,8 +446,9 @@ export function npcNear(x: number, y: number, extra = 8): HallNpc | null {
   let bestDSq = Infinity;
   for (const n of HALL_NPCS) {
     // PERFORMANCE: Use squared distance to avoid Math.hypot/sqrt in hot loops
-    const dx = n.x - x;
-    const dy = n.y - y;
+    const np = npcPos(n);
+    const dx = np.x - x;
+    const dy = np.y - y;
     const dSq = dx * dx + dy * dy;
     const threshold = n.radius + extra;
     const thresholdSq = threshold * threshold;
@@ -404,10 +476,11 @@ export function npcFacing(x: number, y: number, facing: Facing, extra = 12): Hal
   let best: HallNpc | null = null;
   let bestDSq = Infinity;
   for (const n of HALL_NPCS) {
-    if (isFacingTarget(x, y, facing, n.x, n.y, n.radius + extra)) {
+    const np = npcPos(n);
+    if (isFacingTarget(x, y, facing, np.x, np.y, n.radius + extra)) {
       // PERFORMANCE: Use squared distance to avoid Math.hypot/sqrt in hot loops
-      const dx = n.x - x;
-      const dy = n.y - y;
+      const dx = np.x - x;
+      const dy = np.y - y;
       const dSq = dx * dx + dy * dy;
       if (dSq < bestDSq) {
         best = n;
@@ -425,3 +498,105 @@ export function tableFacing(x: number, y: number, facing: Facing): boolean {
   const maxDist = Math.max(t.w, t.h) / 2 + 36;
   return isFacingTarget(x, y, facing, tableCenterX, tableCenterY, maxDist);
 }
+
+// ---------------------------------------------------------------------------
+// Interactions, day/night and routines (keep-interactions-20261030)
+// ---------------------------------------------------------------------------
+import type { Interactable } from "./interact.ts";
+
+/** Basement arrival (from the library shelf) and the courtyard stand-in exit.
+ *  The real exit is a pantry trapdoor in Hall v4 (unwired, locked): until v4
+ *  is wired, the trapdoor sits in the west yard. */
+export const BASEMENT_ARRIVAL = { x: 190, y: 330 };
+/** Feature flag: the basement (Undercroft) loop. Jason rejected that room
+ *  (2026-10-30), so it is OFF: the library "Pull book" shelf and the yard
+ *  trapdoor are unreachable. Code + assets stay in place. */
+export const BASEMENT_ENABLED = false;
+export const TRAPDOOR_SPOT = { x: 690, y: 770 };
+export const TRAPDOOR_SPAWN = { x: 690, y: 748 };
+
+/** Courtyard interactables. Zones are overlap rects, never colliders, and
+ *  sit clear of every portal (KEEP-CODE-MAP §4) and the TEST DOOR. */
+export const COURTYARD_INTERACTABLES: Interactable[] = [
+  {
+    id: "shelf-secret", kind: "secret", verb: "Pull book",
+    rect: { x: 210, y: 262, w: 85, h: 90 }, anchor: { x: 238, y: 300, face: "up" }, labelAt: { x: 238, y: 232 },
+    lines: ["One spine is warmer than the rest…"],
+  },
+  {
+    id: "night-fountain", kind: "gaze", verb: "Gaze into the fountain", when: "night", cooldownMs: 15000,
+    rect: { x: 832, y: 752, w: 162, h: 50 }, anchor: { x: 918, y: 780, face: "down" }, labelAt: { x: 918, y: 800 },
+    lines: [
+      "The water shows the Keep, but the windows are all lit.",
+      "Something silver turns over at the bottom. Then it's gone.",
+      "Your reflection is wearing a crown. You aren't.",
+    ],
+  },
+];
+
+/** Warm braziers / torches in the painting that light themselves at dusk. */
+export const TORCHES: { x: number; y: number; r: number }[] = [
+  // Flame centres measured on keep-map.jpg (bright orange pixel clusters).
+  { x: 692, y: 269, r: 140 },
+  { x: 1125, y: 269, r: 140 },
+  { x: 692, y: 533, r: 140 },
+  { x: 1125, y: 533, r: 140 },
+  { x: 710, y: 723, r: 120 },
+  { x: 1084, y: 715, r: 120 },
+];
+
+/** Fireflies drift over the yard at night. */
+export const FIREFLY_AREA = { x: 650, y: 730, w: 500, h: 220 };
+
+/** Stardew-style NPC schedules: 2-3 stops a day, tied to the game clock.
+ *  `via` = points walked on the way IN to that stop (straight lines between
+ *  them stay on WALK and off SOLID). Locked homes still hold: Valerie stays
+ *  in the Workshop, Raziel stays central/library. Corvid is the yard scout,
+ *  so he takes the night watch on the throne dais at dusk (the shift change). */
+export type RoutineStop = {
+  id: string;
+  from: number; // hour this stop starts (wraps past midnight)
+  at: { x: number; y: number };
+  face?: "down" | "left" | "right" | "up";
+  via?: { x: number; y: number }[];
+  /** Said once when the NPC sets off for this stop. */
+  say?: string;
+  /** How far it idles around the stop. */
+  roam?: number;
+};
+export const NPC_ROUTINES: Record<string, RoutineStop[]> = {
+  raziel: [
+    { id: "hall", from: 7, at: { x: 904, y: 575 }, face: "down", roam: 40,
+      via: [{ x: 880, y: 225 }, { x: 700, y: 300 }, { x: 680, y: 560 }], say: "Morning. The hall is open." },
+    { id: "library", from: 12, at: { x: 420, y: 440 }, face: "left", roam: 30,
+      via: [{ x: 650, y: 560 }, { x: 520, y: 330 }], say: "To the stacks. The Oracle keeps better notes than I do." },
+    { id: "dais", from: 18, at: { x: 770, y: 140 }, face: "down", roam: 20,
+      via: [{ x: 520, y: 330 }, { x: 700, y: 300 }, { x: 880, y: 225 }], say: "Dusk. I'll keep the high seat warm." },
+  ],
+  valerie: [
+    { id: "bench", from: 6, at: { x: 1450, y: 245 }, face: "up", roam: 40 },
+    { id: "cauldron", from: 13, at: { x: 1520, y: 560 }, face: "right", roam: 20, say: "Pot's on. Don't touch the green one." },
+    { id: "rest", from: 19, at: { x: 1410, y: 610 }, face: "down", roam: 15 },
+  ],
+  corvid: [
+    { id: "yard", from: 6, at: { x: 800, y: 905 }, face: "down", roam: 50,
+      via: [{ x: 900, y: 225 }, { x: 1150, y: 450 }, { x: 900, y: 700 }], say: "Dawn watch over. Back to the yard." },
+    { id: "watch", from: 18, at: { x: 1035, y: 160 }, face: "down", roam: 15,
+      via: [{ x: 900, y: 700 }, { x: 1150, y: 450 }, { x: 900, y: 225 }], say: "Shift change. I take the night watch." },
+  ],
+};
+
+/** Which stop an NPC should be at for a game hour. */
+export function routineStopAt(stops: RoutineStop[], hour: number): RoutineStop {
+  const sorted = [...stops].sort((a, b) => a.from - b.from);
+  let cur = sorted[sorted.length - 1]; // before the first stop = last stop of yesterday
+  for (const s of sorted) if (hour >= s.from) cur = s;
+  return cur;
+}
+
+/** Night-only lines for the timer speech. */
+export const NPC_NIGHT_LINES: Record<string, string[]> = {
+  raziel: ["The Keep sleeps lighter than you think.", "Torches lit, doors sealed. Good night for thinking."],
+  valerie: ["Night shift. The forge hums better in the dark.", "If you hear clanking, that's me. Probably."],
+  corvid: ["Quiet up here. Too quiet, or just quiet?", "Fireflies over the yard. Nothing else moving."],
+};

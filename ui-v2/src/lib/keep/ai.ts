@@ -3,6 +3,9 @@ import type { DraftSpec, TableResult } from "./types";
 import { KNOWLEDGE, ROOMS, SPECS } from "./catalog";
 import { executeFastMCPTool } from "./fastmcp";
 import { webSearch, browserRender, type SearchResult } from "./corvid-tools";
+import { LYRA_LINES, LYRA_PERSONA } from "@/lib/hall/lyra";
+import { VALERIE_LINES, VALERIE_PERSONA } from "@/lib/hall/valerie";
+import { NPC_CANNED, npcOllamaTimeoutMs, talkChain, type TalkReply } from "./talk-chain";
 import { readLatestRavenDrop } from "./drops";
 
 const FORTRESS_BRIEF = `You are inside Ravenstack Keep, Jason Boyd's personal AI fortress (ReClaw / OpenClaw on Hetzner + Tailscale).
@@ -61,7 +64,7 @@ function ollamaCtxOption(): { num_ctx?: number } {
 }
 
 /** Local-first per the Keep's own cost model: Ollama on the box before any paid call. */
-async function completeOllama(system: string, user: string, maxTokens: number, model: string) {
+async function completeOllama(system: string, user: string, maxTokens: number, model: string, timeoutMs = 90000) {
   const base = (process.env.OLLAMA_URL?.trim() || "http://127.0.0.1:11434").replace(/\/$/, "");
   try {
     const res = await fetch(`${base}/api/chat`, {
@@ -69,7 +72,7 @@ async function completeOllama(system: string, user: string, maxTokens: number, m
       headers: { "Content-Type": "application/json" },
       // CPU-bound local inference: normal case is 10-30s, generous headroom
       // for a cold model load or a second request queued behind one already running.
-      signal: AbortSignal.timeout(90000),
+      signal: AbortSignal.timeout(timeoutMs),
       body: JSON.stringify({
         model,
         think: false,
@@ -108,7 +111,7 @@ async function completeOllama(system: string, user: string, maxTokens: number, m
  * Every caller runs on the talk plane (KEEP_TALK_MODEL) except Valerie's
  * workbench, which passes its own model explicitly -- see diagnoseMechanicWorkbench.
  */
-async function completeFreellmapi(system: string, user: string, maxTokens: number) {
+async function completeFreellmapi(system: string, user: string, maxTokens: number, timeoutMs = 90000) {
   const key = (process.env.KEEP_FREELLMAPI_KEY || "").trim();
   if (!key) return { ok: false as const, error: "No FreeLLMAPI key set" };
   const base = (process.env.KEEP_FREELLMAPI_URL || "http://127.0.0.1:3011").replace(/\/$/, "");
@@ -117,7 +120,7 @@ async function completeFreellmapi(system: string, user: string, maxTokens: numbe
     const res = await fetch(`${base}/v1/chat/completions`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-      signal: AbortSignal.timeout(90000),
+      signal: AbortSignal.timeout(timeoutMs),
       body: JSON.stringify({
         model,
         messages: [
@@ -441,7 +444,54 @@ You are Corvid, raven scout of Ravenstack Keep. Precise, source-obsessed, allerg
   return { ok: false as const, error: "Corvid's research loop hit its turn limit without a final answer." };
 }
 
+/** Lyra's model: local dolphin3:8b on the Keep box unless KEEP_LYRA_MODEL pins another. */
+export function lyraModelName(): string {
+  return process.env.KEEP_LYRA_MODEL?.trim() || "dolphin3:8b";
+}
+
+/**
+ * Hall NPC talk (Lyra, Raziel, Oracle, Valerie): Ollama FIRST with a short
+ * timeout (KEEP_NPC_OLLAMA_TIMEOUT_MS, default 6 s, so an unreachable or
+ * killed box Ollama fails fast), then FreeLLMAPI (server-side key, model
+ * "auto"), then a canned line. A refusal from either leg counts as a miss.
+ * Other Keep surfaces keep complete()'s own order. Corvid keeps its tool loop.
+ */
+export async function talkNpc(system: string, message: string, maxTokens: number, ollamaModel: string, canned: readonly string[], ollamaTimeoutMs: number = npcOllamaTimeoutMs(process.env)): Promise<TalkReply> {
+  const r = await talkChain(
+    {
+      ollama: () => completeOllama(system, message, maxTokens, ollamaModel, ollamaTimeoutMs),
+      freellmapi: () => completeFreellmapi(system, message, maxTokens, 25000),
+    },
+    canned,
+  );
+  // Which leg answered, never the text or any key.
+  console.log(`[keep-talk] npc reply via ${r.source} (${r.tried.join(", ")})`);
+  return r;
+}
+
+/** Valerie's model: a NORMAL chat model (qwen3:4b) unless KEEP_VALERIE_MODEL pins another.
+ *  Explicitly NOT abliterated / dolphin: she diagnoses machines, she does not need an unfiltered model. */
+export function valerieModelName(): string {
+  return process.env.KEEP_VALERIE_MODEL?.trim() || "qwen3:4b";
+}
+
+/** Valerie (Workshop): qwen3:4b -> FreeLLMAPI -> her canned lines.
+ *  30s Ollama timeout like Lyra, so a diagnosis has room to think. */
+export async function talkValerie(message: string) {
+  return talkNpc(VALERIE_PERSONA, message, 500, valerieModelName(), VALERIE_LINES, 30000);
+}
+
+/** Lyra (interior bedroom): dolphin3:8b (unfiltered) -> FreeLLMAPI -> her canned lines.
+ *  LYRA_PERSONA keeps her as the Keep Cook: warm, practical, kitchen talk. */
+export async function talkLyra(message: string) {
+  // Lyra only: 30s Ollama timeout so a cold dolphin3:8b load can answer;
+  // other NPCs keep talkNpc's default (npcOllamaTimeoutMs, 6s).
+  return talkNpc(LYRA_PERSONA, message, 220, lyraModelName(), LYRA_LINES, 30000);
+}
+
 export async function talkHall(agent: string, message: string) {
+  if (agent === "lyra") return talkLyra(message);
+  if (agent === "valerie") return talkValerie(message);
   if (agent === "corvid") {
     const res = await talkCorvid(message);
     if (!res.ok) return res;
@@ -467,7 +517,7 @@ export async function talkHall(agent: string, message: string) {
 ${persona[agent] ?? persona.raziel}
 
 Reply in 2-6 short sentences, in character. No markdown headings.`;
-  return complete(system, message, 500);
+  return talkNpc(system, message, 500, talkModelName(), NPC_CANNED[agent] ?? NPC_CANNED.raziel);
 }
 
 export async function generatePortraitLore(input: {
