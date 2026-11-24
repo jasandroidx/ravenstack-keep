@@ -429,6 +429,76 @@ class HallAudioEngine {
       osc.stop(t + 0.14);
     }
   }
+
+  /** Simple voice helper for the interaction sounds below. */
+  private tone(type: OscillatorType, f0: number, f1: number, start: number, dur: number, vol: number): void {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const t = ctx.currentTime + start;
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(f0, t);
+    o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(ctx.destination);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+  }
+
+  /** Noise burst through a band-pass (grind, whoosh, creak). */
+  private noise(start: number, dur: number, freq: number, q: number, vol: number): void {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const t = ctx.currentTime + start;
+    const len = Math.max(1, Math.floor(ctx.sampleRate * dur));
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (0.6 + 0.4 * Math.sin(i / 180));
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const bp = ctx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.setValueAtTime(freq, t);
+    bp.Q.value = q;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + dur * 0.2);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(bp).connect(g).connect(ctx.destination);
+    src.start(t);
+    src.stop(t + dur + 0.02);
+  }
+
+  /** First-find discovery jingle: rising arpeggio, Zelda-style "you found it". */
+  public playDiscovery(): void {
+    if (!this.enabled) return;
+    const notes = [659.25, 783.99, 987.77, 1318.51];
+    notes.forEach((f, i) => this.tone("triangle", f, f * 1.002, i * 0.085, 0.32, 0.07));
+    this.tone("sine", 1975.5, 1975.5, 0.34, 0.5, 0.025);
+  }
+
+  /** Heavy stone grind for the sliding shelf. */
+  public playStoneGrind(): void {
+    if (!this.enabled) return;
+    this.noise(0, 0.8, 180, 1.2, 0.22);
+    this.tone("sawtooth", 55, 42, 0, 0.8, 0.03);
+  }
+
+  /** Wooden creak + thump (chest lid, trapdoor, ladder). */
+  public playCreak(): void {
+    if (!this.enabled) return;
+    this.tone("square", 220, 150, 0, 0.22, 0.025);
+    this.noise(0.18, 0.12, 120, 0.8, 0.18);
+  }
+
+  /** Soft whoosh when torches catch at dusk. */
+  public playTorchLight(): void {
+    if (!this.enabled) return;
+    this.noise(0, 0.5, 900, 0.6, 0.08);
+  }
 }
 
 export const hallAudio = new HallAudioEngine();

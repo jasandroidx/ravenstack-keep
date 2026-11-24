@@ -218,7 +218,7 @@
       "portrait": "/hall/portraits/valerie.jpg",
       "talkScene": "/hall/painted/talk-valerie.jpg",
       "href": "/mechanic",
-      "greeting": "Workshop is cold until you forge it. I can still diagnose — numbered, reversible, no secret leaks."
+      "greeting": "Workshop's mine. Don't touch anything until I've looked at it. Tell me what's wrong, exactly, and I'll tell you what it takes."
     },
     {
       "id": "corvid",

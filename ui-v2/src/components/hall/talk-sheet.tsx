@@ -12,6 +12,15 @@ import {
 } from "@/lib/hall/world";
 import { hallAudio } from "@/lib/hall/audio";
 import { SkinPreview } from "@/components/hall/skin-preview";
+import { getFlag, setFlag } from "@/lib/hall/interact";
+import { lyraStageSrc } from "@/lib/hall/lyra";
+
+/** Portrait for this visit: `stages[flag "<id>:stage"]` (clamped) when the
+ *  NPC has stages (Lyra), else the fixed portrait. */
+function stageArt(npc: HallNpc, stageIdx?: number): string | undefined {
+  if (npc.stages && npc.stages.length) return lyraStageSrc(stageIdx ?? getFlag(`${npc.id}:stage`), npc.stages);
+  return npc.portrait;
+}
 
 type Message = {
   id: string;
@@ -51,8 +60,12 @@ export function TalkSheet({
 }) {
   const { user } = useCurrentUserState();
   const [tab, setTab] = useState<"chat" | "armor">("chat");
+  const [collapsed, setCollapsed] = useState(false);
   const [activeSkin, setActiveSkin] = useState<string>(currentSkinId);
   const greeting = greetingOverride ?? npc.greeting;
+  const [stageIdx, setStageIdx] = useState<number | undefined>(undefined);
+  const art = stageArt(npc, stageIdx);
+  const scene = npc.stages?.length ? art : npc.talkScene;
   const [fullLine, setFullLine] = useState(greeting);
   const [displayedLine, setDisplayedLine] = useState("");
   const [isTyping, setIsTyping] = useState(true);
@@ -92,6 +105,7 @@ export function TalkSheet({
       valerie: 1.1,
       corvid: 0.95,
       "gallery-arch": 1.35,
+      lyra: 1.25,
     };
     const pitch = pitchMap[npc.id] ?? 1.0;
 
@@ -175,6 +189,10 @@ export function TalkSheet({
       };
     }
 
+    if (npc.id === "lyra") {
+      nextEmotion = "amused";
+      emote = { icon: "♥", text: "SMITTEN", color: "text-[#f08aa2]", bg: "bg-[#e0607e]/20", border: "border-[#e0607e]/70" };
+    }
     triggerReaction(nextEmotion, emote);
 
     // Append to transcript
@@ -186,6 +204,10 @@ export function TalkSheet({
       time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     };
 
+    if (action.stage !== undefined) {
+      setFlag(`${npc.id}:stage`, action.stage);
+      setStageIdx(action.stage);
+    }
     const replyText = action.liveReply?.() ?? action.reply ?? "Acknowledged.";
     const npcMsg: Message = {
       id: `npc-${Date.now()}`,
@@ -279,6 +301,8 @@ export function TalkSheet({
     ? { border: "border-[#39ff14]/70", text: "text-[#39ff14]", bg: "bg-[#39ff14]/15", glow: "shadow-[0_0_25px_rgba(57,255,20,0.35)]" }
     : npc.id === "valerie"
     ? { border: "border-[#ff2a6d]/60", text: "text-[#ff2a6d]", bg: "bg-[#ff2a6d]/10", glow: "shadow-[0_0_20px_rgba(255,42,109,0.3)]" }
+    : npc.id === "lyra"
+    ? { border: "border-[#e0607e]/70", text: "text-[#f08aa2]", bg: "bg-[#e0607e]/15", glow: "shadow-[0_0_25px_rgba(224,96,126,0.4)]" }
     : npc.id === "corvid"
     ? { border: "border-[#2de2e6]/60", text: "text-[#2de2e6]", bg: "bg-[#2de2e6]/10", glow: "shadow-[0_0_20px_rgba(45,226,230,0.3)]" }
     : { border: "border-[#ffc857]/60", text: "text-[#ffc857]", bg: "bg-[#ffc857]/10", glow: "shadow-[0_0_20px_rgba(255,200,87,0.3)]" };
@@ -295,21 +319,54 @@ export function TalkSheet({
     portraitAnimClass = "-translate-y-1 shadow-[0_0_25px_rgba(57,255,20,0.5)]";
   }
 
+  if (collapsed) {
+    return (
+      <div className="pointer-events-none absolute inset-0 z-30">
+        <div className="absolute inset-0 overflow-hidden bg-[#05020d]">
+          <img src={scene ?? TALK_SRC} alt="" aria-hidden="true" className="h-full w-full object-contain" />
+        </div>
+        <div className="pointer-events-auto absolute bottom-4 right-4 flex gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              hallAudio.playInteract();
+              setCollapsed(false);
+            }}
+            className="rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/90 px-3 py-1.5 font-mono text-xs uppercase tracking-wider text-[#e8ecf1] hover:border-[#2de2e6]"
+          >
+            Talk to {npc.name}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              hallAudio.playInteract();
+              onClose();
+            }}
+            className="rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/90 px-3 py-1.5 font-mono text-xs uppercase tracking-wider text-[#9aa3b2] hover:border-[#2de2e6] hover:text-[#e8ecf1]"
+          >
+            <span>[ESC]</span> Stand
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="pointer-events-auto absolute inset-0 z-30 flex flex-col justify-end bg-black/65 backdrop-blur-sm transition-all duration-300">
+    <div className="pointer-events-auto absolute inset-0 z-30 flex justify-end bg-black/40 backdrop-blur-sm transition-all duration-300">
       {/* Background Painted Scene Vignette — the talk scene is shown whole
           (object-contain) on a blurred, dimmed copy of the same image so no
           part of the painting is cropped away. */}
       <div className="absolute inset-0 -z-10 overflow-hidden bg-[#05020d]">
         <img
-          src={npc.talkScene ?? TALK_SRC}
+          src={scene ?? TALK_SRC}
           alt=""
           aria-hidden="true"
           className="h-full w-full scale-110 object-cover opacity-40 blur-xl"
         />
         <img
-          src={npc.talkScene ?? TALK_SRC}
+          src={scene ?? TALK_SRC}
           alt=""
+          data-testid="talk-scene"
           className={`absolute inset-0 h-full w-full ${
             npc.talkFit === "cover" ? "object-cover" : "object-contain"
           }`}
@@ -318,7 +375,7 @@ export function TalkSheet({
       </div>
 
       {/* Top Controls Bar */}
-      <div className="absolute right-4 top-4 z-40 flex items-center gap-2">
+      <div className="absolute left-4 top-4 z-40 flex items-center gap-2">
         <div className="flex rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/90 p-0.5 backdrop-blur-md">
           <button
             type="button"
@@ -356,6 +413,17 @@ export function TalkSheet({
           type="button"
           onClick={() => {
             hallAudio.playInteract();
+            setCollapsed(true);
+          }}
+          className="flex items-center gap-1.5 rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/90 px-3 py-1.5 font-mono text-xs uppercase tracking-[0.16em] text-[#9aa3b2] backdrop-blur-md hover:border-[#2de2e6] hover:text-[#e8ecf1]"
+        >
+          <span>◀</span> Collapse
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            hallAudio.playInteract();
             onClose();
           }}
           className="flex items-center gap-1.5 rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/90 px-3 py-1.5 font-mono text-xs uppercase tracking-[0.16em] text-[#9aa3b2] backdrop-blur-md hover:border-[#2de2e6] hover:text-[#e8ecf1]"
@@ -365,9 +433,9 @@ export function TalkSheet({
       </div>
 
       {/* Main Container */}
-      <div className="w-full px-3 pb-4 pt-2 md:px-8">
+      <div className="flex h-full w-[420px] max-w-[92vw] flex-col p-3">
         <div
-          className={`mx-auto max-w-4xl overflow-hidden rounded-md border ${
+          className={`flex h-full flex-col overflow-hidden rounded-md border ${
             isOracle ? "border-[#39ff14]/60 shadow-[0_0_60px_rgba(57,255,20,0.25)]" : "border-[#3a3f4b] shadow-[0_0_50px_rgba(0,0,0,0.9)]"
           } bg-[#0b0e14]/95 backdrop-blur-xl`}
         >
@@ -393,6 +461,16 @@ export function TalkSheet({
             </div>
 
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  hallAudio.playInteract();
+                  setCollapsed(true);
+                }}
+                className="rounded-sm border border-[#3a3f4b] bg-[#1e222b] px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-[#9aa3b2] hover:border-[#2de2e6] hover:text-[#e8ecf1]"
+              >
+                ◀ Collapse
+              </button>
               <span className="font-mono text-[10px] uppercase tracking-widest text-[#9aa3b2]">
                 STATUS: {npc.state.toUpperCase()}
               </span>
@@ -401,13 +479,13 @@ export function TalkSheet({
 
           {/* TAB 1: Dialogue & Neural Link */}
           {tab === "chat" ? (
-            <div className="flex flex-col gap-4 p-4 md:flex-row md:items-start md:gap-6 md:p-5">
+            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
               {/* Dynamic Animated Character Portrait Box */}
               <div className="relative shrink-0 self-center md:self-start">
                 <div
                   className={`relative h-28 w-28 overflow-hidden rounded-sm border-2 ${roleTheme.border} bg-[#1e222b] transition-all duration-300 ${roleTheme.glow} ${portraitAnimClass}`}
                 >
-                  <DialogueThumb npc={npc} />
+                  <DialogueThumb npc={art ? { ...npc, portrait: art } : npc} />
 
                   {/* Laser Scanline on Inquisitive / Diagnostic Reaction */}
                   {emotion === "inquisitive" && (
@@ -446,7 +524,7 @@ export function TalkSheet({
               {/* Chat Feed & Interactive Choices */}
               <div className="min-w-0 flex-1 flex flex-col">
                 {/* Scrollable Conversation Transcript Log */}
-                <div className="max-h-48 min-h-[5.5rem] overflow-y-auto rounded-sm border border-[#3a3f4b]/50 bg-[#1e222b]/40 p-3 scrollbar-thin scrollbar-thumb-[#3a3f4b]">
+                <div className="min-h-[12rem] flex-1 overflow-y-auto rounded-sm border border-[#3a3f4b]/50 bg-[#1e222b]/40 p-3 scrollbar-thin scrollbar-thumb-[#3a3f4b]">
                   <div className="space-y-2.5">
                     {history.map((msg, i) => {
                       const isLast = i === history.length - 1;
@@ -537,7 +615,7 @@ export function TalkSheet({
                     <input
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
-                      placeholder={`Transmit neural query to ${npc.name}… (e.g. audit status, directives)`}
+                      placeholder={npc.id === "lyra" ? "Say something to Lyra…" : `Transmit neural query to ${npc.name}… (e.g. audit status, directives)`}
                       className={`h-9 flex-1 rounded-sm border ${
                         isOracle ? "border-[#39ff14]/50 focus:border-[#39ff14]" : "border-[#3a3f4b] focus:border-[#2de2e6]"
                       } bg-[#1e222b] px-3 font-mono text-xs text-[#e8ecf1] outline-none placeholder:text-[#6b7280]`}
@@ -565,7 +643,7 @@ export function TalkSheet({
             </div>
           ) : (
             /* TAB 2: Ravenlord Armor Wardrobe & Skin Swapper */
-            <div className="p-5">
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
               <div className="mb-4 flex items-center justify-between border-b border-[#1e222b] pb-3">
                 <div>
                   <h3 className="font-mono text-sm font-bold uppercase tracking-wider text-[#e8ecf1]">

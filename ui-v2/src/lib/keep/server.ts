@@ -244,11 +244,11 @@ export const talkInHall = createServerFn({ method: "POST" })
   }))
   .handler(async ({ data }) => {
     if (!data.message) return { ok: false as const, error: "Say something." };
-    const allowed = new Set(["raziel", "oracle", "valerie", "corvid"]);
+    const allowed = new Set(["raziel", "oracle", "valerie", "corvid", "lyra"]);
     if (!allowed.has(data.agent)) return { ok: false as const, error: "Unknown seat." };
     const result = await talkHall(data.agent, data.message);
     if (!result.ok) return result;
-    return { ok: true as const, reply: result.text };
+    return { ok: true as const, reply: result.text, source: "source" in result ? result.source : undefined };
   });
 
 /**
@@ -314,20 +314,32 @@ export const getPendingGates = createServerFn({ method: "POST" }).handler(async 
     return noGates(res.error ?? "FastMCP bridge unreachable. No gates were retrieved.");
   }
   // The bridge returns MCP content envelopes; unwrap a JSON string payload.
+  // Accept every shape the bridge is known to send: structuredContent, a JSON
+  // string in `result`, JSON in ANY content[].text, or a bare object. If the
+  // bridge answered but nothing parses, say so (it is NOT unreachable) and
+  // show what came back, so nobody goes hunting a network fault.
   let payload: unknown = res.data;
-  const envelope = payload as { result?: unknown; content?: Array<{ text?: string }> };
-  if (typeof envelope?.result === "string") {
-    try {
-      payload = JSON.parse(envelope.result);
-    } catch {
-      return noGates("pending_gates returned a result this build could not parse.");
-    }
-  } else if (Array.isArray(envelope?.content) && typeof envelope.content[0]?.text === "string") {
-    try {
-      payload = JSON.parse(envelope.content[0].text as string);
-    } catch {
-      return noGates("pending_gates returned content this build could not parse.");
-    }
+  const envelope = payload as {
+    result?: unknown;
+    structuredContent?: unknown;
+    content?: Array<{ type?: string; text?: string }>;
+  };
+  const tryJson = (s: string): unknown => {
+    try { return JSON.parse(s); } catch { return undefined; }
+  };
+  const replied = (raw: string) =>
+    noGates(`Bridge replied, but this build couldn't read it: ${raw.slice(0, 200)}`);
+  if (envelope?.structuredContent && typeof envelope.structuredContent === "object") {
+    payload = (envelope.structuredContent as { result?: unknown }).result ?? envelope.structuredContent;
+  } else if (typeof envelope?.result === "string") {
+    const j = tryJson(envelope.result);
+    if (j === undefined) return replied(envelope.result);
+    payload = j;
+  } else if (Array.isArray(envelope?.content)) {
+    const texts = envelope.content.map((c) => c?.text).filter((t): t is string => typeof t === "string");
+    const parsed = texts.map(tryJson).find((j) => j !== undefined);
+    if (parsed === undefined) return replied(texts.join(" ") || JSON.stringify(envelope.content));
+    payload = parsed;
   }
   return parseGates(payload);
 });

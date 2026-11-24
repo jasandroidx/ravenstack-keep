@@ -149,7 +149,9 @@ export function WarTablePanel({ onSealed }: { onSealed?: () => void } = {}) {
     return (
       <div className="mt-3 rounded-sm border border-[#ffc857]/50 bg-[#ffc857]/5 p-4">
         <p className="font-mono text-xs font-bold uppercase tracking-wider text-[#ffc857]">
-          ⚠ Bridge unreachable — the table is unread
+          {snap?.error?.startsWith("Bridge replied")
+            ? "⚠ Bridge replied — this build couldn't read it"
+            : "⚠ Bridge unreachable — the table is unread"}
         </p>
         <p className="mt-2 font-mono text-[11px] leading-relaxed text-[#9aa3b2]">
           No gates are shown because none were retrieved. An empty table here would

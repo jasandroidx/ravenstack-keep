@@ -2,12 +2,15 @@ import { useEffect, useRef, useState, type ButtonHTMLAttributes, type PointerEve
 import { Link, useNavigate } from "@tanstack/react-router";
 import { TalkSheet } from "@/components/hall/talk-sheet";
 import type { HallScene } from "@/lib/hall/scene";
-import { RAVENLORD_SKINS, type HallNpc, type RavenlordSkin } from "@/lib/hall/world";
+import type { RoomScene } from "@/lib/hall/room-scene";
+import { COURTYARD_GATE, COURTYARD_RETURN_SPAWN, INTERIOR_GATE, INTERIOR_MAP_H, INTERIOR_MAP_SRC, INTERIOR_MAP_W, INTERIOR_SOLID_CIRCLES, INTERIOR_SPAWN, INTERIOR_WALK, LYRA_NPC, PLAYER_SPAWN, RAVENLORD_SKINS, TRAPDOOR_SPAWN, type HallNpc, type RavenlordSkin } from "@/lib/hall/world";
 import { SkinPreview } from "@/components/hall/skin-preview";
 import { HALL_PORTALS } from "@/lib/hall/portals";
 import { getKeepSnapshot } from "@/lib/keep/server";
 import type { KeepPulse } from "@/lib/keep/pulse";
 import { hallAudio } from "@/lib/hall/audio";
+import { getFlag, setFlag } from "@/lib/hall/interact";
+import { LYRA_GREETING_AGAIN, LYRA_GREETING_FIRST, pick } from "@/lib/hall/lyra";
 import { pickHeraldLineAsync } from "@/lib/hall/herald";
 import { WarTablePanel } from "@/components/keep/war-table-panel";
 import { getHallState, getPendingGates, listQuarantine, talkInHall } from "@/lib/keep/server";
@@ -31,6 +34,8 @@ export function KeepHall() {
   const [lock, setLock] = useState<string | null>(null);
   const [near, setNear] = useState<HallNpc | null>(null);
   const [atTable, setAtTable] = useState(false);
+  /** Object interactable verb ("Pull book"), from the shared prompt system. */
+  const [verb, setVerb] = useState<string | null>(null);
   const [talk, setTalk] = useState<HallNpc | null>(null);
   const [tableOpen, setTableOpen] = useState(false);
   // Chosen once per conversation. pickBark spends a line from the pool, so it
@@ -91,7 +96,7 @@ export function KeepHall() {
   }
 
   const TELEPORT_TARGETS = [
-    { key: "HallScene", label: "Great Hall", spawn: { x: 760, y: 650 }, hero: { x: 820, y: 670 } },
+    { key: "HallScene", label: "Great Hall", spawn: PLAYER_SPAWN, hero: PLAYER_SPAWN },
     { key: "ReconRoomScene", label: "Recon", spawn: { x: 800, y: 1400 }, hero: { x: 800, y: 340 } },
     { key: "SearchRoomScene", label: "Search", spawn: { x: 800, y: 1400 }, hero: { x: 800, y: 800 } },
     { key: "SploitRoomScene", label: "Sploit", spawn: { x: 800, y: 1400 }, hero: { x: 800, y: 800 } },
@@ -227,6 +232,17 @@ export function KeepHall() {
     finally { setAsking(false); }
   }
 
+  // Greeting for the talk panel. Lyra's is local (first visit vs. returning),
+  // never the generic bark service, which has no Lyra persona.
+  function loadGreeting(npc: HallNpc) {
+    if (npc.id === "lyra") {
+      setBark(getFlag("talked:lyra") ? pick(LYRA_GREETING_AGAIN) : LYRA_GREETING_FIRST);
+      setFlag("talked:lyra", true);
+      return;
+    }
+    pickBarkAsync(npc.id, hallStateRef.current).then(setBark);
+  }
+
   function handleEquipSkin(skin: RavenlordSkin) {
     setActiveSkin(skin.id);
     sceneRef.current?.setSkin(skin.id);
@@ -263,12 +279,13 @@ export function KeepHall() {
             setZone(name);
             setLock(nextLock);
           },
-          onPrompt: (npc: HallNpc | null, table: boolean) => {
+          onPrompt: (npc: HallNpc | null, table: boolean, v?: string | null) => {
             setNear(npc);
             setAtTable(table);
+            setVerb(v ?? null);
           },
           onTalk: (npc: HallNpc) => {
-            pickBarkAsync(npc.id, hallStateRef.current).then(setBark);
+            loadGreeting(npc);
             setTalk(npc);
             setTableOpen(false);
           },
@@ -282,12 +299,32 @@ export function KeepHall() {
             setTableOpen(true);
           },
         };
+        // Rooms never call onZone, so the HUD kept the last Hall zone name.
+        // Every RoomScene reports its own label on arrival.
+        const roomReady = (liveScene: RoomScene) => {
+          sceneRef.current = liveScene;
+          setSceneKey(liveScene.scene.key);
+          applyCameraFollow(liveScene);
+          const t = TELEPORT_TARGETS.find((x) => x.key === liveScene.scene.key);
+          setZone(t?.label ?? liveScene.scene.key.replace(/RoomScene$/, ""));
+          setLock("live");
+          setNear(null);
+          setAtTable(false);
+          setVerb(null);
+        };
         const scene = new HallScene(hallEvents, {
           key: "HallScene",
-          spawn: { x: 760, y: 650 },
+          // Single source of truth: world.ts PLAYER_SPAWN (courtyard 750,880).
+          spawn: PLAYER_SPAWN,
           // Doors are data (lib/hall/portals.ts) so the layout map and its
           // test can see exactly what the player can step on.
           portals: HALL_PORTALS,
+          // The ONLY courtyard->interior link: a select E-gate, so stepping
+          // into the top gate zone shows the prompt and does nothing until E.
+          // It is NOT in portals[], so it can never auto-fire.
+          selectGates: [
+            { id: "courtyard-to-interior", x: COURTYARD_GATE.x, y: COURTYARD_GATE.y, w: COURTYARD_GATE.w, h: COURTYARD_GATE.h, targetScene: "FortressInteriorRoomScene", targetSpawn: INTERIOR_SPAWN, label: "E - Go to fortress interior" },
+          ],
         });
         const reconScene = new RoomScene({
           key: "ReconRoomScene",
@@ -313,7 +350,7 @@ export function KeepHall() {
             { x: 700, y: 1400, w: 200, h: 160 },
           ],
           solidCircles: [{ x: 800, y: 800, r: 430 }],
-          onSceneReady: (liveScene) => { sceneRef.current = liveScene; setSceneKey(liveScene.scene.key); applyCameraFollow(liveScene); },
+          onSceneReady: roomReady,
         });
         const searchScene = new RoomScene({
           key: "SearchRoomScene",
@@ -337,7 +374,7 @@ export function KeepHall() {
             { x: 280, y: 220, w: 1040, h: 1180 },
             { x: 700, y: 1400, w: 200, h: 160 },
           ],
-          onSceneReady: (liveScene) => { sceneRef.current = liveScene; setSceneKey(liveScene.scene.key); applyCameraFollow(liveScene); },
+          onSceneReady: roomReady,
         });
         const sploitScene = new RoomScene({
           key: "SploitRoomScene",
@@ -360,7 +397,7 @@ export function KeepHall() {
             { x: 280, y: 220, w: 1040, h: 1180 },
             { x: 700, y: 1400, w: 200, h: 160 },
           ],
-          onSceneReady: (liveScene) => { sceneRef.current = liveScene; setSceneKey(liveScene.scene.key); applyCameraFollow(liveScene); },
+          onSceneReady: roomReady,
         });
         const citadelScene = new RoomScene({
           key: "CitadelRoomScene",
@@ -382,7 +419,7 @@ export function KeepHall() {
             { x: 280, y: 220, w: 1040, h: 1180 },
             { x: 700, y: 1400, w: 200, h: 160 },
           ],
-          onSceneReady: (liveScene) => { sceneRef.current = liveScene; setSceneKey(liveScene.scene.key); applyCameraFollow(liveScene); },
+          onSceneReady: roomReady,
         });
         const towerScene = new RoomScene({
           key: "TowerRoomScene",
@@ -405,7 +442,81 @@ export function KeepHall() {
             { x: 280, y: 220, w: 1040, h: 1180 },
             { x: 700, y: 1400, w: 200, h: 160 },
           ],
-          onSceneReady: (liveScene) => { sceneRef.current = liveScene; setSceneKey(liveScene.scene.key); applyCameraFollow(liveScene); },
+          onSceneReady: roomReady,
+        });
+        // Fortress Interior — combined Keep, 2026-10-30. The hall v4 area
+        // (1920x1280), reached ONLY by the courtyard's select E-gate and left
+        // ONLY by its own select E-gate at the bottom. No auto-fire portals
+        // in either direction. Valerie is NOT placed here — she stays in the
+        // courtyard Workshop, per the standing rule. Raziel (central hall)
+        // is a furniture marker, as in the proven test build.
+        const interiorScene = new RoomScene({
+          key: "FortressInteriorRoomScene",
+          title: "FORTRESS INTERIOR",
+          mapSrc: INTERIOR_MAP_SRC,
+          mapW: INTERIOR_MAP_W,
+          mapH: INTERIOR_MAP_H,
+          spawn: INTERIOR_SPAWN,
+          portals: [],
+          selectGates: [
+            { id: "interior-to-courtyard", x: INTERIOR_GATE.x, y: INTERIOR_GATE.y, w: INTERIOR_GATE.w, h: INTERIOR_GATE.h, targetScene: "HallScene", targetSpawn: COURTYARD_RETURN_SPAWN, label: "E - Return to courtyard" },
+          ],
+          interactables: [
+            {
+              id: "kitchen-food", kind: "smell", verb: "Smell the food",
+              rect: { x: 400, y: 1030, w: 120, h: 60 }, anchor: { x: 460, y: 1010, face: "up" }, labelAt: { x: 460, y: 970 },
+              lines: ["Roast meat, fresh bread, and something sweet from the oven. The kitchen is earning its keep.", "Warm bread and spiced stew. Whoever cooked this knew what they were doing.", "Smells like a feast day, even on an ordinary one."],
+            },
+            {
+              id: "throne", kind: "sit", verb: "Sit on the throne",
+              rect: { x: 900, y: 240, w: 200, h: 80 }, anchor: { x: 995, y: 165, face: "down" }, labelAt: { x: 995, y: 120 },
+              lines: ["Lord Boyd holds court.", "The Keep listens.", "From here, every door is yours."],
+            },
+          ],
+          furniture: [
+            { id: "raziel", label: "RAZIEL — SOVEREIGN ARCH-ORCHESTRATOR", info: "You are in the interior now. The bottom gate returns you, by E only.", x: 1010, y: 590, radius: 64 },
+          ],
+          walk: INTERIOR_WALK,
+          solidCircles: INTERIOR_SOLID_CIRCLES,
+          // Lyra keeps the kitchen (lyra.ts). E / Engage opens her talk
+          // panel: kitchen talk, dolphin3:8b then canned lines.
+          npcs: [LYRA_NPC],
+          onNear: (npc) => { setNear(npc); setAtTable(false); },
+          onTalk: (npc) => { loadGreeting(npc); setTalk(npc); setTableOpen(false); },
+          onPrompt: (v) => { setVerb(v); },
+          onSceneReady: roomReady,
+        });
+        // Secret basement (stand-in): reached only through the library shelf
+        // ("E - Pull book"), so it is NOT in the [T] teleport menu. Kenney
+        // Tiny Dungeon (CC0) tiles at x3 NEAREST, see public/CREDITS.json.
+        // Exit = ladder "E - Climb up" → courtyard trapdoor stand-in
+        // (TRAPDOOR_SPAWN); the real exit is the Hall v4 pantry, later.
+        const basementScene = new RoomScene({
+          key: "BasementRoomScene",
+          title: "THE UNDERCROFT",
+          mapSrc: "/hall/rooms/basement.png",
+          mapW: 1056,
+          mapH: 672,
+          spawn: { x: 190, y: 330 },
+          torches: [{ x: 312, y: 96 }, { x: 760, y: 96 }],
+          portals: [],
+          furniture: [],
+          walk: [{ x: 70, y: 175, w: 920, h: 430 }],
+          props: [{ id: "undercroft-chest", src: "/hall/sprites/kenney-chest.png", fw: 48, fh: 48, x: 560, y: 410, w: 48, h: 48 }],
+          interactables: [
+            {
+              id: "basement-ladder", kind: "climb", verb: "Climb up",
+              rect: { x: 840, y: 170, w: 100, h: 80 }, anchor: { x: 888, y: 190, face: "up" }, labelAt: { x: 888, y: 150 },
+              data: { targetScene: "HallScene", targetSpawn: TRAPDOOR_SPAWN, from: "basement" },
+            },
+            {
+              id: "undercroft-chest", kind: "open", verb: "Open the chest",
+              rect: { x: 515, y: 380, w: 90, h: 90 }, anchor: { x: 560, y: 445 }, labelAt: { x: 560, y: 378 },
+              lines: ["A raven feather, black as ink, and a note: \"The yard remembers.\""],
+            },
+          ],
+          onPrompt: (v) => { setNear(null); setAtTable(false); setVerb(v); },
+          onSceneReady: roomReady,
         });
         sceneRef.current = scene;
 
@@ -424,7 +535,7 @@ export function KeepHall() {
           loader: {
             imageLoadType: "HTMLImageElement",
           },
-          scene: [scene, reconScene, searchScene, sploitScene, citadelScene, towerScene],
+          scene: [scene, reconScene, searchScene, sploitScene, citadelScene, towerScene, interiorScene, basementScene],
         });
         gameRef.current = game;
         if (import.meta.env.DEV) {
@@ -685,7 +796,9 @@ export function KeepHall() {
     ? `[E / SPACE] Talk to ${near.name}`
     : atTable
       ? "[E / SPACE] Sit the war table"
-      : "WASD / ARROWS to walk · [C] Ravenlord Wardrobe · [T] Teleport · Click floor to travel";
+      : verb
+        ? `[E / SPACE] ${verb}`
+        : "WASD / ARROWS to walk · [C] Ravenlord Wardrobe · [T] Teleport · Click floor to travel";
 
   return (
     <div className="absolute inset-0 overflow-hidden bg-[#0b0e14] overscroll-none select-none">
@@ -788,7 +901,7 @@ export function KeepHall() {
           <p className="rounded-sm border border-[#3a3f4b] bg-[#0b0e14]/85 px-3.5 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[#e8ecf1] shadow-[0_0_15px_rgba(0,0,0,0.7)] backdrop-blur-md">
             {hint}
           </p>
-          {near || atTable ? (
+          {near || atTable || verb ? (
             <>
             <button
               type="button"
@@ -796,10 +909,11 @@ export function KeepHall() {
               onClick={() => {
                 hallAudio.playInteract();
                 if (near) {
-                  pickBarkAsync(near.id, hallStateRef.current).then(setBark);
+                  loadGreeting(near);
                   setTalk(near);
                 }
-                else setTableOpen(true);
+                else if (atTable) setTableOpen(true);
+                else sceneRef.current?.interact();
               }}
             >
               Engage [E]

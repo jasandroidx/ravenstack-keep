@@ -37,6 +37,7 @@ UI_DIST = UI_DIR / "dist"
 UI_PUBLIC = UI_DIR / "public"
 
 # Scribe drop zone — sandboxed under vault (or local keep data)
+_KEEP_OLLAMA_URL = (os.environ.get("KEEP_OLLAMA_URL") or os.environ.get("OLLAMA_URL") or "http://100.122.120.83:11434").rstrip("/")  # box Ollama over tailnet
 _UPLOAD_MAX_BYTES = int(os.environ.get("KEEP_UPLOAD_MAX_BYTES", str(25 * 1024 * 1024)))
 _UPLOAD_ALLOWED_EXT = {
     ".md",
@@ -869,7 +870,7 @@ async def _arena_generate_seats(question: str) -> list[dict[str, Any]]:
     # probe tags
     try:
         with urllib.request.urlopen(
-            "http://127.0.0.1:11434/api/tags", timeout=2
+            f"{_KEEP_OLLAMA_URL}/api/tags", timeout=2
         ) as r:
             tags = json.loads(r.read().decode())
             names = [m.get("name") for m in tags.get("models") or []]
@@ -948,7 +949,7 @@ def _ollama_generate(model: str, prompt: str) -> str:
         {"model": model, "prompt": prompt, "stream": False, "options": {"num_predict": 400}}
     ).encode()
     req = urllib.request.Request(
-        "http://127.0.0.1:11434/api/generate",
+        f"{_KEEP_OLLAMA_URL}/api/generate",
         data=payload,
         headers={"Content-Type": "application/json"},
         method="POST",
