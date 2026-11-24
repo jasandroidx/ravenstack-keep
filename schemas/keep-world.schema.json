@@ -1,0 +1,138 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/jasandroidx/ravenstack-keep/blob/ravenstack/schemas/keep-world.schema.json",
+  "title": "Keep world — keep-world.json",
+  "description": "The single world model for the Keep: rooms (Ledger + map zone + NPC), map-only places, and Ledger rooms with no painting yet. Ids are the only key. Lock state and occupancy at runtime come from the box (keep.db / /api/duty / pulse), never from this file. Cross-entry rules (unique ids, zone coverage, spec existence) are asserted in src/lib/keep/world.test.ts — a JSON Schema cannot express them.",
+  "type": "object",
+  "required": ["schema", "map", "rooms", "mapOnly", "unplaced"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "keep-world.v1" },
+    "map": {
+      "type": "object",
+      "required": ["src", "w", "h"],
+      "additionalProperties": false,
+      "properties": {
+        "src": { "type": "string", "pattern": "^/hall/" },
+        "w": { "const": 1792 },
+        "h": { "const": 1008 }
+      }
+    },
+    "rooms": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/room" }
+    },
+    "mapOnly": {
+      "type": "array",
+      "description": "Painted places with no Ledger row (e.g. the Quarantine Cell, the Grand Gallery arch).",
+      "items": { "$ref": "#/definitions/place" }
+    },
+    "unplaced": {
+      "type": "array",
+      "description": "Ledger rooms with a real capability and no painted floor yet (e.g. armory, roost).",
+      "items": {
+        "allOf": [{ "$ref": "#/definitions/room" }],
+        "required": ["note"]
+      }
+    }
+  },
+  "definitions": {
+    "rect": {
+      "type": "object",
+      "required": ["x", "y", "w", "h"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number", "minimum": 0, "maximum": 1792 },
+        "y": { "type": "number", "minimum": 0, "maximum": 1008 },
+        "w": { "type": "number", "exclusiveMinimum": 0 },
+        "h": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "ledger": {
+      "type": "object",
+      "required": ["occupant", "role", "lock", "purpose", "kill"],
+      "additionalProperties": false,
+      "properties": {
+        "occupant": { "type": "string", "minLength": 1 },
+        "role": { "type": "string", "minLength": 1 },
+        "lock": { "type": "string", "enum": ["live", "unforged", "locked"] },
+        "purpose": {
+          "type": "string",
+          "minLength": 10,
+          "description": "Exactly one sentence. AGENTS.md: one agent, one purpose sentence."
+        },
+        "kill": {
+          "type": "string",
+          "minLength": 10,
+          "description": "Mandatory kill condition. A room without one is not a room."
+        }
+      }
+    },
+    "npc": {
+      "type": "object",
+      "required": ["id", "name", "x", "y", "radius"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "name": { "type": "string", "minLength": 1 },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "radius": { "type": "number", "minimum": 1 },
+        "actor": { "type": "string", "pattern": "^/hall/sprites/" },
+        "actorH": { "type": "number", "minimum": 1 },
+        "talkScene": { "type": "string", "pattern": "^/hall/" },
+        "portrait": { "type": "string", "pattern": "^/hall/" },
+        "greeting": { "type": "string" },
+        "href": { "type": "string", "pattern": "^/" }
+      }
+    },
+    "pulse": {
+      "type": "object",
+      "required": ["boxIds", "slugs"],
+      "additionalProperties": false,
+      "description": "Reconciliation table: what the box calls this room, and every slug any endpoint may use for it.",
+      "properties": {
+        "boxIds": { "type": "array", "items": { "type": "string" } },
+        "slugs": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[a-z0-9-]+$" }
+        }
+      }
+    },
+    "room": {
+      "type": "object",
+      "required": ["id", "name", "wing", "ledger", "spec", "href", "pulse"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "name": { "type": "string", "minLength": 1 },
+        "wing": { "type": "string", "minLength": 1 },
+        "ledger": { "$ref": "#/definitions/ledger" },
+        "spec": {
+          "type": ["string", "null"],
+          "description": "Key into agents/*.agent-spec.json, or null when no agent occupies it."
+        },
+        "href": {
+          "type": ["string", "null"],
+          "description": "Route the room links to, or null."
+        },
+        "zone": { "$ref": "#/definitions/rect" },
+        "npc": { "$ref": "#/definitions/npc" },
+        "pulse": { "$ref": "#/definitions/pulse" },
+        "note": { "type": "string" }
+      }
+    },
+    "place": {
+      "type": "object",
+      "required": ["id", "name", "zone", "note"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "name": { "type": "string", "minLength": 1 },
+        "zone": { "$ref": "#/definitions/rect" },
+        "npc": { "$ref": "#/definitions/npc" },
+        "note": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}
