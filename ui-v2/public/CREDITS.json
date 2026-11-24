@@ -1,0 +1,26 @@
+{
+  "note": "Third-party art used by the Keep. Provenance is recorded here so it can be checked without reading git history. Licences are quoted from the files that shipped with each pack, not assumed.",
+  "assets": [
+    {
+      "files": [
+        "/assets/fx/flame-fire-32.png",
+        "/assets/fx/flame-fire-48.png",
+        "/assets/fx/smoke-gray-48.png"
+      ],
+      "used_for": "Looping hearth fire, sconce and candle flames, hearth smoke (Fortress Interior).",
+      "work": "Free Pixel Loops",
+      "author": "cs5475",
+      "url": "https://cs5475.itch.io/puff",
+      "license": "CC0 1.0 Universal",
+      "license_file": "/assets/fx/LICENSE-free-pixel-loops.txt"
+    },
+    {
+      "files": ["/hall/rooms/search.png"],
+      "used_for": "Search room plate (1600x1600), composed by scripts/build-room-maps.mjs and upscaled x3 NEAREST in PhotoCraft.",
+      "work": "Pixel Castle Interior Tileset v1.0",
+      "author": "reodesuxz",
+      "license": "Commercial use and modification allowed, no credit required; reselling or redistributing the asset files is not. Only the composed room plate ships here, never the tileset.",
+      "note": "Derivative artwork for this game. Confirm the redistribution reading before this repo is made public."
+    }
+  ]
+}

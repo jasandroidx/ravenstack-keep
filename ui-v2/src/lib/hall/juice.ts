@@ -22,6 +22,30 @@ export function ensureFxTextures(scene: Phaser.Scene): void {
   tex.refresh();
 }
 
+/** One soft radial gradient per colour, keyed by that colour, and reused.
+ *  Colour is baked into the texture rather than applied with setTint: tint is
+ *  WebGL-only and leaves white discs on a canvas renderer. */
+export function glowTexture(scene: Phaser.Scene, color: number): string {
+  const key = `fx-glow-${color.toString(16).padStart(6, "0")}`;
+  if (scene.textures.exists(key)) return key;
+  const size = 128;
+  const tex = scene.textures.createCanvas(key, size, size);
+  if (!tex) return FX.GLOW;
+  const half = size / 2;
+  const r = (color >> 16) & 0xff;
+  const g = (color >> 8) & 0xff;
+  const b = color & 0xff;
+  const grad = tex.getContext().createRadialGradient(half, half, 0, half, half, half);
+  grad.addColorStop(0, `rgba(${r},${g},${b},1)`);
+  grad.addColorStop(0.35, `rgba(${r},${g},${b},0.55)`);
+  grad.addColorStop(0.7, `rgba(${r},${g},${b},0.16)`);
+  grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+  tex.getContext().fillStyle = grad;
+  tex.getContext().fillRect(0, 0, size, size);
+  tex.refresh();
+  return key;
+}
+
 /** A line of flavour text that drifts up and fades, in world space. */
 export function floatLine(
   scene: Phaser.Scene,

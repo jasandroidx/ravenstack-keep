@@ -3,7 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { TalkSheet } from "@/components/hall/talk-sheet";
 import type { HallScene } from "@/lib/hall/scene";
 import type { RoomScene } from "@/lib/hall/room-scene";
-import { COURTYARD_GATE, COURTYARD_RETURN_SPAWN, INTERIOR_GATE, INTERIOR_MAP_H, INTERIOR_MAP_SRC, INTERIOR_MAP_W, INTERIOR_SOLID_CIRCLES, INTERIOR_SPAWN, INTERIOR_WALK, LYRA_NPC, PLAYER_SPAWN, RAVENLORD_SKINS, TRAPDOOR_SPAWN, type HallNpc, type RavenlordSkin } from "@/lib/hall/world";
+import { COURTYARD_GATE, COURTYARD_RETURN_SPAWN, INTERIOR_FIRES, INTERIOR_GATE, INTERIOR_LIGHTS, INTERIOR_MAP_H, INTERIOR_MAP_SRC, INTERIOR_MAP_W, INTERIOR_SOLID_RECTS, INTERIOR_SPAWN, INTERIOR_WALK, INTERIOR_ZONES, LYRA_NPC, LYRA_ROUTINE, PLAYER_SPAWN, RAVENLORD_SKINS, TRAPDOOR_SPAWN, type HallNpc, type RavenlordSkin } from "@/lib/hall/world";
 import { SkinPreview } from "@/components/hall/skin-preview";
 import { HALL_PORTALS } from "@/lib/hall/portals";
 import { getKeepSnapshot } from "@/lib/keep/server";
@@ -451,10 +451,14 @@ export function KeepHall() {
         });
         // Fortress Interior — combined Keep, 2026-10-30. The hall v4 area
         // (1920x1280), reached ONLY by the courtyard's select E-gate and left
-        // ONLY by its own select E-gate at the bottom. No auto-fire portals
-        // in either direction. Valerie is NOT placed here — she stays in the
-        // courtyard Workshop, per the standing rule. Raziel (central hall)
-        // is a furniture marker, as in the proven test build.
+        // ONLY by its own select E-gate in front of the portcullis. No
+        // auto-fire portals in either direction. Valerie is NOT placed here —
+        // she stays in the courtyard Workshop, per the standing rule.
+        //
+        // Fixed 2026-11-24: the fake "RAZIEL — SOVEREIGN ARCH-ORCHESTRATOR"
+        // marker is gone (he is a courtyard occupant; the interior has no one
+        // to report but Lyra), the room now has real colliders, a clock-driven
+        // dusk, and one verb per room.
         const interiorScene = new RoomScene({
           key: "FortressInteriorRoomScene",
           title: "FORTRESS INTERIOR",
@@ -468,24 +472,84 @@ export function KeepHall() {
           ],
           interactables: [
             {
+              id: "throne", kind: "sit", verb: "Sit on the throne",
+              // Dais fixed 2026-11-24: the zone is the carpet in FRONT of the
+              // chair (solid rect ends at y=178) and the anchor is the seat
+              // itself, not the carpet at x=995 — which was outside the seat.
+              rect: { x: 880, y: 190, w: 160, h: 68 }, anchor: { x: 960, y: 150, face: "down" }, labelAt: { x: 960, y: 188 },
+              lines: ["Lord Boyd holds court.", "The Keep listens.", "From here, every door is yours."],
+            },
+            {
               id: "kitchen-food", kind: "smell", verb: "Smell the food",
-              rect: { x: 400, y: 1030, w: 120, h: 60 }, anchor: { x: 460, y: 1010, face: "up" }, labelAt: { x: 460, y: 970 },
+              rect: { x: 400, y: 995, w: 120, h: 52 }, anchor: { x: 460, y: 997, face: "up" }, labelAt: { x: 460, y: 990 },
               lines: ["Roast meat, fresh bread, and something sweet from the oven. The kitchen is earning its keep.", "Warm bread and spiced stew. Whoever cooked this knew what they were doing.", "Smells like a feast day, even on an ordinary one."],
             },
             {
-              id: "throne", kind: "sit", verb: "Sit on the throne",
-              rect: { x: 900, y: 240, w: 200, h: 80 }, anchor: { x: 995, y: 165, face: "down" }, labelAt: { x: 995, y: 120 },
-              lines: ["Lord Boyd holds court.", "The Keep listens.", "From here, every door is yours."],
+              id: "bedroom-banner", kind: "read", verb: "Read the wolf banner",
+              rect: { x: 520, y: 250, w: 110, h: 60 }, anchor: { x: 575, y: 260, face: "up" }, labelAt: { x: 575, y: 252 },
+              lines: [
+                "The Keep's sigil: a raven with its wings shut, talons on a key.",
+                "The wolf and the raven share the field. An old alliance, or an old argument.",
+                "The stitching is recent. Someone still cares what this wall says.",
+              ],
+            },
+            {
+              id: "armoury-racks", kind: "gaze", verb: "Study the weapon racks",
+              rect: { x: 400, y: 710, w: 150, h: 60 }, anchor: { x: 470, y: 712, face: "up" }, labelAt: { x: 470, y: 706 },
+              lines: [
+                "Spears, shields, and one axe that has never been sharpened.",
+                "Everything is oiled, counted and hung an arm's length apart.",
+                "A guard's kit, ready. Nobody has taken it down in a while.",
+              ],
+            },
+            {
+              id: "library-ledger", kind: "read", verb: "Read the open book",
+              rect: { x: 1390, y: 400, w: 120, h: 55 }, anchor: { x: 1450, y: 400, face: "up" }, labelAt: { x: 1450, y: 394 },
+              lines: [
+                "The open book is a ledger of stores: grain, iron, candle wax. All counted.",
+                "A margin note in the archivist's hand: 'Nothing missing. Check again.'",
+                "Two pages of weather, one of debts. The Keep keeps better books than most kingdoms.",
+              ],
+            },
+            {
+              id: "stores-chest", kind: "secret", verb: "Search the stores",
+              rect: { x: 1395, y: 616, w: 110, h: 50 }, anchor: { x: 1450, y: 618, face: "up" }, labelAt: { x: 1450, y: 612 },
+              lines: [
+                "Barrels, sacks, rope by the fathom. The Keep could sit a siege and eat well.",
+                "Someone has chalked the count on each sack. The numbers agree with the ledger.",
+                "A crate at the back is stamped with a raven. It is empty, and swept clean.",
+              ],
+            },
+            {
+              id: "chapel-window", kind: "gaze", verb: "Look at the glass",
+              rect: { x: 1400, y: 950, w: 140, h: 60 }, anchor: { x: 1470, y: 952, face: "up" }, labelAt: { x: 1470, y: 946 },
+              lines: [
+                "The glass shows a raven over water. The light through it is blue and cold.",
+                "Two banners: the Keep's colours on one side, an older house on the other.",
+                "The altar candles are fresh. Someone was here before you.",
+              ],
             },
           ],
-          furniture: [
-            { id: "raziel", label: "RAZIEL — SOVEREIGN ARCH-ORCHESTRATOR", info: "You are in the interior now. The bottom gate returns you, by E only.", x: 1010, y: 590, radius: 64 },
-          ],
+          // No furniture markers: this room is painted, and a label on the
+          // carpet is not an occupant. (It used to claim Raziel stood there.)
+          furniture: [],
           walk: INTERIOR_WALK,
-          solidCircles: INTERIOR_SOLID_CIRCLES,
-          // Lyra keeps the kitchen (lyra.ts). E / Engage opens her talk
-          // panel: kitchen talk, dolphin3:8b then canned lines.
+          solidRects: INTERIOR_SOLID_RECTS,
+          // Dusk arrives indoors too (clock.ts): MULTIPLY wash + the painted
+          // sconces on ADD, so the interior stops being permanent noon.
+          wash: true,
+          lights: INTERIOR_LIGHTS,
+          // Every flame in the painting gets a real loop on top of it: the
+          // hearth, the chapel candles, nine sconces. Art CC0 (Free Pixel Loops).
+          fires: INTERIOR_FIRES,
+          // Eight rooms, one HUD label before 2026-11-24.
+          zones: INTERIOR_ZONES,
+          onZone: (z) => setZone(z ? `Fortress Interior · ${z}` : "Fortress Interior"),
+          // Lyra keeps the kitchen (lyra.ts) and works it on the Clock: hearth
+          // at dawn, table at midday, shelves at night. E / Engage opens her
+          // talk panel: kitchen talk, then canned lines.
           npcs: [LYRA_NPC],
+          npcRoutines: { [LYRA_NPC.id]: LYRA_ROUTINE },
           onNear: (npc) => { setNear(npc); setAtTable(false); },
           onTalk: (npc) => { loadGreeting(npc); setTalk(npc); setTableOpen(false); },
           onPrompt: (v) => { setVerb(v); },

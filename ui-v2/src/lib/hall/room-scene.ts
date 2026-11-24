@@ -1,15 +1,28 @@
 import * as Phaser from "phaser";
-import { RAVENLORD_SKINS, type HallNpc } from "./world";
+import { RAVENLORD_SKINS, routineStopAt, type HallLight, type HallNpc, type InteriorFire, type RoutineStop } from "./world";
 import { calculateVelocity, determineFacing, type Facing } from "./locomotion";
 import { portalAt, type PortalTrigger } from "./portal";
 import { bindRegistry, discover, exposeDebugHooks, interactableAt, loadFlags, setFlag, type Interactable, type PlayerState } from "./interact";
-import { discoveryJuice, ensureFxTextures, fadeThrough, floatLine, PromptLabel } from "./juice";
+import { discoveryJuice, ensureFxTextures, fadeThrough, floatLine, glowTexture, PromptLabel } from "./juice";
+import { gameHour, torchesLit, washRGB } from "./clock";
 import { hallAudio } from "./audio";
 
 const FRAME_W = 32;
 const FRAME_H = 40;
 const OP_W = 54;
 const OP_H = 68;
+/** Same strength the courtyard uses for HALL_LIGHTS (scene.ts): a radial
+ *  gradient on ADD, not a PointLight, so it falls on the painting softly. */
+const LIGHT_ALPHA = 0.12;
+/** How much a sconce still gives at midday. Fire is banked, not off. */
+const DAY_LIGHT = 0.3;
+
+type RoomNpcSprite = {
+  npc: HallNpc;
+  spr: Phaser.GameObjects.Sprite;
+  tag: Phaser.GameObjects.Text;
+  shadow: Phaser.GameObjects.Ellipse;
+};
 
 /** A finished art sprite drawn on a furniture marker or hero item.
  *  src is a public asset URL (Set A only unless a Set B pack lands);
@@ -51,6 +64,26 @@ export type RoomOpts = {
   walk: { x: number; y: number; w: number; h: number }[];
   /** Solid circles, e.g. a central pedestal. */
   solidCircles?: { x: number; y: number; r: number }[];
+  /** Solid rectangles: painted furniture that stops the player. Circles cover
+   *  round props, this covers beds, tables, altars and a throne chair. */
+  solidRects?: { x: number; y: number; w: number; h: number }[];
+  /** Time-of-day wash from the ONE clock (clock.ts). Off by default: a room
+   *  with no windows and no sconces should stay flat. */
+  wash?: boolean;
+  /** Painted light sources, mounted as additive glows above the wash. */
+  lights?: HallLight[];
+  /** Looping fire over the flames already painted into the map (CC0 art).
+   *  Drawn above the wash, so night dims the room and not the fire. */
+  fires?: InteriorFire[];
+  /** Named sub-areas of this room; the HUD shows whichever holds the player. */
+  zones?: { x: number; y: number; w: number; h: number; name: string }[];
+  /** Which sub-area the player stands in (null = between them). */
+  onZone?: (name: string | null) => void;
+  /** NPC routines (world.ts RoutineStop[]): placed at the stop the game clock
+   *  says on entry, and moved when a stop time passes while you are in the
+   *  room. Stops must be open floor with a clear straight line between them —
+   *  this tweens, it does not pathfind. */
+  npcRoutines?: Record<string, RoutineStop[]>;
   onSceneReady?: (scene: RoomScene) => void;
   /** Shared interaction system (interact.ts): E-prompt objects in this room. */
   interactables?: Interactable[];
@@ -92,7 +125,7 @@ export class RoomScene extends Phaser.Scene {
   private infoBg: Phaser.GameObjects.Rectangle | null = null;
   private gatePrompt: Phaser.GameObjects.Text | null = null;
   public paused = false;
-  private npcSprites: { npc: HallNpc; spr: Phaser.GameObjects.Sprite }[] = [];
+  private npcSprites: RoomNpcSprite[] = [];
   private nearNpc: HallNpc | null = null;
   public ready = false;
   public pstate: PlayerState = "walk";
@@ -100,10 +133,23 @@ export class RoomScene extends Phaser.Scene {
   private lastVerb: string | null = "";
   private lastInteractAt = 0;
   private propSprites = new Map<string, Phaser.GameObjects.Sprite>();
+  private roomLights: { img: Phaser.GameObjects.Image; cfg: HallLight; base: number; phase: number }[] = [];
+  private daylight: Phaser.GameObjects.Rectangle | null = null;
+  private litTarget = 1;
+  private litLevel = 1;
+  private nextClock = 0;
+  private nextRoutine = 0;
+  private routineAt = new Map<string, string>();
+  private zoneNow: string | null = null;
+  /** Per-scene texture key for this room's plate. A shared "room-map" key let
+   *  whichever room finished loading LAST overwrite every other room's map:
+   *  the interior wore a 48px floor tile stretched to 1920x1280. */
+  private mapKey: string;
 
   constructor(opts: RoomOpts) {
     super({ key: opts.key });
     this.opts = opts;
+    this.mapKey = `room-map-${opts.key}`;
     // Honor the saved outfit across reloads, like HallScene does — rooms
     // otherwise always reset to ravenlord no matter what was equipped.
     try {
@@ -155,11 +201,12 @@ export class RoomScene extends Phaser.Scene {
     const inWalk = this.opts.walk.some((r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h);
     if (!inWalk) return false;
     if (this.opts.solidCircles?.some((c) => (x - c.x) ** 2 + (y - c.y) ** 2 < c.r * c.r)) return false;
+    if (this.opts.solidRects?.some((r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h)) return false;
     return true;
   }
 
   preload() {
-    this.load.image("room-map", this.opts.mapSrc);
+    this.load.image(this.mapKey, this.opts.mapSrc);
     for (const npc of this.opts.npcs ?? []) {
       if (npc.actor) this.load.spritesheet(`actor-${npc.id}`, npc.actor, { frameWidth: FRAME_W, frameHeight: FRAME_H });
     }
@@ -174,6 +221,10 @@ export class RoomScene extends Phaser.Scene {
     }
     if (this.opts.torches?.length) this.load.spritesheet("fx-torch", "/assets/fx/torch.png", { frameWidth: 32, frameHeight: 32 });
     if (this.opts.braziers?.length) this.load.spritesheet("fx-campfire", "/assets/fx/campfire.png", { frameWidth: 32, frameHeight: 32 });
+    const fires = this.opts.fires ?? [];
+    if (fires.some((f) => f.sheet === 48)) this.load.spritesheet("fx-fire-48", "/assets/fx/flame-fire-48.png", { frameWidth: 48, frameHeight: 48 });
+    if (fires.some((f) => f.sheet === 32)) this.load.spritesheet("fx-fire-32", "/assets/fx/flame-fire-32.png", { frameWidth: 32, frameHeight: 32 });
+    if (fires.some((f) => f.smoke)) this.load.spritesheet("fx-smoke-48", "/assets/fx/smoke-gray-48.png", { frameWidth: 48, frameHeight: 48 });
     for (const pr of this.opts.props ?? []) this.load.spritesheet(`prop-${this.opts.key}-${pr.id}`, pr.src, { frameWidth: pr.fw, frameHeight: pr.fh });
   }
 
@@ -210,7 +261,7 @@ export class RoomScene extends Phaser.Scene {
       (p) => spawn.x >= p.x && spawn.x <= p.x + p.w && spawn.y >= p.y && spawn.y <= p.y + p.h,
     );
     this.cameras.main.setBackgroundColor(0x0b0e14);
-    this.add.image(0, 0, "room-map").setOrigin(0, 0).setDisplaySize(this.opts.mapW, this.opts.mapH).setDepth(0);
+    this.add.image(0, 0, this.mapKey).setOrigin(0, 0).setDisplaySize(this.opts.mapW, this.opts.mapH).setDepth(0);
     this.physics.world.setBounds(0, 0, this.opts.mapW, this.opts.mapH);
     this.cameras.main.setBounds(0, 0, this.opts.mapW, this.opts.mapH);
     this.cameras.main.centerOn(spawn.x, spawn.y);
@@ -267,11 +318,34 @@ export class RoomScene extends Phaser.Scene {
         .setDisplaySize(pr.w, pr.h).setDepth(4);
       this.propSprites.set(pr.id, spr);
     }
+    // Light sources, then the time-of-day wash over them: same layering as the
+    // courtyard (wash at 20 in MULTIPLY, glows at 21 in ADD) so fire stays warm
+    // when midnight turns the stone navy.
+    this.roomLights = [];
+    for (const cfg of this.opts.lights ?? []) {
+      const base = cfg.intensity * LIGHT_ALPHA;
+      const img = this.add.image(cfg.x, cfg.y, glowTexture(this, cfg.color))
+        .setDisplaySize(cfg.radius * 2, cfg.radius * 2)
+        .setAlpha(base)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth(21);
+      this.roomLights.push({ img, cfg, base, phase: Math.random() * Math.PI * 2 });
+    }
+    if (this.opts.wash) {
+      this.daylight = this.add.rectangle(0, 0, this.opts.mapW, this.opts.mapH, 0xffffff, 1)
+        .setOrigin(0, 0).setDepth(20).setBlendMode(Phaser.BlendModes.MULTIPLY);
+    }
+    this.applyTimeOfDay();
+    this.mountFires();
+
     this.promptLabel = new PromptLabel(this);
-    this.add.text(this.opts.mapW / 2, 40, this.opts.title ?? this.opts.key, {
-      fontFamily: "monospace", fontSize: "22px", color: "#ffc857",
-      backgroundColor: "#0b0e14cc", padding: { x: 10, y: 6 },
-    }).setOrigin(0.5, 0).setDepth(30);
+    // Screen-anchored caption, not a sign painted on the map: at map-centre
+    // this sat on top of whatever the room's focal point is (the throne arch,
+    // in v4). Bottom-left keeps it off the HUD card and the centre banner.
+    this.add.text(16, this.scale.height - 16, (this.opts.title ?? this.opts.key).toUpperCase(), {
+      fontFamily: "monospace", fontSize: "12px", color: "#8891a5",
+      backgroundColor: "#0b0e14b3", padding: { x: 8, y: 4 },
+    }).setOrigin(0, 1).setScrollFactor(0).setDepth(30);
 
     for (const skin of RAVENLORD_SKINS) {
       const texKey = `skin-${skin.id}`;
@@ -291,18 +365,16 @@ export class RoomScene extends Phaser.Scene {
     for (const npc of this.opts.npcs ?? []) {
       if (!npc.actor) continue;
       const sc = npc.actorScale ?? 1;
-      this.add.ellipse(npc.x, npc.y + (OP_H * sc) / 2 - 2, 28, 10, 0x000000, 0.45).setDepth(4);
+      const shadow = this.add.ellipse(npc.x, npc.y + (OP_H * sc) / 2 - 2, 28, 10, 0x000000, 0.45).setDepth(4);
       const spr = this.add.sprite(npc.x, npc.y, `actor-${npc.id}`, 0).setDisplaySize(OP_W * sc, OP_H * sc).setDepth(5);
-      if (!this.anims.exists(`room-npc-idle-${npc.id}`)) {
-        this.anims.create({ key: `room-npc-idle-${npc.id}`, frames: this.anims.generateFrameNumbers(`actor-${npc.id}`, { start: 0, end: 3 }), frameRate: 3, repeat: -1 });
-      }
-      spr.play(`room-npc-idle-${npc.id}`);
-      this.add.text(npc.x, npc.y - (OP_H * sc) / 2 - 6, npc.name, {
+      const tag = this.add.text(npc.x, npc.y - (OP_H * sc) / 2 - 6, npc.name, {
         fontFamily: "monospace", fontSize: "11px", color: "#f3e3c3", backgroundColor: "#0b0e14b3", padding: { x: 3, y: 1 },
       }).setOrigin(0.5, 1).setDepth(6);
-      this.npcSprites.push({ npc, spr });
+      this.npcSprites.push({ npc, spr, tag, shadow });
     }
-    try { (window as unknown as Record<string, unknown>).__keepNpcs = (this.opts.npcs ?? []).map((n) => ({ id: n.id, x: n.x, y: n.y, scene: this.opts.key })); } catch { /* ignore */ }
+    this.routineAt.clear();
+    this.placeRoutines(0, true);
+    try { (window as unknown as Record<string, unknown>).__keepNpcs = this.npcSprites.map((e) => ({ id: e.npc.id, x: Math.round(e.spr.x), y: Math.round(e.spr.y), scene: this.opts.key })); } catch { /* ignore */ }
 
     this.player = this.physics.add.sprite(spawn.x, spawn.y, `skin-${this.activeSkinId}`, 0).setDisplaySize(OP_W, OP_H).setDepth(14);
     this.player.body.setCircle(10, 6, 20);
@@ -470,23 +542,192 @@ export class RoomScene extends Phaser.Scene {
     this.dest = null;
     this.stickX = 0;
     this.stickY = 0;
+    // Every door in the Keep is stone and iron: a grind and a shudder, then the
+    // fade — the return gate used to vanish you in silence.
+    hallAudio.playStoneGrind();
+    this.cameras.main.shake(220, 0.004);
     this.cameras.main.fadeOut(250);
     this.cameras.main.once("camerafadeoutcomplete", () => {
       this.scene.start(p.targetScene, { spawn: p.targetSpawn });
     });
   }
 
-  /** Nearest room NPC within its talk radius (+ the player's reach). */
+  /** Nearest room NPC within its talk radius (+ the player's reach).
+   *  Uses the sprite, not the data point: a scheduled NPC is not at its home
+   *  spot, and talking to where she used to stand was the old bug. */
   private npcInRange(): HallNpc | null {
     if (!this.player) return null;
     let best: HallNpc | null = null;
     let bestD = Infinity;
-    for (const { npc } of this.npcSprites) {
-      const d = (npc.x - this.player.x) ** 2 + (npc.y - this.player.y) ** 2;
+    for (const { npc, spr } of this.npcSprites) {
+      const d = (spr.x - this.player.x) ** 2 + (spr.y - this.player.y) ** 2;
       const r = npc.radius + 30;
       if (d < r * r && d < bestD) { best = npc; bestD = d; }
     }
     return best;
+  }
+
+  private npcSprite(id: string): RoomNpcSprite | undefined {
+    return this.npcSprites.find((e) => e.npc.id === id);
+  }
+
+  /** Idle loop on the drawn row for `face` (0 down, 4 left, 8 right, 12 up). */
+  private npcIdleAnim(entry: RoomNpcSprite, face: Facing) {
+    if (!entry.npc.actor) return;
+    const key = `room-npc-idle-${entry.npc.id}-${face}`;
+    if (!this.anims.exists(key)) {
+      const base = { down: 0, left: 4, right: 8, up: 12 }[face];
+      this.anims.create({
+        key,
+        frames: this.anims.generateFrameNumbers(`actor-${entry.npc.id}`, { start: base, end: base + 3 }),
+        frameRate: 3,
+        repeat: -1,
+      });
+    }
+    entry.spr.play(key, true);
+  }
+
+  /** Put every scheduled NPC at the stop the clock says; walk to later ones. */
+  private placeRoutines(time: number, instant: boolean) {
+    if (!this.opts.npcRoutines) return;
+    if (!instant && time < this.nextRoutine) return;
+    this.nextRoutine = time + 500;
+    const hour = gameHour();
+    for (const entry of this.npcSprites) {
+      const stops = this.opts.npcRoutines[entry.npc.id];
+      if (!stops?.length) continue;
+      const stop = routineStopAt(stops, hour);
+      const was = this.routineAt.get(entry.npc.id);
+      if (was === stop.id && !instant) continue;
+      this.routineAt.set(entry.npc.id, stop.id);
+      this.npcIdleAnim(entry, (stop.face ?? "down") as Facing);
+      if (instant || !was) {
+        entry.spr.setPosition(stop.at.x, stop.at.y);
+        continue;
+      }
+      this.tweens.add({
+        targets: entry.spr,
+        x: stop.at.x,
+        y: stop.at.y,
+        duration: Math.min(2400, Math.max(600, Math.hypot(stop.at.x - entry.spr.x, stop.at.y - entry.spr.y) * 14)),
+        ease: "Sine.easeInOut",
+      });
+    }
+  }
+
+  /** Keep the shadow and the name tag under/over a moving NPC. */
+  private followNpcTags() {
+    for (const e of this.npcSprites) {
+      const sc = e.npc.actorScale ?? 1;
+      e.shadow.setPosition(e.spr.x, e.spr.y + (OP_H * sc) / 2 - 2);
+      e.tag.setPosition(e.spr.x, e.spr.y - (OP_H * sc) / 2 - 6);
+    }
+  }
+
+  /** Which named sub-area holds the player; reported only when it changes. */
+  private updateZone() {
+    if (!this.opts.zones?.length || !this.player) return;
+    const z = this.opts.zones.find(
+      (r) => this.player.x >= r.x && this.player.x <= r.x + r.w && this.player.y >= r.y && this.player.y <= r.y + r.h,
+    );
+    const name = z?.name ?? null;
+    if (name === this.zoneNow) return;
+    this.zoneNow = name;
+    this.opts.onZone?.(name);
+  }
+
+  /** A real, looping fire on every flame the painting already carries.
+   *  Depth 22 is above the wash (20) and the glows (21): the room darkens at
+   *  dusk, the fire does not. Each sprite starts at a random point in the
+   *  loop, otherwise fifteen sconces pulse in lockstep and read as one light. */
+  private mountFires() {
+    const fires = this.opts.fires ?? [];
+    if (!fires.length) return;
+    for (const f of fires) {
+      const texKey = f.sheet === 48 ? "fx-fire-48" : "fx-fire-32";
+      const animKey = `nl-fire-${f.sheet}`;
+      if (!this.anims.exists(animKey)) {
+        this.anims.create({
+          key: animKey,
+          frames: this.anims.generateFrameNumbers(texKey, { start: 0, end: f.sheet === 48 ? 15 : 11 }),
+          frameRate: 12,
+          repeat: -1,
+        });
+      }
+      const spr = this.add.sprite(f.x, f.y, texKey)
+        .setOrigin(0.5, 1)
+        .setDisplaySize(f.w, f.h)
+        .setDepth(22);
+      spr.play(animKey).anims.setProgress(Math.random());
+
+      if (f.smoke) {
+        if (!this.anims.exists("nl-smoke-48")) {
+          this.anims.create({
+            key: "nl-smoke-48",
+            frames: this.anims.generateFrameNumbers("fx-smoke-48", { start: 0, end: 15 }),
+            frameRate: 12,
+            repeat: -1,
+          });
+        }
+        const sm = this.add.sprite(f.x + f.smoke.dx, f.y - f.h * 0.55, "fx-smoke-48")
+          .setOrigin(0.5, 1)
+          .setDisplaySize(f.smoke.w, f.smoke.h)
+          .setAlpha(f.smoke.alpha)
+          .setDepth(21.5);
+        sm.play("nl-smoke-48").anims.setProgress(Math.random());
+        // The column leans and settles instead of rising dead straight.
+        this.tweens.add({
+          targets: sm,
+          x: f.x + f.smoke.dx * -1,
+          duration: 5200,
+          yoyo: true,
+          repeat: -1,
+          ease: "Sine.easeInOut",
+        });
+      }
+    }
+    try {
+      (window as unknown as Record<string, unknown>).__keepFires = {
+        count: fires.length,
+        hearth: fires.filter((f) => f.sheet === 48).length,
+        smoke: fires.filter((f) => f.smoke).length,
+        scene: this.opts.key,
+      };
+    } catch { /* no window */ }
+  }
+
+  /** Wash colour and whether the sconces are lit, from the ONE game clock. */
+  private applyTimeOfDay() {
+    const hour = gameHour();
+    if (this.daylight) {
+      const [r, g, b] = washRGB(hour);
+      this.daylight.setFillStyle((r << 16) | (g << 8) | b, 1);
+    }
+    const lit = torchesLit(hour);
+    this.litTarget = lit ? 1 : DAY_LIGHT;
+    try {
+      (window as unknown as Record<string, unknown>).__keepRoomTime = {
+        hour: Math.round(hour * 100) / 100, torches: lit, scene: this.opts.key,
+      };
+    } catch { /* no window */ }
+  }
+
+  /** Re-read the clock twice a second, ease the sconces, flicker the fire. */
+  private updateAmbient(time: number, delta: number) {
+    if (!this.daylight && this.roomLights.length === 0) return;
+    if (time >= this.nextClock) {
+      this.nextClock = time + 500;
+      this.applyTimeOfDay();
+    }
+    this.litLevel += (this.litTarget - this.litLevel) * Math.min(1, delta / 600);
+    for (const l of this.roomLights) {
+      let wobble = 0;
+      if (l.cfg.flicker !== 0) {
+        l.phase += (delta / 1000) * ((Math.PI * 2) / l.cfg.period);
+        wobble = Math.sin(l.phase) * 0.6 + Math.sin(l.phase * 2.7) * 0.4;
+      }
+      l.img.setAlpha(Math.min(1, l.base * this.litLevel * (1 + wobble * l.cfg.flicker)));
+    }
   }
 
   private updatePrompt(it: Interactable | null) {
@@ -497,7 +738,9 @@ export class RoomScene extends Phaser.Scene {
       this.opts.onNear?.(npc);
     }
     const verb = it?.verb ?? (npc ? `Talk to ${npc.name}` : null);
-    const at = it?.labelAt ?? it?.anchor ?? (npc ? { x: npc.x, y: npc.y - 62 } : { x: this.player.x, y: this.player.y - 46 });
+    const np = npc ? this.npcSprite(npc.id) : undefined;
+    const at = it?.labelAt ?? it?.anchor
+      ?? (np ? { x: np.spr.x, y: np.spr.y - 62 } : { x: this.player.x, y: this.player.y - 46 });
     this.promptLabel?.show(verb, at.x, at.y);
     const v = verb;
     if (v !== this.lastVerb) {
@@ -517,7 +760,11 @@ export class RoomScene extends Phaser.Scene {
 
   update(time: number, delta: number) {
     try { (window as unknown as Record<string, unknown>).__keepFrame = ((window as unknown as Record<string, number>).__keepFrame ?? 0) + 1; } catch { /* no window */ }
+    this.updateAmbient(time, delta);
+    this.placeRoutines(time, false);
     if (!this.player?.body || this.paused) { this.player?.setVelocity(0, 0); return; }
+    this.followNpcTags();
+    this.updateZone();
     if (this.pstate !== "walk") { this.player.setVelocity(0, 0); this.updatePrompt(null); return; }
     this.updatePrompt(this.objectHere());
     const wSpeed = (window as unknown as Record<string, unknown>).__keepWalkSpeed;

@@ -365,44 +365,156 @@ export const PLAYER_SPAWN = { x: 750, y: 880 }; // courtyard start, inside yard 
 // --- Fortress Interior (hall v4) — combined Keep, 2026-10-30 ---
 // The hall is a SECOND area, not a replacement for the courtyard. Sizes match
 // the images exactly: courtyard 1792x1008, hall v4 1920x1280.
-// Walk rects are the v4 set verbatim, plus ONE bottom gate corridor so the
-// player can actually walk from the central hall down to the return gate
-// (v4 walk stops at y=1050; the gate sits at y=1190-1280).
+//
+// Geometry re-measured 2026-11-24 against keep-map-v4.jpg itself (warm-wood
+// fraction per row/column, flame-core clusters and the iron mask), not by eye
+// on a scaled crop. Two findings changed the walk set: the wings' painted
+// floor stops at y≈1050 (below it is the stone wall), and the gatehouse is a
+// shut portcullis whose bars start at y≈1002 — the floor must stop in FRONT
+// of it, not run down into the pit behind it.
+export type InteriorFloor = Rect & { name: string };
 export const INTERIOR_MAP_W = 1920;
 export const INTERIOR_MAP_H = 1280;
 export const INTERIOR_MAP_SRC = "/hall/painted/keep-map-v4.jpg";
-export const INTERIOR_WALK: Rect[] = [
-  { x: 330, y: 200, w: 420, h: 300 }, // NW bedroom (v4)
-  { x: 330, y: 520, w: 420, h: 300 }, // west armory (v4)
-  { x: 330, y: 840, w: 420, h: 300 }, // west kitchen (v4)
-  { x: 750, y: 300, w: 90, h: 750 }, // west link to hall
-  { x: 830, y: 130, w: 360, h: 920 }, // throne dais + central hall (v4)
-  { x: 1190, y: 300, w: 90, h: 750 }, // east link to hall
-  { x: 1280, y: 200, w: 420, h: 300 }, // east library (v4)
-  { x: 1280, y: 520, w: 420, h: 300 }, // east storeroom (v4)
-  { x: 1280, y: 840, w: 420, h: 300 }, // east chapel (v4)
-  { x: 800, y: 1040, w: 320, h: 240 }, // bottom gate corridor (added 2026-10-30)
+export const INTERIOR_WALK: InteriorFloor[] = [
+  { x: 330, y: 200, w: 420, h: 300, name: "bedroom floor" },
+  { x: 330, y: 520, w: 420, h: 300, name: "armoury floor" },
+  { x: 330, y: 840, w: 420, h: 210, name: "kitchen floor" },
+  { x: 750, y: 300, w: 90, h: 700, name: "west link to hall" },
+  { x: 830, y: 130, w: 360, h: 870, name: "hall + throne dais" },
+  { x: 1190, y: 300, w: 90, h: 700, name: "east link to hall" },
+  { x: 1280, y: 200, w: 420, h: 300, name: "library floor" },
+  { x: 1280, y: 520, w: 420, h: 300, name: "stores floor" },
+  { x: 1280, y: 840, w: 420, h: 210, name: "chapel floor" },
 ];
-// Throne, v4 solid { x: 960, y: 140, w: 80, h: 100 }, as a circle because
-// RoomScene only supports solid circles. Centre (1000,190), r 65 covers it.
-export const INTERIOR_SOLID_CIRCLES = [{ x: 1000, y: 190, r: 65 }];
-// Select E-gates, copied from the proven test build — stepping in alone does
-// NOTHING; only E moves you. Courtyard gate: top of courtyard, on the throne
-// dais (walkable from y=55 up). Hall gate: bottom of the hall corridor.
+
+/** Painted furniture the player collides with, measured on keep-map-v4.jpg.
+ *  Boxes are inset a touch from the art on purpose: an invisible wall reads
+ *  worse than clipping a bed corner. Until 2026-11-24 the room's only collider
+ *  was one circle at (1000,190) — beside the throne, not on it — so it put an
+ *  invisible wall across the carpet and let the player walk through every bed,
+ *  table, altar and anvil in the Keep. */
+export type InteriorSolid = Rect & { name: string };
+export const INTERIOR_SOLID_RECTS: InteriorSolid[] = [
+  { x: 918, y: 88, w: 84, h: 90, name: "throne chair" }, // velvet x944-977 y102-164
+  { x: 865, y: 1002, w: 210, h: 58, name: "portcullis" }, // bars x860-1080, rail y1002-1046
+  { x: 362, y: 212, w: 148, h: 178, name: "bed" },
+  { x: 430, y: 566, w: 105, h: 52, name: "tool bench" }, // checked on the art 2026-11-24
+  { x: 430, y: 640, w: 82, h: 56, name: "anvil" },
+  { x: 440, y: 838, w: 82, h: 55, name: "hearth" }, // flame core (480,869)
+  { x: 398, y: 934, w: 118, h: 55, name: "food table" },
+  { x: 1292, y: 202, w: 300, h: 48, name: "library shelves" },
+  { x: 1386, y: 336, w: 100, h: 56, name: "library desk" },
+  { x: 1400, y: 556, w: 82, h: 50, name: "stores chests" },
+  { x: 1298, y: 680, w: 62, h: 44, name: "stores barrels" },
+  { x: 1516, y: 680, w: 88, h: 48, name: "stores barrels" },
+  { x: 1396, y: 884, w: 150, h: 58, name: "chapel altar" }, // candles (1460,915)
+];
+
+/** Select E-gates, copied from the proven test build — stepping in alone does
+ *  NOTHING; only E moves you. Courtyard gate: top of courtyard, on the throne
+ *  dais (walkable from y=55 up).
+ *
+ *  Interior gate, fixed 2026-11-24: the old rect (800,1190,320,90) sat behind
+ *  the shut portcullis, out past the arch — you had to walk into the dark
+ *  gatehouse pit to find the prompt. The threshold is the painted floor in
+ *  FRONT of the bars (rail at y≈1002), so that is where it sits now. */
 export const COURTYARD_GATE = { x: 800, y: 0, w: 192, h: 90 };
-export const INTERIOR_GATE = { x: 800, y: 1190, w: 320, h: 90 };
-export const INTERIOR_SPAWN = { x: 960, y: 1150 }; // inside bottom gate corridor
+export const INTERIOR_GATE = { x: 890, y: 928, w: 140, h: 74 };
+export const INTERIOR_SPAWN = { x: 960, y: 880 }; // inside the hall, gate at your back
 export const COURTYARD_RETURN_SPAWN = { x: 896, y: 130 }; // on the throne dais, below the top gate
+
+/** The eight rooms the painting actually contains, as HUD sub-zones. Was one
+ *  label ("Fortress Interior") for six rooms and one hall. */
+export const INTERIOR_ZONES: InteriorFloor[] = [
+  { x: 330, y: 200, w: 420, h: 300, name: "Bedroom" },
+  { x: 330, y: 520, w: 420, h: 300, name: "Armoury" },
+  { x: 330, y: 840, w: 420, h: 210, name: "Kitchen" },
+  { x: 1280, y: 200, w: 420, h: 300, name: "Library" },
+  { x: 1280, y: 520, w: 420, h: 300, name: "Stores" },
+  { x: 1280, y: 840, w: 420, h: 210, name: "Chapel" },
+  { x: 830, y: 130, w: 360, h: 175, name: "Throne Dais" },
+  { x: 830, y: 305, w: 360, h: 695, name: "Great Hall" },
+];
+
+/** Sconces, hearths and hearth-candles painted into v4, as light sources.
+ *  Positions are flame-core clusters measured on the JPEG, radii are how far
+ *  the glow reaches on the floor. They burn all night and sit at embers by
+ *  day (RoomScene's DAY_LIGHT), which is why the interior used to read as
+ *  permanent noon: nothing here was ever mounted. */
+export const INTERIOR_LIGHTS: HallLight[] = [
+  // West wing: bedroom, armoury, kitchen wall, kitchen hearth
+  { x: 584, y: 209, radius: 150, color: 0xffa53c, intensity: 1.1, flicker: 0.35, period: 1.2 },
+  { x: 519, y: 507, radius: 160, color: 0xffa53c, intensity: 1.2, flicker: 0.35, period: 1.0 },
+  { x: 433, y: 801, radius: 140, color: 0xffa53c, intensity: 1.0, flicker: 0.4, period: 0.9 },
+  { x: 480, y: 869, radius: 190, color: 0xff7a2a, intensity: 1.5, flicker: 0.5, period: 0.8 },
+  // East wing: library, library door, stores, chapel candles
+  { x: 1402, y: 201, radius: 170, color: 0xffa53c, intensity: 1.2, flicker: 0.3, period: 1.3 },
+  { x: 1428, y: 422, radius: 150, color: 0xffa53c, intensity: 1.0, flicker: 0.3, period: 1.1 },
+  { x: 1572, y: 632, radius: 150, color: 0xffa53c, intensity: 1.0, flicker: 0.3, period: 1.4 },
+  { x: 1460, y: 915, radius: 160, color: 0xffc857, intensity: 0.9, flicker: 0.2, period: 1.8 },
+  // Hall wall sconces, paired down both sides
+  { x: 829, y: 326, radius: 150, color: 0xffa53c, intensity: 1.1, flicker: 0.35, period: 1.0 },
+  { x: 1082, y: 327, radius: 150, color: 0xffa53c, intensity: 1.1, flicker: 0.35, period: 1.2 },
+  { x: 808, y: 622, radius: 150, color: 0xffa53c, intensity: 1.1, flicker: 0.4, period: 0.9 },
+  { x: 1092, y: 682, radius: 150, color: 0xffa53c, intensity: 1.1, flicker: 0.4, period: 1.3 },
+  { x: 816, y: 939, radius: 150, color: 0xffa53c, intensity: 1.1, flicker: 0.4, period: 1.1 },
+  { x: 1104, y: 935, radius: 150, color: 0xffa53c, intensity: 1.1, flicker: 0.4, period: 1.0 },
+  // Throne arch candles: steady, pale, not fire
+  { x: 960, y: 130, radius: 210, color: 0xffd9a0, intensity: 0.7, flicker: 0.12, period: 3.0 },
+];
+
+/** A looping fire drawn ON TOP of a flame already painted into the room.
+ *  Art: CC0 "Free Pixel Loops" by cs5475 (public/assets/fx/LICENSE-free-pixel-loops.txt).
+ *  x/y is the BASE of the flame in keep-map-v4.jpg pixels (origin bottom-centre),
+ *  w/h the painted flame it has to cover — measured from the painting, because
+ *  the sconce cups sit up to 70 px away from the glow centres in INTERIOR_LIGHTS.
+ *  Those glows still do the lighting; this only animates the flame itself. */
+export type InteriorFire = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** 48 px sheet (16 frames) for the hearth; 32 px (12 frames) for sconces. */
+  sheet: 32 | 48;
+  /** A smoke column rising out of this fire (the kitchen hearth only). */
+  smoke?: { w: number; h: number; alpha: number; dx: number };
+};
+
+export const INTERIOR_FIRES: InteriorFire[] = [
+  // West wing: bedroom sconce, armoury sconce, kitchen sconce, kitchen hearth
+  { x: 584, y: 225, w: 26, h: 30, sheet: 32 },
+  { x: 519, y: 528, w: 28, h: 34, sheet: 32 },
+  { x: 441, y: 818, w: 18, h: 32, sheet: 32 },
+  {
+    x: 479, y: 892, w: 54, h: 52, sheet: 48,
+    smoke: { w: 64, h: 62, alpha: 0.32, dx: 4 },
+  },
+  // East wing: library sconce, and four chapel candles on the altar
+  { x: 1402, y: 218, w: 26, h: 30, sheet: 32 },
+  { x: 1395, y: 882, w: 7, h: 14, sheet: 32 },
+  { x: 1409, y: 880, w: 7, h: 14, sheet: 32 },
+  { x: 1488, y: 891, w: 7, h: 14, sheet: 32 },
+  { x: 1503, y: 889, w: 7, h: 14, sheet: 32 },
+  // Great hall sconces, three a side, from the north wall to the gate
+  { x: 839, y: 332, w: 13, h: 24, sheet: 32 },
+  { x: 1078, y: 343, w: 14, h: 24, sheet: 32 },
+  { x: 827, y: 694, w: 13, h: 22, sheet: 32 },
+  { x: 1090, y: 692, w: 12, h: 18, sheet: 32 },
+  { x: 817, y: 951, w: 12, h: 20, sheet: 32 },
+  { x: 1106, y: 944, w: 16, h: 20, sheet: 32 },
+];
 
 /** Lyra: lives in the Fortress Interior (muse's FortressInteriorRoomScene),
  *  kitchen, so she is NOT in HALL_NPCS (the courtyard scene). x/y are
- *  keep-map-v4.jpg image pixels: kitchen floor, east of the food table. */
+ *  keep-map-v4.jpg image pixels: kitchen floor, clear of the table
+ *  (398-516 × 934-989) and of the hearth. Her day is LYRA_ROUTINE below. */
 export const LYRA_NPC: HallNpc = {
   id: LYRA.id,
   name: LYRA.name,
   role: LYRA.role,
-  x: 560,
-  y: 950,
+  x: 600,
+  y: 900,
   radius: 60,
   state: "idle",
   actor: LYRA.actor,
@@ -415,6 +527,17 @@ export const LYRA_NPC: HallNpc = {
   stages: [...LYRA.stages],
   actions: LYRA_CHOICES.map((c) => ({ id: `lyra-${c.id}`, label: c.label, liveReply: () => pick(c.replies), stage: c.stage })),
 };
+
+/** Lyra's kitchen day, on the ONE clock (routineStopAt). Before this she stood
+ *  in one spot facing down at 3am and noon alike, and RoomScene had no clock at
+ *  all. Every stop is open kitchen floor and the straight line between stops
+ *  clears the food table and the hearth, because RoomScene tweens between them
+ *  and does not pathfind. */
+export const LYRA_ROUTINE: RoutineStop[] = [
+  { id: "hearth", from: 6, at: { x: 600, y: 900 }, face: "left" }, // cooking, east of the fire
+  { id: "table", from: 11, at: { x: 600, y: 1000 }, face: "up" }, // serving at the table
+  { id: "shelf", from: 19, at: { x: 690, y: 930 }, face: "left" }, // banked fire, wiping down
+];
 
 /** Where Valerie may wander. The workshop zone rect (1310,60,420,680) is NOT
  *  her floor — it includes the benches strip and the hall↔workshop corridor,

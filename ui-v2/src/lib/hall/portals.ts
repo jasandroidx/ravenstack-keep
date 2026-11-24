@@ -17,63 +17,17 @@ export type KeepDoor = PortalTrigger & {
   kind?: "test";
 };
 
-export const HALL_PORTALS: KeepDoor[] = [
-  {
-    id: "library-to-recon",
-    x: 300,
-    y: 200,
-    w: 120,
-    h: 60,
-    inZone: "library",
-    targetScene: "ReconRoomScene",
-    targetSpawn: { x: 800, y: 1400 },
-    label: "RECON →",
-  },
-  {
-    id: "workshop-to-search",
-    x: 1500,
-    y: 300,
-    w: 120,
-    h: 60,
-    inZone: "workshop",
-    targetScene: "SearchRoomScene",
-    targetSpawn: { x: 800, y: 1400 },
-    label: "SEARCH →",
-  },
-  {
-    id: "hall-to-citadel",
-    x: 600,
-    y: 600,
-    w: 120,
-    h: 60,
-    inZone: "great-hall",
-    targetScene: "CitadelRoomScene",
-    targetSpawn: { x: 800, y: 1400 },
-    label: "CITADEL →",
-  },
-  {
-    id: "yard-to-tower",
-    x: 700,
-    y: 800,
-    w: 120,
-    h: 60,
-    inZone: "yard",
-    targetScene: "TowerRoomScene",
-    targetSpawn: { x: 800, y: 1400 },
-    label: "TOWER →",
-  },
-  {
-    // North-west corner of the yard is the free floor: clear of the fountain,
-    // the tower pad and Corvid. (The pad used to sit further east, inside a
-    // room zone that has since been retired.)
-    id: "yard-to-sploit",
-    x: 660,
-    y: 730,
-    w: 120,
-    h: 60,
-    inZone: "yard",
-    targetScene: "SploitRoomScene",
-    targetSpawn: { x: 800, y: 1400 },
-    label: "SPLOIT →",
-  },
-];
+/**
+ * EMPTY on purpose (2026-11-24, Jason): every auto-fire floor pad in the
+ * courtyard is gone — recon, search, citadel, sploit and the tower pad that
+ * used to sit 20px above the spawn. They were invisible (doors are painted
+ * into the map, never boxed) and took you somewhere you did not ask to go.
+ *
+ * The ONE courtyard link left is the select E-gate to the interior
+ * (`COURTYARD_GATE` in world.ts, wired in keep-hall.tsx as a selectGate, not
+ * as a portal): step into it and nothing happens until you press E.
+ *
+ * The satellite rooms are still reachable, deliberately and visibly, from the
+ * [T] teleport menu — an explicit choice instead of a floor you can trip over.
+ */
+export const HALL_PORTALS: KeepDoor[] = [];
