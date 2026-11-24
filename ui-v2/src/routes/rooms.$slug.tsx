@@ -44,7 +44,7 @@ function RoomPage() {
         <div className="mt-10 rounded-xl border border-line bg-surface p-6">
           <h2 className="font-display text-2xl">Unforged</h2>
           <p className="mt-3 max-w-xl text-muted">
-            This room is visible so the Keep remembers the capability. Take it to Clawforge before it becomes real.
+            This room is visible so the Keep remembers the capability. It stays unforged until its Spec is written and approved.
           </p>
           <p className="mt-4 text-sm text-subtle">Kill note: {room.kill}</p>
         </div>

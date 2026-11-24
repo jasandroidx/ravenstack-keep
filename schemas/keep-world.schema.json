@@ -2,9 +2,9 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/jasandroidx/ravenstack-keep/blob/ravenstack/schemas/keep-world.schema.json",
   "title": "Keep world — keep-world.json",
-  "description": "The single world model for the Keep: rooms (Ledger + map zone + NPC), map-only places, and Ledger rooms with no painting yet. Ids are the only key. Lock state and occupancy at runtime come from the box (keep.db / /api/duty / pulse), never from this file. Cross-entry rules (unique ids, zone coverage, spec existence) are asserted in src/lib/keep/world.test.ts — a JSON Schema cannot express them.",
+  "description": "The single world model for the Keep: painted rooms (Ledger + map zone), map-only places, Ledger rooms with no painting yet, and the NPCs that stand in them. Ids are the only key. Lock state and occupancy at runtime come from the box (keep.db / /api/duty / pulse), never from this file. Cross-entry rules (unique ids, zone order, spec existence, WALK coverage) are asserted in ui-v2/src/lib/keep/world.test.ts — a JSON Schema cannot express them.",
   "type": "object",
-  "required": ["schema", "map", "rooms", "mapOnly", "unplaced"],
+  "required": ["schema", "map", "zoneOrder", "rooms", "mapOnly", "unplaced", "npcs"],
   "additionalProperties": false,
   "properties": {
     "schema": { "const": "keep-world.v1" },
@@ -18,9 +18,16 @@
         "h": { "const": 1008 }
       }
     },
+    "zoneOrder": {
+      "type": "array",
+      "description": "Precedence for zone lookups, first match wins. The Grand Gallery must follow the Great Hall, or the hall's rect swallows the archway.",
+      "items": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+      "uniqueItems": true
+    },
     "rooms": {
       "type": "array",
-      "items": { "$ref": "#/definitions/room" }
+      "description": "Painted rooms with a Ledger row. Every one needs a zone.",
+      "items": { "$ref": "#/definitions/paintedRoom" }
     },
     "mapOnly": {
       "type": "array",
@@ -29,11 +36,15 @@
     },
     "unplaced": {
       "type": "array",
-      "description": "Ledger rooms with a real capability and no painted floor yet (e.g. armory, roost).",
+      "description": "Ledger rooms with a real capability and no painted floor yet (e.g. armory, roost). Listing them here is honest; inventing a zone for them is not.",
       "items": {
-        "allOf": [{ "$ref": "#/definitions/room" }],
-        "required": ["note"]
+        "allOf": [{ "$ref": "#/definitions/ledgerRoom" }, { "type": "object", "required": ["note"] }]
       }
+    },
+    "npcs": {
+      "type": "array",
+      "description": "Everyone who can be walked up to. `place` names the room or map-only place they stand in, which may differ from the room's own occupant (Corvid stands in the yard).",
+      "items": { "$ref": "#/definitions/npc" }
     }
   },
   "definitions": {
@@ -68,24 +79,6 @@
         }
       }
     },
-    "npc": {
-      "type": "object",
-      "required": ["id", "name", "x", "y", "radius"],
-      "additionalProperties": false,
-      "properties": {
-        "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
-        "name": { "type": "string", "minLength": 1 },
-        "x": { "type": "number" },
-        "y": { "type": "number" },
-        "radius": { "type": "number", "minimum": 1 },
-        "actor": { "type": "string", "pattern": "^/hall/sprites/" },
-        "actorH": { "type": "number", "minimum": 1 },
-        "talkScene": { "type": "string", "pattern": "^/hall/" },
-        "portrait": { "type": "string", "pattern": "^/hall/" },
-        "greeting": { "type": "string" },
-        "href": { "type": "string", "pattern": "^/" }
-      }
-    },
     "pulse": {
       "type": "object",
       "required": ["boxIds", "slugs"],
@@ -93,15 +86,12 @@
       "description": "Reconciliation table: what the box calls this room, and every slug any endpoint may use for it.",
       "properties": {
         "boxIds": { "type": "array", "items": { "type": "string" } },
-        "slugs": {
-          "type": "array",
-          "items": { "type": "string", "pattern": "^[a-z0-9-]+$" }
-        }
+        "slugs": { "type": "array", "items": { "type": "string", "pattern": "^[a-z0-9-]+$" } }
       }
     },
-    "room": {
+    "ledgerRoom": {
       "type": "object",
-      "required": ["id", "name", "wing", "ledger", "spec", "href", "pulse"],
+      "required": ["id", "name", "wing", "ledger", "spec", "specStatus", "href", "modelDefault", "col", "row", "pulse"],
       "additionalProperties": false,
       "properties": {
         "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
@@ -110,28 +100,59 @@
         "ledger": { "$ref": "#/definitions/ledger" },
         "spec": {
           "type": ["string", "null"],
-          "description": "Key into agents/*.agent-spec.json, or null when no agent occupies it."
+          "description": "Key into catalog.SPECS (and agents/<id>.agent-spec.json), or null when no agent occupies it."
         },
-        "href": {
-          "type": ["string", "null"],
-          "description": "Route the room links to, or null."
-        },
-        "zone": { "$ref": "#/definitions/rect" },
-        "npc": { "$ref": "#/definitions/npc" },
+        "specStatus": { "type": "string", "enum": ["draft", "approved", "live", "retired"] },
+        "href": { "type": ["string", "null"], "description": "Route the room links to, or null." },
+        "image": { "type": "string", "pattern": "^/" },
+        "modelDefault": { "type": "string", "enum": ["local", "escalate", "god"] },
+        "col": { "type": "integer", "minimum": 1, "maximum": 3 },
+        "row": { "type": "integer", "minimum": 1, "maximum": 4 },
         "pulse": { "$ref": "#/definitions/pulse" },
         "note": { "type": "string" }
       }
     },
+    "paintedRoom": {
+      "allOf": [
+        { "$ref": "#/definitions/ledgerRoom" },
+        { "type": "object", "required": ["zone"], "properties": { "zone": { "$ref": "#/definitions/rect" } } }
+      ]
+    },
     "place": {
       "type": "object",
-      "required": ["id", "name", "zone", "note"],
+      "required": ["id", "name", "lock", "zone", "note"],
       "additionalProperties": false,
       "properties": {
         "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
         "name": { "type": "string", "minLength": 1 },
+        "lock": {
+          "type": "string",
+          "enum": ["live", "unforged", "locked"],
+          "description": "Door state for the map. A place has no Ledger row, so it cannot inherit one."
+        },
+        "href": { "type": "string", "pattern": "^/" },
         "zone": { "$ref": "#/definitions/rect" },
-        "npc": { "$ref": "#/definitions/npc" },
         "note": { "type": "string", "minLength": 1 }
+      }
+    },
+    "npc": {
+      "type": "object",
+      "required": ["id", "name", "role", "place", "x", "y", "radius", "greeting"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "name": { "type": "string", "minLength": 1 },
+        "role": { "type": "string", "minLength": 1 },
+        "place": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "radius": { "type": "number", "minimum": 1 },
+        "actor": { "type": "string", "pattern": "^/hall/sprites/" },
+        "actorH": { "type": "number", "minimum": 1 },
+        "talkScene": { "type": "string", "pattern": "^/hall/" },
+        "portrait": { "type": "string", "pattern": "^/hall/" },
+        "href": { "type": "string", "pattern": "^/" },
+        "greeting": { "type": "string", "minLength": 1 }
       }
     }
   }

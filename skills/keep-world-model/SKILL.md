@@ -25,12 +25,18 @@ Verified 2026-11-24, before the model existed:
 | `schemas/keep-rooms.schema.json` (shift board) | `gate, dock, auction-pit, archive, watchtower`                                                          |
 | `ui-v2/src/lib/keep/catalog.ts` (Ledger)       | `watchtower, library, great-hall, roost, armory, workshop, yard`                                        |
 | `ui-v2/src/lib/hall/world.ts` (ZONES)          | `library, great-hall, gallery-arch, watchtower, workshop, yard, quarantine`                             |
-| `ui-v2/src/lib/keep/pulse.fixture.json`        | `orchestrator-throne, clawforge-anvil, grant-hall-empty, oracle-chamber-empty, marketplace-forge-empty` |
+| `ui-v2/src/lib/keep/pulse.fixture.json`        | none — the paper fixture carries no rooms (the invented ones were removed)                             |
 | `AGENTS.md` prose                              | "six rooms (great-hall, alchemy-lab, library, armory, observatory, vault)"                              |
 
-`alchemy-lab` (Clawforge's home in `SPECS`) exists in none of the code lists.
-`quarantine` and `gallery-arch` exist only on the map. `observatory` and `vault`
-exist only in prose. That is the bug this skill prevents.
+`alchemy-lab` (Clawforge's home in `SPECS`) existed in none of the code lists; it
+is retired as of 2026-11-24 and the id is gone from `keep-world.json`,
+`ROOM_TO_SPEC` and `SPECS`. `quarantine` and `gallery-arch` exist only on the map —
+they are `mapOnly` now. `observatory` and `vault` existed only in prose and are
+gone from `AGENTS.md`. That is the bug this skill prevents.
+
+**Stage status:** `keep-world.json` exists and `src/lib/keep/world.test.ts` pins
+`catalog.ROOMS`, `world.ZONES` and `world.HALL_NPCS` to it. Those three still hold
+the data themselves; deriving them from the model is stage 2.
 
 ## The model
 
@@ -53,20 +59,28 @@ exist only in prose. That is the bug this skill prevents.
       "spec": "raziel", // key in agents/*.agent-spec.json, or null
       "href": null, // route the room links to, or null
       "zone": { "x": 540, "y": 220, "w": 720, "h": 470 },
-      "npc": {
-        "id": "raziel",
-        "name": "Raziel",
-        "x": 904,
-        "y": 575,
-        "radius": 64,
-        "actor": "/hall/sprites/raziel.png",
-        "actorH": 68,
-      },
       "pulse": { "boxIds": ["orchestrator-throne"], "slugs": ["great-hall"] },
     },
   ],
+  "zoneOrder": ["library", "great-hall", "gallery-arch"], // first match wins
   "mapOnly": [], // zones drawn on the painting with no Ledger row (quarantine, gallery arch)
-  "unplaced": [], // Ledger rows with no painting yet (armory, roost, alchemy-lab)
+  "unplaced": [], // Ledger rows with no painting yet (armory, roost)
+  "npcs": [
+    // Top-level, not nested: `place` may differ from the room's occupant
+    // (Corvid stands in the yard because the Roost has no painted floor).
+    {
+      "id": "raziel",
+      "name": "Raziel",
+      "role": "Sovereign Arch-Orchestrator",
+      "place": "great-hall",
+      "x": 904,
+      "y": 575,
+      "radius": 64,
+      "actor": "/hall/sprites/raziel.png",
+      "actorH": 68,
+      "greeting": "The hall is live. Walk it.",
+    },
+  ]
 }
 ```
 

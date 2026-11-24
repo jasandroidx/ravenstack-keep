@@ -1,5 +1,5 @@
 /** Painted Keep — the fortress image is the world. Edit hotspots here. */
-import { liveStatusSummary } from "@/lib/keep/catalog";
+import { liveStatusSummary } from "../keep/catalog.ts";
 
 export const MAP_W = 1792;
 export const MAP_H = 1008;

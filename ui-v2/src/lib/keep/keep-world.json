@@ -1,0 +1,254 @@
+{
+  "schema": "keep-world.v1",
+  "map": { "src": "/hall/painted/keep-map.jpg", "w": 1792, "h": 1008 },
+  "zoneOrder": [
+    "library",
+    "great-hall",
+    "gallery-arch",
+    "watchtower",
+    "workshop",
+    "yard",
+    "quarantine"
+  ],
+  "rooms": [
+    {
+      "id": "watchtower",
+      "name": "Watchtower",
+      "wing": "North",
+      "ledger": {
+        "occupant": "Sentinel",
+        "role": "Harness & policy watch",
+        "lock": "unforged",
+        "purpose": "Watch isolation, credential boundaries, and architecture red flags before they become incidents.",
+        "kill": "Retire if unused 90 days, or if a newer approved harness-watch agent consolidates the role."
+      },
+      "spec": "sentinel",
+      "specStatus": "draft",
+      "href": null,
+      "image": "/watchtower.jpg",
+      "modelDefault": "local",
+      "col": 2,
+      "row": 1,
+      "zone": { "x": 700, "y": 40, "w": 400, "h": 190 },
+      "pulse": { "boxIds": [], "slugs": ["watchtower"] }
+    },
+    {
+      "id": "library",
+      "name": "Library",
+      "wing": "Knowledge",
+      "ledger": {
+        "occupant": "Oracle",
+        "role": "Cited vault answers",
+        "lock": "unforged",
+        "purpose": "Answer operator and agent questions using only the Ravenstack vault and scoped RAG, with citations.",
+        "kill": "Retire after three citation failures in 14 days, role consolidation, or 90 days unused."
+      },
+      "spec": "oracle",
+      "specStatus": "draft",
+      "href": "/oracle",
+      "modelDefault": "local",
+      "col": 1,
+      "row": 2,
+      "zone": { "x": 140, "y": 120, "w": 380, "h": 540 },
+      "pulse": { "boxIds": ["oracle-chamber-empty"], "slugs": ["library"] }
+    },
+    {
+      "id": "great-hall",
+      "name": "Great Hall",
+      "wing": "Core",
+      "ledger": {
+        "occupant": "Raziel",
+        "role": "Sovereign orchestrator",
+        "lock": "live",
+        "purpose": "Primary operator agent for Discord and control UI: orchestrate tools, answer Jason, publish Keep status.",
+        "kill": "Retire only by explicit operator decision, or if replaced by an approved successor."
+      },
+      "spec": "raziel",
+      "specStatus": "live",
+      "href": null,
+      "image": "/keep-hall.jpg",
+      "modelDefault": "local",
+      "col": 2,
+      "row": 2,
+      "zone": { "x": 540, "y": 220, "w": 720, "h": 470 },
+      "pulse": { "boxIds": ["orchestrator-throne"], "slugs": ["great-hall"] }
+    },
+    {
+      "id": "workshop",
+      "name": "Workshop",
+      "wing": "Ops",
+      "ledger": {
+        "occupant": "Valerie",
+        "role": "Fortress mechanic",
+        "lock": "unforged",
+        "purpose": "Diagnose OpenClaw skills, models, MCP planes, and gateway health without touching production tokens.",
+        "kill": "Retire if unused 90 days, or if diagnosis is absorbed into Ops Warden after review."
+      },
+      "spec": "mechanic",
+      "specStatus": "draft",
+      "href": "/mechanic",
+      "image": "/workshop.jpg",
+      "modelDefault": "local",
+      "col": 3,
+      "row": 3,
+      "zone": { "x": 1310, "y": 60, "w": 420, "h": 680 },
+      "pulse": { "boxIds": [], "slugs": ["workshop"] }
+    },
+    {
+      "id": "yard",
+      "name": "Yard",
+      "wing": "Commerce",
+      "ledger": {
+        "occupant": "Flipper",
+        "role": "Salvage / surplus",
+        "lock": "unforged",
+        "purpose": "Local-pickup surplus and manifest underwriting — only after ToS, cost, and kill condition are settled.",
+        "kill": "Do not unlock until marketplace ToS and human gates are written and approved."
+      },
+      "spec": null,
+      "specStatus": "draft",
+      "href": null,
+      "modelDefault": "local",
+      "col": 2,
+      "row": 4,
+      "zone": { "x": 620, "y": 700, "w": 540, "h": 260 },
+      "pulse": { "boxIds": ["marketplace-forge-empty"], "slugs": ["yard"] }
+    }
+  ],
+  "mapOnly": [
+    {
+      "id": "gallery-arch",
+      "name": "The Grand Gallery",
+      "lock": "live",
+      "href": "/gallery",
+      "zone": { "x": 600, "y": 230, "w": 100, "h": 80 },
+      "note": "A doorway painted into the hall, not a room with an occupant. Its zone must stay after great-hall in zoneOrder or the hall swallows it."
+    },
+    {
+      "id": "quarantine",
+      "name": "The Quarantine Cell",
+      "lock": "live",
+      "zone": { "x": 1030, "y": 745, "w": 130, "h": 190 },
+      "note": "Sits in the east corner of the yard, deliberately in the open. Fabrications are not filed away out of sight."
+    }
+  ],
+  "unplaced": [
+    {
+      "id": "roost",
+      "name": "The Roost",
+      "wing": "Knowledge",
+      "ledger": {
+        "occupant": "Corvid",
+        "role": "Graph gardener",
+        "lock": "unforged",
+        "purpose": "Produce cited research digests for operator requests and Clawforge design questions.",
+        "kill": "Retire after three citation failures in 14 days, role consolidation, or 90 days unused."
+      },
+      "spec": "corvid",
+      "specStatus": "draft",
+      "href": null,
+      "modelDefault": "local",
+      "col": 1,
+      "row": 3,
+      "pulse": { "boxIds": [], "slugs": ["roost"] },
+      "note": "Real capability with an approved Spec and no painted floor. Corvid stands in the yard for now; inventing a roost rect on the painting would be a lie about where he works."
+    },
+    {
+      "id": "armory",
+      "name": "Armory",
+      "wing": "Ops",
+      "ledger": {
+        "occupant": "Ops Warden",
+        "role": "Infrastructure heartbeat",
+        "lock": "unforged",
+        "purpose": "Keep MCP multiplex, Tailscale paths, and stack heartbeat honest — no always-on spend.",
+        "kill": "Do not forge until a Spec exists with a kill condition and local-first default."
+      },
+      "spec": null,
+      "specStatus": "draft",
+      "href": null,
+      "modelDefault": "local",
+      "col": 2,
+      "row": 3,
+      "pulse": { "boxIds": [], "slugs": ["armory"] },
+      "note": "Named capability, no agent, no floor. Stays listed so the Keep remembers it is unforged rather than pretending it exists."
+    }
+  ],
+  "npcs": [
+    {
+      "id": "gallery-arch",
+      "name": "The Grand Gallery",
+      "role": "Portal",
+      "place": "gallery-arch",
+      "x": 640,
+      "y": 270,
+      "radius": 64,
+      "href": "/gallery",
+      "greeting": "The stone archway opens into The Grand Gallery — Maestro Ross's cyber-arcane portrait studio and sovereign wall frames."
+    },
+    {
+      "id": "raziel",
+      "name": "Raziel",
+      "role": "Sovereign Arch-Orchestrator",
+      "place": "great-hall",
+      "x": 904,
+      "y": 575,
+      "radius": 64,
+      "actor": "/hall/sprites/raziel.png",
+      "actorH": 68,
+      "greeting": "The hall is live. Walk it. Doors stay sealed until you approve a Spec."
+    },
+    {
+      "id": "oracle",
+      "name": "The Oracle",
+      "role": "Truth Inquisitor",
+      "place": "library",
+      "x": 380,
+      "y": 310,
+      "radius": 64,
+      "actor": "/hall/sprites/oracle-eye.png",
+      "actorH": 68,
+      "portrait": "/hall/painted/talk-oracle.webp",
+      "talkScene": "/hall/painted/talk-oracle.webp",
+      "href": "/oracle",
+      "greeting": "TRUTH OVER COMFORT. RECEIPTS OVER OPINION. I am the celestial green eye of the Canonical Registry. I do not guess, I do not hallucinate, and I do not tolerate polite AI deceit. Speak your query, or step back before the Inquisitor."
+    },
+    {
+      "id": "valerie",
+      "name": "Valerie",
+      "role": "Mechanic",
+      "place": "workshop",
+      "x": 1490,
+      "y": 515,
+      "radius": 64,
+      "actor": "/hall/sprites/valerie-hd2d.png",
+      "actorH": 68,
+      "portrait": "/hall/portraits/valerie.jpg",
+      "talkScene": "/hall/painted/talk-valerie.jpg",
+      "href": "/mechanic",
+      "greeting": "Workshop is cold until you forge it. I can still diagnose — numbered, reversible, no secret leaks."
+    },
+    {
+      "id": "quarantine-warden",
+      "name": "The Cell",
+      "role": "Quarantine",
+      "place": "quarantine",
+      "x": 1095,
+      "y": 840,
+      "radius": 58,
+      "greeting": "Every claim in here was asserted by one of your models and was not supported by its own evidence. Nothing is deleted. Read them before you trust the next answer."
+    },
+    {
+      "id": "corvid",
+      "name": "Corvid",
+      "role": "Scout",
+      "place": "yard",
+      "x": 800,
+      "y": 905,
+      "radius": 60,
+      "actor": "/hall/sprites/corvid.png",
+      "actorH": 68,
+      "greeting": "Roost first. Cited digest only. No rumor, no invented numbers."
+    }
+  ]
+}

@@ -72,9 +72,14 @@ a separate git worktree (`/root/worktrees/ravenstack-keep-painted`, branch
 
 ## What this is
 
-The fortress's visual command layer: a spatial map of six rooms (`great-hall`,
-`alchemy-lab`, `library`, `armory`, `observatory`, `vault`), each with an occupant
-agent, rendered as an interactive scene. It is a narrow, purpose-built visualization —
+The fortress's visual command layer: a spatial map of the rooms in
+`ui-v2/src/lib/keep/keep-world.json` — painted and live (`great-hall`, `library`,
+`workshop`, `watchtower`, `yard`), painted places with no agent (`gallery-arch`,
+`quarantine`), and Ledger rooms with no painted floor (`roost`, `armory`). Each
+has an occupant agent or an explicit note saying why it has none. `alchemy-lab`
+was retired 2026-11-24 along with Clawforge's Forge pages; `observatory` and
+`vault` never existed outside this sentence. Treat `keep-world.json`, not prose,
+as the room list. It is a narrow, purpose-built visualization —
 not a second copy of general fortress state. General ops (docker, git, sitrep, vault
 read/write, county queue) live in `reclaw-platform-mcp` (ReClaw-2.0, `:8100`); Keep
 owns exactly the spatial/presence layer, in its own SQLite DB.

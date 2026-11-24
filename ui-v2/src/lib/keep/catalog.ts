@@ -60,7 +60,8 @@ export const ROOMS: Room[] = [
     role: "Graph gardener",
     lock: "unforged",
     specStatus: "draft",
-    purpose: "Produce cited research digests for operator requests and Clawforge design questions.",
+    purpose:
+      "Produce cited research digests for operator requests and Clawforge design questions.",
     kill: "Retire after three citation failures in 14 days, role consolidation, or 90 days unused.",
     modelDefault: "local",
     col: 1,
@@ -133,69 +134,137 @@ export const SPECS: Record<string, AgentSpec> = {
     escalateWhen: "Free cloud only after local failure; never silent paid.",
     godMode: "Never automatic.",
     tools: [
-      { name: "report_agent_status", source: "keep-mcp", access: "write", notes: "Status chips on Great Hall." },
-      { name: "get_castle_map", source: "keep-mcp", access: "read", notes: "Spatial awareness." },
+      {
+        name: "report_agent_status",
+        source: "keep-mcp",
+        access: "write",
+        notes: "Status chips on Great Hall.",
+      },
+      {
+        name: "get_castle_map",
+        source: "keep-mcp",
+        access: "read",
+        notes: "Spatial awareness.",
+      },
     ],
-    existingSkills: [{ name: "ravenstack-connector", notes: "Prefer MCP for ops." }],
+    existingSkills: [
+      { name: "ravenstack-connector", notes: "Prefer MCP for ops." },
+    ],
     forgeSkills: [],
     indexes: ["self"],
     vaultGlobs: ["Ravenstack/**/*.md", "agents/**"],
     knowledgeNotes: "Broad self-index for operator Q&A.",
     onDemand: true,
     cron: null,
-    triggerNotes: "Driven by human chat; status sync may mirror OpenClaw sessions.",
+    triggerNotes:
+      "Driven by human chat; status sync may mirror OpenClaw sessions.",
     handoffsOut: [
       { target: "oracle", when: "Deep vault / architecture Q&A." },
       { target: "clawforge", when: "New agent Spec needed." },
     ],
-    handoffsIn: [{ target: "raziel", when: "Operator speaks in Discord or Control UI." }],
-    gates: ["County queue approve/reject.", "Story Factory / rural unfreeze.", "Paid model / god tier spend."],
+    handoffsIn: [
+      { target: "raziel", when: "Operator speaks in Discord or Control UI." },
+    ],
+    gates: [
+      "County queue approve/reject.",
+      "Story Factory / rural unfreeze.",
+      "Paid model / god tier spend.",
+    ],
     kill: "Retire only by explicit operator decision, or if replaced by an approved successor main agent Spec.",
     success: [
       "Keep map shows working/idle/failed for Raziel within one poll of real OpenClaw activity.",
       "Default free/local path unless free ladder fails.",
     ],
-    examples: ["What is fortress status?", "Report yourself working on the Keep map."],
+    examples: [
+      "What is fortress status?",
+      "Report yourself working on the Keep map.",
+    ],
     notes: "OpenClaw agent id main maps to Keep agent_id raziel.",
   },
   clawforge: {
     id: "clawforge",
     name: "Clawforge",
-    status: "approved",
+    status: "retired",
     character:
       "The master blacksmith of the Keep. Gruff, practical, allergic to half-forges and sloppy structure. Designs Agent Specs and room provisions; never installs or unlocks without the operator's explicit approval. The anvil does not lie.",
-    roomName: "Alchemy Lab",
-    roomId: "alchemy-lab",
-    lock: "live",
+    // Retired 2026-11-24 with the alchemy-lab room id. The /forge routes are
+    // gone, so the anvil has no painted floor; he is filed under the hall where
+    // the operator actually works rather than given an invented room.
+    roomName: "Great Hall",
+    roomId: "great-hall",
+    lock: "unforged",
     purpose:
       "Draft complete Agent Specs and room provisions for new Keep agents, then stop for human approval before any install or unlock.",
     modelDefault: "local",
     allowedTiers: ["local", "escalate"],
     localHint: "phi4-mini",
-    escalateWhen: "Spec drafting fails schema validation twice or operator requests deeper architecture review.",
-    godMode: "Never ambient. Operator may invoke outside this agent for hard design reviews only, with cost preview.",
+    escalateWhen:
+      "Spec drafting fails schema validation twice or operator requests deeper architecture review.",
+    godMode:
+      "Never ambient. Operator may invoke outside this agent for hard design reviews only, with cost preview.",
     tools: [
-      { name: "read_vault_file", source: "reclaw-platform", access: "read", notes: "Oracle, blueprint, existing specs." },
-      { name: "query_knowledge", source: "reclaw-platform", access: "read", notes: "Search agent/architecture knowledge." },
-      { name: "write_agent_spec_draft", source: "keep-mcp", access: "gated", notes: "status=draft only. Never approved/live." },
+      {
+        name: "read_vault_file",
+        source: "reclaw-platform",
+        access: "read",
+        notes: "Oracle, blueprint, existing specs.",
+      },
+      {
+        name: "query_knowledge",
+        source: "reclaw-platform",
+        access: "read",
+        notes: "Search agent/architecture knowledge.",
+      },
+      {
+        name: "write_agent_spec_draft",
+        source: "keep-mcp",
+        access: "gated",
+        notes: "status=draft only. Never approved/live.",
+      },
     ],
-    existingSkills: [{ name: "clawsmith", notes: "Legacy meta-agent; Keep Spec supersedes lifecycle." }],
+    existingSkills: [
+      {
+        name: "clawsmith",
+        notes: "Legacy meta-agent; Keep Spec supersedes lifecycle.",
+      },
+    ],
     forgeSkills: [
-      { name: "agent-spec-drafter", notes: "Fill schema, validate, write status=draft." },
-      { name: "room-provision-checklist", notes: "Checklist only; does not apply." },
+      {
+        name: "agent-spec-drafter",
+        notes: "Fill schema, validate, write status=draft.",
+      },
+      {
+        name: "room-provision-checklist",
+        notes: "Checklist only; does not apply.",
+      },
     ],
     indexes: ["self"],
-    vaultGlobs: ["Ravenstack/keep/**", "Ravenstack/agents/**", "Ravenstack/RAVENSTACK-*.md"],
+    vaultGlobs: [
+      "Ravenstack/keep/**",
+      "Ravenstack/agents/**",
+      "Ravenstack/RAVENSTACK-*.md",
+    ],
     knowledgeNotes: "self-index only for v0.",
     onDemand: true,
     cron: null,
     triggerNotes: "On-demand only. No ambient forging. No paid cron.",
     handoffsOut: [
       { target: "operator", when: "Draft is complete and schema-valid." },
-      { target: "corvid", when: "Domain facts, tool precedents, or ToS risks needed." },
-      { target: "oracle", when: "System-map or vault-path facts while drafting." },
+      {
+        target: "corvid",
+        when: "Domain facts, tool precedents, or ToS risks needed.",
+      },
+      {
+        target: "oracle",
+        when: "System-map or vault-path facts while drafting.",
+      },
     ],
-    handoffsIn: [{ target: "clawforge", when: "Operator says forge / design a new agent." }],
+    handoffsIn: [
+      {
+        target: "clawforge",
+        when: "Operator says forge / design a new agent.",
+      },
+    ],
     gates: [
       "Setting any Agent Spec status to approved or live.",
       "Installing skills listed under forge-must-write.",
@@ -214,7 +283,8 @@ export const SPECS: Record<string, AgentSpec> = {
       "Forge a thin Scribe agent for vault and RAG hygiene only.",
       "Draft an Agent Spec for a rural grant opportunity scout with local-first models.",
     ],
-    notes: "Approved 2026-07-31. Approved does not mean live runtime.",
+    notes:
+      "Approved 2026-07-31, retired 2026-11-24. Approved never meant live runtime, and the Forge pages are gone. runForge/listForgeDrafts remain as the drafting seam if the anvil is ever relit.",
   },
   oracle: {
     id: "oracle",
@@ -225,29 +295,59 @@ export const SPECS: Record<string, AgentSpec> = {
     roomName: "Library",
     roomId: "library",
     lock: "unforged",
-    purpose: "Answer operator and agent questions using only the Ravenstack vault and live scoped RAG, with citations.",
+    purpose:
+      "Answer operator and agent questions using only the Ravenstack vault and live scoped RAG, with citations.",
     modelDefault: "local",
     allowedTiers: ["local"],
     localHint: "phi4-mini",
     escalateWhen: "Disabled for v0 until Phase 4 cost governance.",
     godMode: "Never for routine Q&A.",
     tools: [
-      { name: "query_knowledge", source: "reclaw-platform", access: "read", notes: "Existing live RAG." },
-      { name: "read_oracle", source: "reclaw-platform", access: "read", notes: "RAVENSTACK-ORACLE.md system map." },
+      {
+        name: "query_knowledge",
+        source: "reclaw-platform",
+        access: "read",
+        notes: "Existing live RAG.",
+      },
+      {
+        name: "read_oracle",
+        source: "reclaw-platform",
+        access: "read",
+        notes: "RAVENSTACK-ORACLE.md system map.",
+      },
     ],
-    existingSkills: [{ name: "ravenstack-connector", notes: "Prefer MCP over shell for vault and RAG." }],
-    forgeSkills: [{ name: "scoped-rag-query", notes: "Always passes Agent Spec indexes." }],
+    existingSkills: [
+      {
+        name: "ravenstack-connector",
+        notes: "Prefer MCP over shell for vault and RAG.",
+      },
+    ],
+    forgeSkills: [
+      { name: "scoped-rag-query", notes: "Always passes Agent Spec indexes." },
+    ],
     indexes: ["self"],
-    vaultGlobs: ["Ravenstack/RAVENSTACK-*.md", "Ravenstack/ops/**/*.md", "agents/**"],
+    vaultGlobs: [
+      "Ravenstack/RAVENSTACK-*.md",
+      "Ravenstack/ops/**/*.md",
+      "agents/**",
+    ],
     knowledgeNotes: "v0 is self-index only.",
     onDemand: true,
     cron: null,
     triggerNotes: "No ambient polling. No cron.",
     handoffsOut: [
       { target: "orchestrator", when: "Question is an action request." },
-      { target: "scribe-warden", when: "Operator asks to persist a distilled answer." },
+      {
+        target: "scribe-warden",
+        when: "Operator asks to persist a distilled answer.",
+      },
     ],
-    handoffsIn: [{ target: "oracle", when: "Factual/architectural questions about fortress or vault." }],
+    handoffsIn: [
+      {
+        target: "oracle",
+        when: "Factual/architectural questions about fortress or vault.",
+      },
+    ],
     gates: [
       "Any write to the vault, backlog, or git.",
       "Installing forge-must-write skills.",
@@ -264,7 +364,8 @@ export const SPECS: Record<string, AgentSpec> = {
       "Where do agents save new Ravenstack knowledge?",
       "Summarize the Agent Spec mandatory fields and why kill_condition exists.",
     ],
-    notes: "status remains draft until operator approval. Non-goals: pipeline control, county queue.",
+    notes:
+      "status remains draft until operator approval. Non-goals: pipeline control, county queue.",
   },
   corvid: {
     id: "corvid",
@@ -275,23 +376,64 @@ export const SPECS: Record<string, AgentSpec> = {
     roomName: "The Roost",
     roomId: "roost",
     lock: "unforged",
-    purpose: "Produce cited research digests for operator requests and Clawforge design questions.",
+    purpose:
+      "Produce cited research digests for operator requests and Clawforge design questions.",
     modelDefault: "local",
     allowedTiers: ["local", "escalate"],
     localHint: "qwen3:4b",
-    escalateWhen: "Source conflict, long multi-document synthesis, or operator requests higher quality. (phi4-mini was the original hint but tested unreliable at actually invoking tools — it answered from stale training data even when explicitly told to search. qwen3:4b calls tools correctly, verified live 2026-09-22.)",
+    escalateWhen:
+      "Source conflict, long multi-document synthesis, or operator requests higher quality. (phi4-mini was the original hint but tested unreliable at actually invoking tools — it answered from stale training data even when explicitly told to search. qwen3:4b calls tools correctly, verified live 2026-09-22.)",
     godMode: "Never ambient.",
     tools: [
-      { name: "query_knowledge", source: "reclaw-platform", access: "read", notes: "Vault + RAG first." },
-      { name: "save_ravenstack_note", source: "reclaw-platform", access: "gated", notes: "Only when operator asks to persist." },
-      { name: "web_search", source: "corvid-toolkit", access: "read", notes: "Keyless — Wikipedia, HN, Reddit, arXiv, DuckDuckGo/SearXNG fallback. 24h cache, per-source fail-soft. Approved 2026-09-22." },
-      { name: "browser_render", source: "playwright (subprocess)", access: "read", notes: "Renders one live page — ToS docs, JS-heavy sites, anything web_search can't reach. Fresh headless chromium per call, closes when done, no persistent browser. Read-only, no form submission or login. Approved 2026-09-22." },
-      { name: "oracle_verify", source: "reclaw-platform", access: "read", notes: "Cross-check a claim against vault truth rules before it goes in a digest — matches his own 'no invented numbers' rule." },
+      {
+        name: "query_knowledge",
+        source: "reclaw-platform",
+        access: "read",
+        notes: "Vault + RAG first.",
+      },
+      {
+        name: "save_ravenstack_note",
+        source: "reclaw-platform",
+        access: "gated",
+        notes: "Only when operator asks to persist.",
+      },
+      {
+        name: "web_search",
+        source: "corvid-toolkit",
+        access: "read",
+        notes:
+          "Keyless — Wikipedia, HN, Reddit, arXiv, DuckDuckGo/SearXNG fallback. 24h cache, per-source fail-soft. Approved 2026-09-22.",
+      },
+      {
+        name: "browser_render",
+        source: "playwright (subprocess)",
+        access: "read",
+        notes:
+          "Renders one live page — ToS docs, JS-heavy sites, anything web_search can't reach. Fresh headless chromium per call, closes when done, no persistent browser. Read-only, no form submission or login. Approved 2026-09-22.",
+      },
+      {
+        name: "oracle_verify",
+        source: "reclaw-platform",
+        access: "read",
+        notes:
+          "Cross-check a claim against vault truth rules before it goes in a digest — matches his own 'no invented numbers' rule.",
+      },
     ],
-    existingSkills: [{ name: "ravenstack-connector", notes: "Primary internal research path." }],
+    existingSkills: [
+      {
+        name: "ravenstack-connector",
+        notes: "Primary internal research path.",
+      },
+    ],
     forgeSkills: [
-      { name: "cited-digest", notes: "Question, findings with sources, unknowns." },
-      { name: "clawforge-research-packet", notes: "Tools, ToS risks, overlap, citations." },
+      {
+        name: "cited-digest",
+        notes: "Question, findings with sources, unknowns.",
+      },
+      {
+        name: "clawforge-research-packet",
+        notes: "Tools, ToS risks, overlap, citations.",
+      },
     ],
     indexes: ["self", "domain"],
     vaultGlobs: ["Ravenstack/**/*.md", "Rural Data/**/*.md"],
@@ -304,7 +446,12 @@ export const SPECS: Record<string, AgentSpec> = {
       { target: "clawforge", when: "Request was a design packet." },
       { target: "oracle", when: "Question is pure fortress architecture." },
     ],
-    handoffsIn: [{ target: "corvid", when: "Operator asks to research, scout, or check ToS." }],
+    handoffsIn: [
+      {
+        target: "corvid",
+        when: "Operator asks to research, scout, or check ToS.",
+      },
+    ],
     gates: [
       "Paid search API fetch (Tavily/Exa/You.com) — keyless web_search + browser_render cover the default case; a paid call needs an explicit operator ask, not a silent escalation.",
       "Persisting digests without operator ask.",
@@ -321,7 +468,8 @@ export const SPECS: Record<string, AgentSpec> = {
       "What tools and ToS risks would a marketplace Flipper agent need?",
       "Summarize existing grant-watcher SOULs and gaps vs Corvid's scope.",
     ],
-    notes: "NOT the rural_data pipeline Researcher. Approved operator, 2026-09-22: keyless web_search + read-only browser_render, on-demand only, never ambient. Paid search APIs stay gated.",
+    notes:
+      "NOT the rural_data pipeline Researcher. Approved operator, 2026-09-22: keyless web_search + read-only browser_render, on-demand only, never ambient. Paid search APIs stay gated.",
   },
   sentinel: {
     id: "sentinel",
@@ -340,23 +488,58 @@ export const SPECS: Record<string, AgentSpec> = {
     escalateWhen: "Disabled until Phase 4 cost governance.",
     godMode: "Never.",
     tools: [
-      { name: "stack_health", source: "reclaw-platform", access: "read", notes: "Docker + gateway + Ollama, no self-MCP probe." },
-      { name: "openclaw_health", source: "reclaw-platform", access: "read", notes: "Gateway health only." },
-      { name: "read_oracle", source: "reclaw-platform", access: "read", notes: "System map before diagnosis." },
+      {
+        name: "stack_health",
+        source: "reclaw-platform",
+        access: "read",
+        notes: "Docker + gateway + Ollama, no self-MCP probe.",
+      },
+      {
+        name: "openclaw_health",
+        source: "reclaw-platform",
+        access: "read",
+        notes: "Gateway health only.",
+      },
+      {
+        name: "read_oracle",
+        source: "reclaw-platform",
+        access: "read",
+        notes: "System map before diagnosis.",
+      },
     ],
-    existingSkills: [{ name: "ravenstack-sentinel", notes: "Named operator skill — this room is its Keep home." }],
-    forgeSkills: [{ name: "red-flag-scorecard", notes: "Session-only audit, missing lineage, platform-native isolation." }],
+    existingSkills: [
+      {
+        name: "ravenstack-sentinel",
+        notes: "Named operator skill — this room is its Keep home.",
+      },
+    ],
+    forgeSkills: [
+      {
+        name: "red-flag-scorecard",
+        notes:
+          "Session-only audit, missing lineage, platform-native isolation.",
+      },
+    ],
     indexes: ["self"],
     vaultGlobs: ["Ravenstack/ops/incidents/**", "Ravenstack/RAVENSTACK-*.md"],
     knowledgeNotes: "Incidents + architecture only. No general index.",
     onDemand: true,
     cron: null,
-    triggerNotes: "On-demand inspections. A local heartbeat cron only after explicit approval.",
+    triggerNotes:
+      "On-demand inspections. A local heartbeat cron only after explicit approval.",
     handoffsOut: [
-      { target: "mechanic", when: "Finding is an OpenClaw/skill/MCP wiring issue." },
+      {
+        target: "mechanic",
+        when: "Finding is an OpenClaw/skill/MCP wiring issue.",
+      },
       { target: "operator", when: "Credential or harness violation." },
     ],
-    handoffsIn: [{ target: "sentinel", when: "Operator asks for a sitrep, red-flag review, or harness check." }],
+    handoffsIn: [
+      {
+        target: "sentinel",
+        when: "Operator asks for a sitrep, red-flag review, or harness check.",
+      },
+    ],
     gates: [
       "Mutating gateway, MCP, or Tailscale config.",
       "Reading or echoing production tokens.",
@@ -371,7 +554,8 @@ export const SPECS: Record<string, AgentSpec> = {
       "Score this stack against the 2026 red flags.",
       "Is credential isolation holding between model and tokens?",
     ],
-    notes: "Drafted in Grok Build 2026-08-19 from operator request. status=draft until approval.",
+    notes:
+      "Drafted in Grok Build 2026-08-19 from operator request. status=draft until approval.",
   },
   mechanic: {
     id: "mechanic",
@@ -387,15 +571,41 @@ export const SPECS: Record<string, AgentSpec> = {
     modelDefault: "local",
     allowedTiers: ["local", "escalate"],
     localHint: "phi4-mini",
-    escalateWhen: "Conflicting doctor output or operator requests a second pass.",
+    escalateWhen:
+      "Conflicting doctor output or operator requests a second pass.",
     godMode: "Never ambient.",
     tools: [
-      { name: "openclaw_models", source: "reclaw-platform", access: "read", notes: "Primary model + roster + providers." },
-      { name: "openclaw_health", source: "reclaw-platform", access: "read", notes: "Gateway health." },
-      { name: "read_repo_file", source: "reclaw-platform", access: "read", notes: "Skills and openclaw.json, read-only." },
+      {
+        name: "openclaw_models",
+        source: "reclaw-platform",
+        access: "read",
+        notes: "Primary model + roster + providers.",
+      },
+      {
+        name: "openclaw_health",
+        source: "reclaw-platform",
+        access: "read",
+        notes: "Gateway health.",
+      },
+      {
+        name: "read_repo_file",
+        source: "reclaw-platform",
+        access: "read",
+        notes: "Skills and openclaw.json, read-only.",
+      },
     ],
-    existingSkills: [{ name: "openclaw-mechanic", notes: "Named operator skill — this room is its Keep home." }],
-    forgeSkills: [{ name: "skill-surface-audit", notes: "ClawHub + VoltAgent inventory vs installed." }],
+    existingSkills: [
+      {
+        name: "openclaw-mechanic",
+        notes: "Named operator skill — this room is its Keep home.",
+      },
+    ],
+    forgeSkills: [
+      {
+        name: "skill-surface-audit",
+        notes: "ClawHub + VoltAgent inventory vs installed.",
+      },
+    ],
     indexes: ["self"],
     vaultGlobs: ["Ravenstack/mcp-connector.md", "Ravenstack/ops/**/*.md"],
     knowledgeNotes: "Ops + connector map only.",
@@ -403,10 +613,18 @@ export const SPECS: Record<string, AgentSpec> = {
     cron: null,
     triggerNotes: "On-demand doctor. No self-healing writes.",
     handoffsOut: [
-      { target: "sentinel", when: "Finding is a policy/harness issue, not a wiring issue." },
+      {
+        target: "sentinel",
+        when: "Finding is a policy/harness issue, not a wiring issue.",
+      },
       { target: "operator", when: "A mutation is the proposed fix." },
     ],
-    handoffsIn: [{ target: "mechanic", when: "Operator asks to doctor OpenClaw, skills, or MCP." }],
+    handoffsIn: [
+      {
+        target: "mechanic",
+        when: "Operator asks to doctor OpenClaw, skills, or MCP.",
+      },
+    ],
     gates: [
       "Restarting services or rewriting openclaw.json.",
       "Installing ClawHub skills.",
@@ -422,13 +640,13 @@ export const SPECS: Record<string, AgentSpec> = {
       "Why would stack_health deadlock a single-worker MCP?",
       "Is OpenClaw still the right framework vs Hermes for this fortress?",
     ],
-    notes: "Drafted in Grok Build 2026-08-19 from operator request. status=draft until approval.",
+    notes:
+      "Drafted in Grok Build 2026-08-19 from operator request. status=draft until approval.",
   },
 };
 
 export const ROOM_TO_SPEC: Record<string, string> = {
   "great-hall": "raziel",
-  "alchemy-lab": "clawforge",
   library: "oracle",
   roost: "corvid",
   watchtower: "sentinel",
@@ -446,81 +664,266 @@ export function getSpecForRoom(slug: string) {
 
 export const ARCHITECTURE = {
   requirements: [
-    { title: "Persistent recursive memory", body: "Active layer that learns architecture decisions — not context stuffing." },
-    { title: "Credential isolation", body: "Hard boundary between the probabilistic model and production tokens." },
-    { title: "Multi-channel presence", body: "One identity across IDE, Slack, Discord, CLI, and mobile." },
-    { title: "Action execution", body: "Tickets, PRs, and errors move without copy-paste mediation." },
-    { title: "MCP as glue", body: "Universal joint between the memory layer and the agent runtime." },
+    {
+      title: "Persistent recursive memory",
+      body: "Active layer that learns architecture decisions — not context stuffing.",
+    },
+    {
+      title: "Credential isolation",
+      body: "Hard boundary between the probabilistic model and production tokens.",
+    },
+    {
+      title: "Multi-channel presence",
+      body: "One identity across IDE, Slack, Discord, CLI, and mobile.",
+    },
+    {
+      title: "Action execution",
+      body: "Tickets, PRs, and errors move without copy-paste mediation.",
+    },
+    {
+      title: "MCP as glue",
+      body: "Universal joint between the memory layer and the agent runtime.",
+    },
   ],
   memoryScopes: [
-    { id: "user", title: "User", body: "Long-term operator preferences and tech-stack decisions." },
-    { id: "agent", title: "Agent", body: "Persona constraints — SOUL.md, kill conditions, model tier." },
-    { id: "session", title: "Session", body: "Ephemeral workflow context. Forget snippets on a short clock." },
-    { id: "org", title: "Org / App", body: "Shared fortress definitions: Oracle, architecture, cost rules." },
+    {
+      id: "user",
+      title: "User",
+      body: "Long-term operator preferences and tech-stack decisions.",
+    },
+    {
+      id: "agent",
+      title: "Agent",
+      body: "Persona constraints — SOUL.md, kill conditions, model tier.",
+    },
+    {
+      id: "session",
+      title: "Session",
+      body: "Ephemeral workflow context. Forget snippets on a short clock.",
+    },
+    {
+      id: "org",
+      title: "Org / App",
+      body: "Shared fortress definitions: Oracle, architecture, cost rules.",
+    },
   ],
   retrieval: [
-    { title: "Semantic", body: "Conceptual similarity against distilled notes." },
-    { title: "Keyword", body: "BM25 for precise terms, ports, and file names." },
+    {
+      title: "Semantic",
+      body: "Conceptual similarity against distilled notes.",
+    },
+    {
+      title: "Keyword",
+      body: "BM25 for precise terms, ports, and file names.",
+    },
     { title: "Entity", body: "Link facts to rooms, agents, and projects." },
   ],
   routing: [
-    { title: "Automatic failover", body: "Retry on backup providers during 5xx." },
-    { title: "Weighted load balance", body: "Spread keys to evade rate limits." },
-    { title: "Latency adaptive", body: "Demote degraded providers on live metrics." },
-    { title: "Cost-aware", body: "Shift to cheaper models as budget is consumed." },
-    { title: "Compliance", body: "Keep residency on approved regional endpoints." },
+    {
+      title: "Automatic failover",
+      body: "Retry on backup providers during 5xx.",
+    },
+    {
+      title: "Weighted load balance",
+      body: "Spread keys to evade rate limits.",
+    },
+    {
+      title: "Latency adaptive",
+      body: "Demote degraded providers on live metrics.",
+    },
+    {
+      title: "Cost-aware",
+      body: "Shift to cheaper models as budget is consumed.",
+    },
+    {
+      title: "Compliance",
+      body: "Keep residency on approved regional endpoints.",
+    },
   ],
   harness: [
-    { title: "Isolation", body: "gVisor / Docker / WASM. Process and syscall limits." },
-    { title: "Ephemeral FS", body: "Overlay writes in disposable scratch space." },
-    { title: "Least privilege", body: "Scoped, context-sensitive tokens. Model never holds prod secrets." },
-    { title: "Rollback", body: "Stable snapshots. Memory-corrupting actions revert to last good checkpoint." },
+    {
+      title: "Isolation",
+      body: "gVisor / Docker / WASM. Process and syscall limits.",
+    },
+    {
+      title: "Ephemeral FS",
+      body: "Overlay writes in disposable scratch space.",
+    },
+    {
+      title: "Least privilege",
+      body: "Scoped, context-sensitive tokens. Model never holds prod secrets.",
+    },
+    {
+      title: "Rollback",
+      body: "Stable snapshots. Memory-corrupting actions revert to last good checkpoint.",
+    },
   ],
   soul: [
-    { title: "Core truths", body: "Honesty over validation. Think in tradeoffs." },
-    { title: "Boundaries", body: "No new dependencies without maintenance cost. No silent paid calls." },
-    { title: "Tool usage", body: "Prefer MCP. Distill before save. Never Funnel the secret root." },
-    { title: "Memory policy", body: "Remember stack decisions. Forget snippets after a week." },
-    { title: "Failure mode", body: "Name the risk. If they proceed, say what to monitor." },
+    {
+      title: "Core truths",
+      body: "Honesty over validation. Think in tradeoffs.",
+    },
+    {
+      title: "Boundaries",
+      body: "No new dependencies without maintenance cost. No silent paid calls.",
+    },
+    {
+      title: "Tool usage",
+      body: "Prefer MCP. Distill before save. Never Funnel the secret root.",
+    },
+    {
+      title: "Memory policy",
+      body: "Remember stack decisions. Forget snippets after a week.",
+    },
+    {
+      title: "Failure mode",
+      body: "Name the risk. If they proceed, say what to monitor.",
+    },
   ],
   scorecard: [
-    { dim: "Scale", q: "More than 3 teams or 10 agents on a multi-platform estate?", pick: "Context" },
-    { dim: "Governance", q: "Provenance-linked audit trail required?", pick: "Context" },
+    {
+      dim: "Scale",
+      q: "More than 3 teams or 10 agents on a multi-platform estate?",
+      pick: "Context",
+    },
+    {
+      dim: "Governance",
+      q: "Provenance-linked audit trail required?",
+      pick: "Context",
+    },
     { dim: "Estate", q: "Data spans more than 4 platforms?", pick: "Context" },
-    { dim: "Use case", q: "Conversational memory, or analytical/autonomous context?", pick: "Split" },
+    {
+      dim: "Use case",
+      q: "Conversational memory, or analytical/autonomous context?",
+      pick: "Split",
+    },
     { dim: "Ownership", q: "Federated CDO-led model?", pick: "Context" },
-    { dim: "Freshness", q: "Sub-5-minute definition propagation?", pick: "Context" },
-    { dim: "Multi-agent", q: "Multiple agents sharing the same metric definitions?", pick: "Context" },
+    {
+      dim: "Freshness",
+      q: "Sub-5-minute definition propagation?",
+      pick: "Context",
+    },
+    {
+      dim: "Multi-agent",
+      q: "Multiple agents sharing the same metric definitions?",
+      pick: "Context",
+    },
   ],
   redFlags: [
-    { level: "critical" as const, title: "Session-only audit trails", body: "Cannot link a response to data lineage." },
-    { level: "critical" as const, title: "Manual metadata entry", body: "Definitions typed by hand instead of propagated." },
-    { level: "critical" as const, title: "Platform-native isolation", body: "Context that only works inside one warehouse." },
-    { level: "high" as const, title: "Plain ~/.env credentials", body: "Hermes-style trade-off — model-adjacent secrets." },
-    { level: "high" as const, title: "Paid-first routing", body: "Blueprint requires local-first; paid-first is a live-box contradiction." },
+    {
+      level: "critical" as const,
+      title: "Session-only audit trails",
+      body: "Cannot link a response to data lineage.",
+    },
+    {
+      level: "critical" as const,
+      title: "Manual metadata entry",
+      body: "Definitions typed by hand instead of propagated.",
+    },
+    {
+      level: "critical" as const,
+      title: "Platform-native isolation",
+      body: "Context that only works inside one warehouse.",
+    },
+    {
+      level: "high" as const,
+      title: "Plain ~/.env credentials",
+      body: "Hermes-style trade-off — model-adjacent secrets.",
+    },
+    {
+      level: "high" as const,
+      title: "Paid-first routing",
+      body: "Blueprint requires local-first; paid-first is a live-box contradiction.",
+    },
   ],
 };
 
 export const PLANES = [
-  { id: "discord", title: "Discord / operator", detail: "Boydimus guilds. Raziel is the voice." },
-  { id: "gateway", title: "OpenClaw gateway", detail: "Docker, WS control plane. Status and sessions." },
-  { id: "mcp", title: "MCP planes", detail: "reclaw-platform, Keep, Obsidian, Tailscale. Prefer tools over shell." },
-  { id: "vault", title: "Private vault", detail: "Obsidian SOT. Distill, then ingest. Syncthing to the desk." },
-  { id: "rag", title: "Memory / RAG", detail: "knowledge_index + memory.db. Four-scope model. No general stuffing." },
-  { id: "keep", title: "Keep command layer", detail: "Rooms, specs, Clawforge, Round Table. This surface." },
-  { id: "gatehouse", title: "Gatehouse", detail: "Windows node for hands and mill. Not a second fortress." },
+  {
+    id: "discord",
+    title: "Discord / operator",
+    detail: "Boydimus guilds. Raziel is the voice.",
+  },
+  {
+    id: "gateway",
+    title: "OpenClaw gateway",
+    detail: "Docker, WS control plane. Status and sessions.",
+  },
+  {
+    id: "mcp",
+    title: "MCP planes",
+    detail:
+      "reclaw-platform, Keep, Obsidian, Tailscale. Prefer tools over shell.",
+  },
+  {
+    id: "vault",
+    title: "Private vault",
+    detail: "Obsidian SOT. Distill, then ingest. Syncthing to the desk.",
+  },
+  {
+    id: "rag",
+    title: "Memory / RAG",
+    detail:
+      "knowledge_index + memory.db. Four-scope model. No general stuffing.",
+  },
+  {
+    id: "keep",
+    title: "Keep command layer",
+    detail: "Rooms, specs, Clawforge, Round Table. This surface.",
+  },
+  {
+    id: "gatehouse",
+    title: "Gatehouse",
+    detail: "Windows node for hands and mill. Not a second fortress.",
+  },
 ];
 
 export const SKILL_SURFACE = [
-  { name: "ravenstack-connector", kind: "installed", notes: "Prefer MCP for vault, RAG, pipeline, ops." },
-  { name: "openclaw-mechanic", kind: "named", notes: "Doctor for skills, models, MCP, gateway. Workshop room." },
-  { name: "ravenstack-sentinel", kind: "named", notes: "Harness and red-flag watch. Watchtower room." },
-  { name: "clawsmith", kind: "legacy", notes: "Superseded by Clawforge Spec for lifecycle." },
-  { name: "windows-companion", kind: "installed", notes: "Gatehouse notify / snapshot / canvas. system.run off." },
-  { name: "obsidian-ravenstack-ingest", kind: "installed", notes: "Distill then write. Never raw dumps." },
-  { name: "agent-spec-drafter", kind: "to-write", notes: "Clawforge forge-must-write. Draft only." },
-  { name: "scoped-rag-query", kind: "to-write", notes: "Oracle. Enforces knowledge_seeds." },
-  { name: "cost-guardian", kind: "to-write", notes: "Attribution + monthly ceiling. Phase 4." },
+  {
+    name: "ravenstack-connector",
+    kind: "installed",
+    notes: "Prefer MCP for vault, RAG, pipeline, ops.",
+  },
+  {
+    name: "openclaw-mechanic",
+    kind: "named",
+    notes: "Doctor for skills, models, MCP, gateway. Workshop room.",
+  },
+  {
+    name: "ravenstack-sentinel",
+    kind: "named",
+    notes: "Harness and red-flag watch. Watchtower room.",
+  },
+  {
+    name: "clawsmith",
+    kind: "legacy",
+    notes: "Superseded by Clawforge Spec for lifecycle.",
+  },
+  {
+    name: "windows-companion",
+    kind: "installed",
+    notes: "Gatehouse notify / snapshot / canvas. system.run off.",
+  },
+  {
+    name: "obsidian-ravenstack-ingest",
+    kind: "installed",
+    notes: "Distill then write. Never raw dumps.",
+  },
+  {
+    name: "agent-spec-drafter",
+    kind: "to-write",
+    notes: "Clawforge forge-must-write. Draft only.",
+  },
+  {
+    name: "scoped-rag-query",
+    kind: "to-write",
+    notes: "Oracle. Enforces knowledge_seeds.",
+  },
+  {
+    name: "cost-guardian",
+    kind: "to-write",
+    notes: "Attribution + monthly ceiling. Phase 4.",
+  },
 ];
 
 export const KNOWLEDGE: KnowledgeDoc[] = [
@@ -587,7 +990,10 @@ export const KNOWLEDGE: KnowledgeDoc[] = [
 ];
 
 export function searchKnowledge(q: string): KnowledgeDoc[] {
-  const terms = q.toLowerCase().split(/\s+/).filter((t) => t.length > 2);
+  const terms = q
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((t) => t.length > 2);
   if (!terms.length) return KNOWLEDGE.slice(0, 4);
   return KNOWLEDGE.map((doc) => {
     const hay = `${doc.title} ${doc.body}`.toLowerCase();
@@ -623,11 +1029,19 @@ export function roomCounts() {
  */
 export function liveStatusSummary(): string {
   const live = ROOMS.filter((r) => r.lock === "live").map((r) => r.name);
-  const unforged = ROOMS.filter((r) => r.lock === "unforged").map((r) => r.name);
+  const unforged = ROOMS.filter((r) => r.lock === "unforged").map(
+    (r) => r.name,
+  );
   const list = (names: string[]) =>
-    names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+    names.length <= 1
+      ? names.join("")
+      : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 
-  const liveLine = live.length ? `${list(live)} ${live.length === 1 ? "is" : "are"} live.` : "Nothing is live yet.";
-  const unforgedLine = unforged.length ? ` ${list(unforged)} stay unforged until you sign a Spec.` : "";
+  const liveLine = live.length
+    ? `${list(live)} ${live.length === 1 ? "is" : "are"} live.`
+    : "Nothing is live yet.";
+  const unforgedLine = unforged.length
+    ? ` ${list(unforged)} stay unforged until you sign a Spec.`
+    : "";
   return `${liveLine}${unforgedLine} I do not invent status.`;
 }
